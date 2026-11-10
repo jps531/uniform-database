@@ -18,3 +18,4 @@ golden/inventory.json
 /Venues/
 # point-in-time listings (find, survey, offsize output): local only
 surveys/
+*.whl
