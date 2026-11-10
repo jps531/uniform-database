@@ -1,9 +1,0 @@
-{
-  "generated_by": "scripts/crop_fields.py",
-  "generated_at": "2026-10-04T03:37:39+00:00",
-  "source": "/Users/paulsullivan/Library/Mobile Documents/com~apple~CloudDocs/HailStateUnis/Uniform Database/Football/Mississippi State/Fields Full",
-  "crop": "3432x1597 from (108,287)",
-  "dpi": 300,
-  "files_written": 89,
-  "note": "Generated output. Regenerate from Fields Full rather than editing by hand."
-}
