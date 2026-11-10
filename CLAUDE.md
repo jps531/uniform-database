@@ -46,10 +46,17 @@ Python for the asset pipeline (`scripts/`), YAML for all pipeline config.
 Site: Next.js, Node, Postgres with Drizzle, Cloudflare R2 for images. Assets
 live in iCloud Drive.
 
+**Git holds code and config only.** The artwork trees (`{Sport}/`, `Marks/`,
+`Venues/`), `temp/`, `surveys/` and the golden suite's renders are
+gitignored. A checkout without the iCloud folder — a cloud session, say — can
+lint and read config but can't run the pipeline or the golden suite; say so
+rather than guessing at results.
+
 ## Layout
 
 ```
 Uniform Database/
+├── README.md                 orientation for people; this file is for agents
 ├── CLAUDE.md
 ├── requirements.txt
 ├── docs/golden_suite.md
@@ -65,7 +72,7 @@ Uniform Database/
 ├── Marks/Baseball/{Team}/Hats Front/…             on canvas, 41 teams
 ├── Venues/{Sport}/{Team}/{Fields|Courts} {Full|Cropped}/…
 ├── golden/                   golden suite: manifest, plan, pairings, run/
-├── surveys/                  point-in-time listings
+├── surveys/                  point-in-time listings; local only, not in git
 └── temp/                     staging; cleared after nesting
 ```
 
@@ -380,6 +387,12 @@ sport trees.
   set them before exporting or scales round to integers.
 
 ## Known gaps
+
+Near-misses: at the pipeline baseline `offsize.py Football` listed ~100
+files 1–3px off their profile (within tolerance, so they standardize fine).
+17 are the Nike/Adidas jersey-back overlap above; the rest are worth fixing
+at source when convenient. Re-run it for the current list — it isn't kept
+in git.
 
 Coverage, not correctness: Ole Miss `1979 Navy` helmet has no icon; five
 Southern Miss pants (1987 Black/Gold/White, 1988 Gold, 1997 White) have an
