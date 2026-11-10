@@ -152,8 +152,12 @@ def test_changed_pixel_in_generated_helmet_fails(ci, monkeypatch, capsys):
     f = fixture_path(ci, "Football", TEAM, "Helmets Left", rel)
     with Image.open(f) as im:
         im = im.convert("RGBA")
-        x, y = im.getchannel("A").getbbox()[:2]
-        r, g, b, a = im.getpixel((x, y))
+        box = im.getchannel("A").getbbox()
+        assert box is not None
+        x, y = box[:2]
+        px = im.getpixel((x, y))
+        assert isinstance(px, tuple)
+        r, g, b, a = px
         im.putpixel((x, y), ((r + 1) % 256, g, b, a))
         im.save(f)
     code, out = run_ci(monkeypatch, capsys, ci)
@@ -224,7 +228,8 @@ def test_derived_sport_without_venue_fails(ci, monkeypatch, capsys):
     code, out = run_ci(monkeypatch, capsys, ci)
     assert code == 1
     assert "- venues: the fixture has no cropped venue for basketball" in out
-    assert "for football" not in out and "for baseball" not in out
+    assert "for football" not in out
+    assert "for baseball" not in out
 
 
 def test_pad_refusal_fails(ci, monkeypatch, capsys):

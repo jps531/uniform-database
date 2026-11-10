@@ -98,10 +98,14 @@ def pixels(path):
 def test_vocab_excludes_sequences_and_marks_default_forms(fvocab, bvocab):
     """Sequence letters are not tokens; shells/styles are forms and Speedflex and Modern are the defaults."""
     allt, form, default = fvocab
-    assert "A" not in allt and "Grad" in allt and "Flying M" in allt
+    assert "A" not in allt
+    assert "Grad" in allt
+    assert "Flying M" in allt
     assert [len(t) for t in allt] == sorted((len(t) for t in allt), reverse=True)
-    assert {"Speed", "Speedflex", "Leather"} <= form and default == {"Speedflex"}
-    assert {"Classic", "Modern", "Vest"} <= bvocab[1] and bvocab[2] == {"Modern"}
+    assert {"Speed", "Speedflex", "Leather"} <= form
+    assert default == {"Speedflex"}
+    assert {"Classic", "Modern", "Vest"} <= bvocab[1]
+    assert bvocab[2] == {"Modern"}
 
 
 def test_vocab_tolerates_loops_missing_files_and_unlabelled_tokens(project):
@@ -222,9 +226,12 @@ def test_resolve_reports_how_and_has_no_generic_fallback(project, fvocab):
     put(project, "pants", "front", "2025 Black", "2025 Black 3 Grad")
     put(project, "pants", "front", "Generic Black", "Generic Black")
     path, how = compose.resolve(project, MSU, "football", "pants", "front", "2025 Black", "3", set(), fvocab)
-    assert path.name == "2025 Black 3 Grad.png" and how == "#3, Grad"
+    assert path is not None
+    assert path.name == "2025 Black 3 Grad.png"
+    assert how == "#3, Grad"
     path, how = compose.resolve(project, MSU, "football", "pants", "front", "2024 Black", None, set(), fvocab)
-    assert path is None and how == "no file under Pants Front/2024 Black"
+    assert path is None
+    assert how == "no file under Pants Front/2024 Black"
 
 
 # --- main: placements -------------------------------------------------------------
@@ -247,16 +254,24 @@ def test_places_artwork_top_centre_and_reports_it(project, monkeypatch, capsys):
     got = pixels(out)
     assert got.shape == (120, 200, 4)
     assert np.array_equal(got[0:30, 30:70], pixels(src))
-    assert got[30:, :, 3].sum() == 0 and got[:, 70:, 3].sum() == 0
+    assert got[30:, :, 3].sum() == 0
+    assert got[:, 70:, 3].sum() == 0
     with Image.open(out) as im:
         assert round(im.info["dpi"][0]) == 300
     p = by_label(res)["helmet/front"]
-    assert p["status"] == "placed" and p["at"] == [30, 0] and p["size"] == [40, 30]
-    assert p["artwork_bbox"] == [30, 0, 70, 30] and p["clipped"] == {}
-    assert res["output"] == str(out) and res["missing"] == [] and res["canvas"] == [200, 120]
+    assert p["status"] == "placed"
+    assert p["at"] == [30, 0]
+    assert p["size"] == [40, 30]
+    assert p["artwork_bbox"] == [30, 0, 70, 30]
+    assert p["clipped"] == {}
+    assert res["output"] == str(out)
+    assert res["missing"] == []
+    assert res["canvas"] == [200, 120]
     text = capsys.readouterr().out
-    assert "helmet/left" in text and "not requested" in text
-    assert "jersey/left" in text and "no element given" in text
+    assert "helmet/left" in text
+    assert "not requested" in text
+    assert "jersey/left" in text
+    assert "no element given" in text
     assert f"Wrote {out}" in text
 
 
@@ -269,7 +284,9 @@ def test_explicit_placement_only_with_helmet_left(project, monkeypatch):
     assert "helmet/left" not in by_label(res)
     res, out = compose_json(project, monkeypatch, "--view", "mini", "--helmet", "2025 Black", "--helmet-left")
     p = by_label(res)["helmet/left"]
-    assert p["size"] == [20, 15] and p["at"] == [140, 0] and p["scale"] == 0.5
+    assert p["size"] == [20, 15]
+    assert p["at"] == [140, 0]
+    assert p["scale"] == 0.5
     assert pixels(out)[0:15, 140:160, 3].min() == 255
 
 
@@ -280,8 +297,11 @@ def test_if_available_skips_silently_and_is_placed_when_present(project, monkeyp
     put(project, "jersey", "front", "1990 White", "1990 White")
     res, out = compose_json(project, monkeypatch, "--view", "mini", "--helmet", "1990 White", "--jersey", "1990 White")
     p = by_label(res)["jersey/left"]
-    assert p["status"] == "skipped" and p["file"] is None and p["reason"] == "no file under Jerseys Left/1990 White"
-    assert out.is_file() and "skipped (absent)" in capsys.readouterr().out
+    assert p["status"] == "skipped"
+    assert p["file"] is None
+    assert p["reason"] == "no file under Jerseys Left/1990 White"
+    assert out.is_file()
+    assert "skipped (absent)" in capsys.readouterr().out
     put(project, "jersey", "left", "1990 White", "1990 White")
     res, _ = compose_json(project, monkeypatch, "--view", "mini", "--helmet", "1990 White", "--jersey", "1990 White")
     assert by_label(res)["jersey/left"]["status"] == "placed"
@@ -297,7 +317,8 @@ def test_missing_required_fails_writes_json_but_no_png(project, monkeypatch, cap
     assert res["missing"] == [{"label": "helmet/front", "reason": "no file under Helmets Front/2025 Black"}]
     assert by_label(res)["helmet/front"]["status"] == "missing"
     text = capsys.readouterr().out
-    assert "MISSING" in text and "!! 1 required placements unresolved" in text
+    assert "MISSING" in text
+    assert "!! 1 required placements unresolved" in text
 
 
 def test_missing_required_without_json_still_exits(project, monkeypatch):
@@ -305,7 +326,8 @@ def test_missing_required_without_json_still_exits(project, monkeypatch):
     mini(project, MINI)
     with pytest.raises(SystemExit) as e:
         run(monkeypatch, "--view", "mini", "--helmet", "2025 Black", "--out", str(project / "o.png"))
-    assert e.value.code == 1 and not (project / "o.png").exists()
+    assert e.value.code == 1
+    assert not (project / "o.png").exists()
 
 
 def test_required_slot_not_supplied_names_the_flag(project, monkeypatch):
@@ -333,11 +355,16 @@ def test_ranking_flags_pick_the_file_end_to_end(project, monkeypatch):
         ("--number", "3"): ("2025 Black 3.png", "3"),
         ("--number", "03", "--with", "Grad"): ("2025 Black 03 Grad.png", "03"),
     }
+    placed = {}
     for flags, (name, num) in cases.items():
         res, _ = compose_json(project, monkeypatch, "--view", "mini", "--helmet", "2025 Black", *flags)
         p = by_label(res)["helmet/front"]
         assert (p["file"].rsplit("/", 1)[-1], p["number_found"]) == (name, num)
-    assert p["tokens_requested"] == ["Grad"] and p["tokens_found"] == ["Grad"]
+        placed[flags] = p
+    # Only the one case passes --with, so name it rather than relying on it being last.
+    grad = placed[("--number", "03", "--with", "Grad")]
+    assert grad["tokens_requested"] == ["Grad"]
+    assert grad["tokens_found"] == ["Grad"]
 
 
 def test_numbers_resolve_per_viewpoint(project, monkeypatch):
@@ -358,7 +385,8 @@ def test_numbers_resolve_per_viewpoint(project, monkeypatch):
     res, _ = compose_json(project, monkeypatch, "--view", "jf", "--jersey", "2025 White", "--number", "15")
     got = by_label(res)
     assert got["jersey/front"]["number_found"] == "15"
-    assert got["jersey/back"]["number_found"] is None and got["jersey/back"]["status"] == "placed"
+    assert got["jersey/back"]["number_found"] is None
+    assert got["jersey/back"]["status"] == "placed"
 
 
 def test_player_flag_reported_in_json(project, monkeypatch):
@@ -419,7 +447,8 @@ def test_combo_second_uniform_inherits_number_tokens_and_player(project, monkeyp
     assert "uniform 2 number=7" in capsys.readouterr().out
     got = by_label(res)
     assert got["jersey/front"]["file"].endswith("2025 White 7.png")
-    assert got["jersey/front #2"]["file"].endswith("2025 Maroon 7.png") and got["jersey/front #2"]["uniform"] == 2
+    assert got["jersey/front #2"]["file"].endswith("2025 Maroon 7.png")
+    assert got["jersey/front #2"]["uniform"] == 2
     res, _ = compose_json(
         project,
         monkeypatch,
@@ -499,7 +528,9 @@ def test_clipping_is_judged_on_artwork_not_padding(project, monkeypatch, capsys)
     put(project, "helmet", "front", "Wide", "Wide", size=(120, 50), content=(120, 50))
     res, _ = compose_json(project, monkeypatch, "--view", "edge", "--helmet", "Padded")
     p = by_label(res)["helmet/front"]
-    assert p["at"] == [-10, 0] and p["artwork_bbox"] == [10, 0, 90, 30] and p["clipped"] == {}
+    assert p["at"] == [-10, 0]
+    assert p["artwork_bbox"] == [10, 0, 90, 30]
+    assert p["clipped"] == {}
     capsys.readouterr()
     res, _ = compose_json(project, monkeypatch, "--view", "edge", "--helmet", "Wide")
     assert by_label(res)["helmet/front"]["clipped"] == {"L": 10, "B": 10}
@@ -514,7 +545,9 @@ def test_fully_transparent_artwork_is_placed_without_bbox(project, monkeypatch):
     Image.new("RGBA", (30, 30), (0, 0, 0, 0)).save(path)
     res, _ = compose_json(project, monkeypatch, "--view", "edge", "--helmet", "Blank")
     p = by_label(res)["helmet/front"]
-    assert p["status"] == "placed" and p["artwork_bbox"] == [0, 0, 0, 0] and p["clipped"] == {}
+    assert p["status"] == "placed"
+    assert p["artwork_bbox"] == [0, 0, 0, 0]
+    assert p["clipped"] == {}
 
 
 @pytest.mark.parametrize("key", ["rotation", "rotate"])
@@ -529,12 +562,14 @@ def test_rotation_pivots_on_the_top_centre_anchor(project, monkeypatch, capsys, 
     Image.fromarray(a).save(path)
     res, out = compose_json(project, monkeypatch, "--view", "spin", "--pants", "2025 Black")
     p = by_label(res)["pants/left"]
-    assert p["rotation"] == 90 and p["size"] == [60, 30]
+    assert p["rotation"] == 90
+    assert p["size"] == [60, 30]
     got = pixels(out)
     red = (got[..., 0] > 200) & (got[..., 2] < 50) & (got[..., 3] > 200)
     ys, xs = np.where(red)
     # Turned 90deg clockwise, the top edge faces right: the marker ends at x=100, centred on y=60.
-    assert abs(xs.max() + 1 - 100) <= 1 and abs(ys.mean() + 0.5 - 60) <= 1
+    assert abs(xs.max() + 1 - 100) <= 1
+    assert abs(ys.mean() + 0.5 - 60) <= 1
     blue = (got[..., 2] > 200) & (got[..., 3] > 200)
     assert np.where(blue)[1].min() >= 38  # body extends left of the anchor, 60px long
     assert "rot 90deg" in capsys.readouterr().out
@@ -568,7 +603,8 @@ def test_diff_writes_a_mask_of_differences(project, monkeypatch, capsys):
     out = project / "out" / "c.png"
     run(monkeypatch, "--view", "mini", "--helmet", "2025 Black", "--out", str(out), "--diff", str(ref))
     text = capsys.readouterr().out
-    assert "differing pixels:" in text and "differences span x 30-69, y 0-29" in text
+    assert "differing pixels:" in text
+    assert "differences span x 30-69, y 0-29" in text
     mask = pixels(project / "out" / "c-diff.png")
     assert mask.shape[:2] == (120, 200)
 

@@ -75,7 +75,8 @@ def test_apply_keeps_blank_file_blank(project, cfg, monkeypatch):
     art(project / "old" / "x" / "blank.png", (20, 20), (0, 0))
     run(monkeypatch, "old", DEST, "--apply")
     with Image.open(project / DEST / "x" / "blank.png") as o:
-        assert o.size == (W, H) and o.getchannel("A").getbbox() is None
+        assert o.size == (W, H)
+        assert o.getchannel("A").getbbox() is None
 
 
 def test_too_big_is_listed_and_blocks_apply(project, cfg, monkeypatch, capsys):
@@ -88,7 +89,8 @@ def test_too_big_is_listed_and_blocks_apply(project, cfg, monkeypatch, capsys):
     run(monkeypatch, "old", DEST)
     out = capsys.readouterr().out
     assert "!! 2 files are LARGER than the canvas:" in out
-    assert f"{W + 1}x10  big/h.png" in out and f"10x{H + 1}  tall/h.png" in out
+    assert f"{W + 1}x10  big/h.png" in out
+    assert f"10x{H + 1}  tall/h.png" in out
     with pytest.raises(SystemExit) as e:
         run(monkeypatch, "old", DEST, "--apply")
     assert "Refusing to apply while files exceed the canvas." in str(e.value)
@@ -101,7 +103,8 @@ def test_canvas_override_and_marks_prefix(project, cfg, monkeypatch, capsys):
     art(project / "old" / "x" / "h.png", (30, 20))
     run(monkeypatch, "old", "out/anything", "--canvas", "football_helmet_profile", "--apply")
     with Image.open(project / "out/anything/x/h.png") as o:
-        assert o.size == (W, H) and o.getchannel("A").getbbox() == ((W - 30) // 2, 0, (W - 30) // 2 + 30, 20)
+        assert o.size == (W, H)
+        assert o.getchannel("A").getbbox() == ((W - 30) // 2, 0, (W - 30) // 2 + 30, 20)
     capsys.readouterr()
     run(monkeypatch, "old", "Marks/Football/T/Helmets Left")
     assert f"canvas football_helmet_profile = {W} x {H}" in capsys.readouterr().out

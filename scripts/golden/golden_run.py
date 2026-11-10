@@ -296,7 +296,12 @@ def main():
             vocab_cache[sport] = vocab_tokens(root, sport)
         issues, notes = check(ex, result, png, cfg, vocab_cache[sport])
         rendered[ex["id"]] = (issues, notes)
-        flag = "DEFECT" if issues else ("note  " if notes else "ok    ")
+        if issues:
+            flag = "DEFECT"
+        elif notes:
+            flag = "note  "
+        else:
+            flag = "ok    "
         print(f"  [{i:>3}/{len(todo)}] {flag} {ex['id']}")
         for x in issues:
             print(f"                 - {x}")
@@ -415,10 +420,11 @@ def main():
     ]
     for sport, view, sp, bad in sheets:
         cls = " class=bad" if bad else ""
+        plural = "" if bad == 1 else "s"
+        defects = f" — {bad} defect{plural}" if bad else ""
         page.append(
-            f"<h2{cls}>{html.escape(sport)} / {html.escape(view)}"
-            + (f" — {bad} defect{'s' if bad != 1 else ''}" if bad else "")
-            + f"</h2><img src='sheets/{html.escape(sp.name)}' loading=lazy>"
+            f"<h2{cls}>{html.escape(sport)} / {html.escape(view)}{defects}</h2>"
+            f"<img src='sheets/{html.escape(sp.name)}' loading=lazy>"
         )
     (run / "index.html").write_text("\n".join(page))
 

@@ -154,20 +154,24 @@ def test_constraints_and_describe(templates):
     """Each template family gets the documented era rule, and describe() renders it."""
     bb, sc, vb = names(templates, "baseball"), names(templates, "soccer"), names(templates, "volleyball")
     c = gp.constraints("baseball-full-tq", "baseball", bb)
-    assert c[1] == {"cut": {"tq"}} and gp.describe(c) == "uniform 1: jersey tq only"
+    assert c[1] == {"cut": {"tq"}}
+    assert gp.describe(c) == "uniform 1: jersey tq only"
     c = gp.constraints("baseball-full", "baseball", bb)
-    assert c[1] == {"no_cut": {"tq"}} and gp.describe(c) == "uniform 1: no tq jerseys"
+    assert c[1] == {"no_cut": {"tq"}}
+    assert gp.describe(c) == "uniform 1: no tq jerseys"
     assert gp.constraints("softball-full", "softball", names(templates, "softball")) == {}
     assert gp.constraints("soccer-jersey-ls", "soccer", sc)[1] == {"cut": {"ls"}}
     assert gp.constraints("soccer-jersey", "soccer", sc)[1] == {"no_cut": {"ls"}}
     assert gp.constraints("soccer-shorts", "soccer", sc) == {}
     c = gp.constraints("soccer-combo", "soccer", sc)
-    assert c[1] == {"keeper": False, "cut": {"ss"}} and c[2] == {"keeper": True, "cut": {"ss"}}
+    assert c[1] == {"keeper": False, "cut": {"ss"}}
+    assert c[2] == {"keeper": True, "cut": {"ss"}}
     assert gp.describe(c) == ("uniform 1: jersey ss only, field jersey; uniform 2: jersey ss only, keeper jersey")
     assert gp.constraints("soccer-combo-ls", "soccer", sc)[2] == {"keeper": True, "cut": {"ls"}}
     assert gp.constraints("soccer-condensed-combo", "soccer", sc)[2] == {"keeper": True}
     c = gp.constraints("volleyball-condensed-combo-ss-ls", "volleyball", vb)
-    assert c[1] == {"cut": {"ss"}} and c[2] == {"cut": {"ls"}}
+    assert c[1] == {"cut": {"ss"}}
+    assert c[2] == {"cut": {"ls"}}
     assert gp.constraints("volleyball-combo", "volleyball", vb) == {}
     assert gp.describe({}) == ""
     assert gp.describe({1: {}}) == ""
@@ -213,7 +217,10 @@ def test_every_era_covered_greedily(cfg, templates):
         }
     }
     examples, extras, targets, gaps, cons = plan(templates, cfg, "mbk-jersey", inv)
-    assert len(targets) == 6 and not gaps and not extras and cons == {}
+    assert len(targets) == 6
+    assert not gaps
+    assert not extras
+    assert cons == {}
     covered = set().union(*(g for _, _, g in examples))
     assert covered == set(targets)
     assert len(examples) == 3
@@ -230,10 +237,12 @@ def test_tq_constraint_splits_baseball_jerseys(cfg, templates):
         }
     }
     ex, _, targets, gaps, _ = plan(templates, cfg, "diamond-jersey", inv)
-    assert [c[(1, "jersey")] for _, c, _ in ex] == ["2020 White"] and not gaps
+    assert [c[(1, "jersey")] for _, c, _ in ex] == ["2020 White"]
+    assert not gaps
     assert {t[3] for t in targets} == {"std"}
     ex, _, targets, gaps, _ = plan(templates, cfg, "diamond-jersey-tq", inv)
-    assert [c[(1, "jersey")] for _, c, _ in ex] == ["2021 Gray"] and not gaps
+    assert [c[(1, "jersey")] for _, c, _ in ex] == ["2021 Gray"]
+    assert not gaps
 
 
 def test_soccer_combo_keeper_and_cut(cfg, templates):
@@ -256,7 +265,8 @@ def test_soccer_combo_keeper_and_cut(cfg, templates):
     ex, *_ = plan(templates, cfg, "soccer-combo", inv)
     assert [(c[(1, "jersey")], c[(2, "jersey")]) for _, c, _ in ex] == [("2024 Maroon", "2024 Blue Keeper")]
     # uniform 2's shorts follow ITS OWN jersey's colourway, not uniform 1's
-    assert ex[0][1][(2, "shorts")] == "2024 Blue" and ex[0][1][(1, "shorts")] == "2024 Maroon"
+    assert ex[0][1][(2, "shorts")] == "2024 Blue"
+    assert ex[0][1][(1, "shorts")] == "2024 Maroon"
     ex, *_ = plan(templates, cfg, "soccer-combo-ls", inv)
     assert [(c[(1, "jersey")], c[(2, "jersey")]) for _, c, _ in ex] == [("2024 Maroon", "2024 Green Keeper")]
     ex, *_ = plan(templates, cfg, "soccer-condensed-combo", inv)
@@ -287,7 +297,8 @@ def test_volleyball_cuts_and_distinct_combo(cfg, templates):
     ex, *_ = plan(templates, cfg, "volleyball-condensed-combo-ss-ls", inv)
     assert all(c[(2, "jersey")] == "2022 Gray LS" and c[(1, "jersey")] != "2022 Gray LS" for _, c, _ in ex)
     ex, *_ = plan(templates, cfg, "volleyball-combo", inv)
-    assert ex and all(c[(1, "jersey")] != c[(2, "jersey")] for _, c, _ in ex)
+    assert ex
+    assert all(c[(1, "jersey")] != c[(2, "jersey")] for _, c, _ in ex)
 
 
 def test_same_year_and_numbered_preferred(cfg, templates):
@@ -385,7 +396,9 @@ def test_no_team_fills_template(cfg, templates):
         }
     }
     ex, extras, _, gaps, _ = plan(templates, cfg, "condensed", inv)
-    assert ex == [] and extras == [] and gaps == [(1, "helmet", "right", "F")]
+    assert ex == []
+    assert extras == []
+    assert gaps == [(1, "helmet", "right", "F")]
     ex, *_ = plan(templates, cfg, "condensed", {})
     assert ex == []
 
@@ -410,9 +423,12 @@ def football_inv(cfg, left=True):
 def test_explicit_placement_gets_one_extra(cfg, templates):
     """The explicit helmet-left inset adds one extra example, only when the helmet has left artwork."""
     ex, extras, *_ = plan(templates, cfg, "condensed", football_inv(cfg))
-    assert len(ex) == 1 and len(extras) == 1 and extras[0][2] == {"explicit": "helmet/left"}
+    assert len(ex) == 1
+    assert len(extras) == 1
+    assert extras[0][2] == {"explicit": "helmet/left"}
     ex, extras, *_ = plan(templates, cfg, "condensed", football_inv(cfg, left=False))
-    assert len(ex) == 1 and extras == []
+    assert len(ex) == 1
+    assert extras == []
 
 
 def test_if_available_never_rules_out(cfg, templates):
@@ -429,8 +445,10 @@ def test_if_available_never_rules_out(cfg, templates):
         }
     }
     ex, _, targets, gaps, _ = plan(templates, cfg, "jersey-full", inv)
-    assert (1, "jersey", "left", "all") in targets and (1, "jersey", "front", "N2") in targets
-    assert {c[(1, "jersey")] for _, c, _ in ex} == {"2019 Gold", "2020 Gold"} and not gaps
+    assert (1, "jersey", "left", "all") in targets
+    assert (1, "jersey", "front", "N2") in targets
+    assert {c[(1, "jersey")] for _, c, _ in ex} == {"2019 Gold", "2020 Gold"}
+    assert not gaps
 
 
 def test_reference_without_jersey_and_yearless(cfg):
@@ -463,7 +481,8 @@ def test_reference_without_jersey_and_yearless(cfg):
     assert len(ex) == 1
     c = ex[0][1]
     # uniform 2's helmet follows uniform 2's pants (same name), and differs from uniform 1's
-    assert c[(2, "helmet")] == c[(2, "pants")] and c[(2, "helmet")] != c[(1, "helmet")]
+    assert c[(2, "helmet")] == c[(2, "pants")]
+    assert c[(2, "helmet")] != c[(1, "helmet")]
     inv[F]["Mississippi State"]["helmet"].pop("2020 Maroon")
     inv[F]["Mississippi State"]["pants"].pop("2020 Maroon")
     ex, *_ = gp.plan_template(t, {"custom"}, inv, cfg)
@@ -502,7 +521,8 @@ def test_build_inventory_measures_one_file_per_view(project, cfg):
     els = inv["womens_basketball"]["Mississippi State"]["shorts"]
     assert set(els) == {"2020 Maroon", "2021 White"}
     m = els["2020 Maroon"]
-    assert m["year"] == 2020 and m["keeper"] is False
+    assert m["year"] == 2020
+    assert m["keeper"] is False
     assert m["vps"]["back"] == {
         "era": "a",
         "size": era(cfg, "womens_basketball-shorts-back", "a")["size"],
@@ -510,7 +530,8 @@ def test_build_inventory_measures_one_file_per_view(project, cfg):
         "files": 2,
     }
     w = els["2021 White"]["vps"]["front"]
-    assert w["era"] == "b" and w["numbers"] == ["12"]
+    assert w["era"] == "b"
+    assert w["numbers"] == ["12"]
 
 
 def test_build_inventory_reads_numbers_past_patch_tokens(project, cfg):
@@ -546,7 +567,9 @@ def test_main_rescan_writes_inventory_manifest_and_plan(project, cfg, templates,
     assert all(x["approved"] is True and x["number"] is None and "uniform2" not in x for x in man)
     md = (project / "golden/PLAN.md").read_text()
     assert "**2 examples across 1 templates and 1 sports.**" in md
-    assert "### `wbk-shorts` — 2 examples" in md and "Not coverable" not in md and "NO examples" not in md
+    assert "### `wbk-shorts` — 2 examples" in md
+    assert "Not coverable" not in md
+    assert "NO examples" not in md
 
 
 def test_main_reuses_cache_and_reresolves_eras(project, cfg, templates, monkeypatch, capsys):
@@ -568,7 +591,8 @@ def test_main_reuses_cache_and_reresolves_eras(project, cfg, templates, monkeypa
     assert "0 element-slots across 0 sports" in out
     assert "!! 1 templates have NO examples: womens_basketball / wbk-shorts" in out
     md = (project / "golden/PLAN.md").read_text()
-    assert "## ⚠ 1 template have NO examples" in md and "- `womens_basketball / wbk-shorts`" in md
+    assert "## ⚠ 1 template have NO examples" in md
+    assert "- `womens_basketball / wbk-shorts`" in md
 
 
 def test_main_combo_explicit_constraints_gaps_and_pairings(project, cfg, templates, monkeypatch, capsys):
@@ -619,17 +643,23 @@ def test_main_combo_explicit_constraints_gaps_and_pairings(project, cfg, templat
     man = {m["id"]: m for m in yaml.safe_load((project / "golden/manifest.yaml").read_text())}
     assert man["baseball--baseball-condensed--01"]["uniform1"]["jersey"] == "2015 Natural Wool"
     vb = man["volleyball--volleyball-condensed-combo-ss-ls--01"]
-    assert vb["uniform1"] == {"jersey": "2022 Maroon"} and vb["uniform2"] == {"jersey": "2022 Gray LS"}
-    assert vb["number"] == "3" and vb["number2"] == "11"
+    assert vb["uniform1"] == {"jersey": "2022 Maroon"}
+    assert vb["uniform2"] == {"jersey": "2022 Gray LS"}
+    assert vb["number"] == "3"
+    assert vb["number2"] == "11"
     assert vb["expect_eras"] == {"1/jersey/front": "ss", "2/jersey/front": "ls"}
     fb1, fb2 = man["football--condensed--01"], man["football--condensed--02"]
-    assert "helmet_left" not in fb1 and fb1["number"] == "4"
-    assert fb2["helmet_left"] is True and fb2["note"] == "exercises the explicit helmet/left placement"
-    assert fb2["expect_eras"]["1/helmet/left"] == "F" and "covers" not in fb2
+    assert "helmet_left" not in fb1
+    assert fb1["number"] == "4"
+    assert fb2["helmet_left"] is True
+    assert fb2["note"] == "exercises the explicit helmet/left placement"
+    assert fb2["expect_eras"]["1/helmet/left"] == "F"
+    assert "covers" not in fb2
     md = (project / "golden/PLAN.md").read_text()
     assert "### `condensed` — 1 example + 1 explicit" in md
     assert "_Constraint: uniform 1: jersey ss only; uniform 2: jersey ls only_" in md
-    assert "**Not coverable**" in md and "- jersey/front era `UNMATCHED SIZE`" in md
+    assert "**Not coverable**" in md
+    assert "- jersey/front era `UNMATCHED SIZE`" in md
     assert "**1 era targets could not be covered**" in md
     assert "jersey: 2022 Maroon **3**<br>#2 jersey: 2022 Gray LS **11**" in md
     assert "_explicit: helmet/left_" in md
@@ -644,7 +674,8 @@ def test_main_sport_filter_and_plural_pairings(project, cfg, templates, monkeypa
     run_main(monkeypatch, "--sport", "football")
     out = capsys.readouterr().out
     assert "pairings: 0 known uniforms" in out
-    assert "3 examples across 2 templates" in out and "womens_basketball" not in out
+    assert "3 examples across 2 templates" in out
+    assert "womens_basketball" not in out
     man = yaml.safe_load((project / "golden/manifest.yaml").read_text())
     assert {m["sport"] for m in man} == {"football"}
     jf = next(m for m in man if m["view"] == "jersey-full")
@@ -668,7 +699,8 @@ def test_main_reads_colorway_tokens_and_labels(project, templates, monkeypatch, 
     )
     (project / "golden/inventory.json").write_text("{}")
     run_main(monkeypatch)
-    assert gp.COLORWAYS[:2] == ["powder blue", "vegas gold"] and set(gp.COLORWAYS) == {
+    assert gp.COLORWAYS[:2] == ["powder blue", "vegas gold"]
+    assert set(gp.COLORWAYS) == {
         "powder blue",
         "vegas gold",
         "old gold",

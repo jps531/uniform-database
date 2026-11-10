@@ -30,8 +30,12 @@ surveys/
 .pytest_cache/
 .coverage
 .coverage.*
+.coverage *
 coverage.json
 htmlcov/
 
 # Claude Code local state (agent worktrees, settings)
 .claude/
+
+# VS Code
+.vscode/

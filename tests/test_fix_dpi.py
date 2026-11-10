@@ -55,9 +55,12 @@ def test_check_reports_mixed_dpi_with_counts_and_examples(tmp_path, monkeypatch,
     run_script(monkeypatch, "check", str(tmp_path / "T"))
     out = capsys.readouterr().out
     assert "4 PNGs under T" in out
-    assert "300 DPI" in out and "2 files   e.g. a.png" in out
-    assert "72 DPI" in out and "e.g. c.png" in out
-    assert "no DPI tag" in out and "e.g. d.png" in out
+    assert "300 DPI" in out
+    assert "2 files   e.g. a.png" in out
+    assert "72 DPI" in out
+    assert "e.g. c.png" in out
+    assert "no DPI tag" in out
+    assert "e.g. d.png" in out
     assert "Mixed DPI" in out
     assert {p.name: p.read_bytes() for p in (tmp_path / "T").iterdir()} == before
 
@@ -67,7 +70,9 @@ def test_check_all_untagged_notes_the_72_dpi_default(tmp_path, capsys):
     untagged(tmp_path / "a.png")
     fix_dpi.cmd_check(tmp_path)
     out = capsys.readouterr().out
-    assert "no DPI tag" in out and "default to 72 DPI" in out and "Mixed" not in out
+    assert "no DPI tag" in out
+    assert "default to 72 DPI" in out
+    assert "Mixed" not in out
 
 
 def test_check_uniform_tag_prints_no_warning(tmp_path, capsys):
@@ -75,7 +80,9 @@ def test_check_uniform_tag_prints_no_warning(tmp_path, capsys):
     art(tmp_path / "a.png", (4, 4))
     fix_dpi.cmd_check(tmp_path)
     out = capsys.readouterr().out
-    assert "1 files" in out and "Mixed" not in out and "default to 72" not in out
+    assert "1 files" in out
+    assert "Mixed" not in out
+    assert "default to 72" not in out
 
 
 @pytest.mark.parametrize("cmd", [fix_dpi.cmd_check, lambda p: fix_dpi.cmd_set(p, 300)])

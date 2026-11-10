@@ -136,7 +136,7 @@ def load_vocab(root: Path, sport: str):
     return by(strip), by(design), by(shellcut), set(seq), known
 
 
-def element_for(stem, strip, design, shellcut, seq, known_words=frozenset()):
+def element_for(stem, strip, design, shellcut, _seq, known_words=frozenset()):
     """Derive the element folder name from a filename stem.
 
     Returns (element, notes), notes listing what was stripped (form, patches,
@@ -233,7 +233,12 @@ def main():
     # into a new, wrongly named tree beside "Men's Basketball".
     temp = root / "temp"
     staged = find_sport_dir(temp, args.sport) if temp.is_dir() else None
-    src_root = root / args.src if args.src else (staged if staged and staged.is_dir() else temp)
+    if args.src:
+        src_root = root / args.src
+    elif staged and staged.is_dir():
+        src_root = staged
+    else:
+        src_root = temp
     if not src_root.is_dir():
         sys.exit(f"Source not found: {src_root}")
     if args.dest:
@@ -259,14 +264,17 @@ def main():
 
     folders = {d.parent for _, d, _ in moves}
     print(f"{len(moves)} files -> {len(folders)} element folders\n")
-    per = defaultdict(lambda: [0, set()])
+    # Counted separately rather than as one [files, {elements}] record per
+    # team/viewpoint: a two-type list is a tuple that cannot be mutated.
+    files_per = defaultdict(int)
+    elements_per = defaultdict(set)
     for _, d, _ in moves:
         p = d.relative_to(dest_root).parts
-        per[(p[0], p[1])][0] += 1
-        per[(p[0], p[1])][1].add(p[2])
+        files_per[(p[0], p[1])] += 1
+        elements_per[(p[0], p[1])].add(p[2])
     print(f"{'team':<22}{'viewpoint':<18}{'files':>7}{'elements':>10}")
-    for (t, v), (n, els) in sorted(per.items()):
-        print(f"{t:<22}{v:<18}{n:>7}{len(els):>10}")
+    for t, v in sorted(files_per):
+        print(f"{t:<22}{v:<18}{files_per[(t, v)]:>7}{len(elements_per[(t, v)]):>10}")
 
     coll = {d: n for d, n in Counter(d for _, d, _ in moves).items() if n > 1}
     if coll:

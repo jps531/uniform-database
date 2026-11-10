@@ -72,7 +72,7 @@ def evicted(path: Path) -> bool:
     return (path.parent / f".{path.name}.icloud").exists()
 
 
-def composition_files(placement, root: Path, vocab) -> list[Path]:
+def composition_files(placement, _root: Path, vocab) -> list[Path]:
     """The files in a placed element's folder that compose could have chosen between.
 
     Mirrors compose.candidates(): a file whose number is neither the requested

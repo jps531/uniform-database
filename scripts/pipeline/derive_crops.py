@@ -51,7 +51,13 @@ def find_root(start: Path) -> Path:
 
 
 def jobs_for(cfg, sport_filter):
-    """Yield (sport, slot, src_viewpoint, dst_viewpoint, canvas_src, canvas_dst)."""
+    """Yield one rule per derived canvas, tagged by status.
+
+    ("OK", sport, slot, src_viewpoint, dst_viewpoint, canvas_src, canvas_dst, crop)
+    when the source canvas is assigned to a viewpoint of the same slot, else the
+    shorter ("ERROR", sport, slot, dst_viewpoint, reason). Check element 0 before
+    unpacking.
+    """
     canvases, assignments = cfg["canvases"], cfg.get("assignments", {})
     for sport, slots in assignments.items():
         if sport_filter and sport != sport_filter:
