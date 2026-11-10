@@ -17,7 +17,8 @@ Writes, under golden/run/
 
 AUTOMATIC CHECKS, run before you look at anything:
 
-  FAILED      compose could not resolve a required placement
+  FAILED      compose could not resolve a required placement, or exited
+              without writing a result (its last error line is shown)
   CLIPPED     opaque ARTWORK runs past the view canvas. Transparent padding
               hanging over the edge is not a defect. 1-2px is reported as a
               note, not a defect — that is rounding.
@@ -38,7 +39,6 @@ are for.
 import argparse
 import html
 import json
-import re
 import subprocess
 import sys
 from collections import defaultdict
@@ -49,6 +49,11 @@ try:
     from PIL import Image, ImageDraw, ImageFont, ImageOps
 except ImportError:
     sys.exit("Missing dependencies: run `uv sync`")
+
+# Filenames are parsed exactly as compose parses them: vocabulary tokens
+# first, then the number, so CWS21 is a patch token and not number 21.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "pipeline"))
+from compose import load_vocab, split_tail  # noqa: E402
 
 CLIP_NOTE = 2  # px of clipping treated as rounding
 TOL = 5
@@ -100,46 +105,19 @@ def plainer_exists(placed, vocab_tokens):
     """Is there a file in the same element folder with the same number and
     FEWER unrequested tokens than the one placed?"""
     folder = Path(placed["file"]).parent
-    el = placed["element"]
     want = set(placed["tokens_requested"])
     num = placed["number_found"]
-
-    def toks(stem):
-        """(tokens, number) found in a stem after the element name."""
-        tail = stem[len(el) :] if stem.startswith(el) else stem
-        found = {t for t in vocab_tokens if re.search(rf"(?:^|\s){re.escape(t)}(?:\s|$)", tail)}
-        n = re.search(r"(?<![\d])(\d{1,2})(?![\d])", tail)
-        return found, (n.group(1) if n else None)
-
     mine = len(set(placed["tokens_found"]) - want)
     for f in folder.glob("*.png"):
-        t, n = toks(f.stem)
+        t, n, _ = split_tail(f.stem, placed["element"], vocab_tokens)
         if n == num and want <= t and len(t - want) < mine:
             return f.name
     return None
 
 
 def vocab_tokens(root, sport):
-    """Every non-sequence token for a sport, following `extends`, longest first."""
-
-    def read(name, seen=frozenset()):
-        """Token dict for one vocabulary file, merged over the file it `extends`; a sport's own token wins."""
-        p = root / "configs" / f"modifiers_{name}.yaml"
-        if name in seen or not p.is_file():
-            return {}
-        c = yaml.safe_load(p.open()) or {}
-        base = read(c["extends"], seen | {name}) if c.get("extends") else {}
-        return {**base, **(c.get("tokens") or {})}
-
-    return sorted(
-        {
-            v.get("token") or v.get("label")
-            for v in read(sport).values()
-            if v.get("kind") != "sequence" and (v.get("token") or v.get("label"))
-        },
-        key=len,
-        reverse=True,
-    )
+    """Every non-sequence token for a sport, following `extends`, longest first: compose's own vocabulary."""
+    return load_vocab(root, sport)[0]
 
 
 def check(example, result, png, cfg, vocab):
@@ -177,8 +155,7 @@ def check(example, result, png, cfg, vocab):
         req = p.get("number_requested")
         if req and p["number_found"] != req:
             folder = Path(p["file"]).parent
-            pat = re.compile(rf"(?<![\d]){re.escape(req)}(?![\d])")
-            if any(pat.search(f.stem[len(p["element"]) :]) for f in folder.glob("*.png")):
+            if any(split_tail(f.stem, p["element"], vocab)[1] == req for f in folder.glob("*.png")):
                 issues.append(
                     f"NUMBER {lab}: asked for {req}, a file exists, placed {p['number_found'] or 'unnumbered'}"
                 )
@@ -238,7 +215,7 @@ def main():
     ap.add_argument(
         "--strict",
         action="store_true",
-        help="exit 1 if any example has a defect OR a note, or has no result: for CI",
+        help="exit 1 if any example has a defect OR a note, or nothing was selected: for CI",
     )
     args = ap.parse_args()
 
@@ -262,7 +239,7 @@ def main():
     print(f"{len(todo)} examples to render" + (f" ({skipped} not approved, skipped)" if skipped else "") + "\n")
 
     vocab_cache, results = {}, []
-    rendered = set()
+    rendered = {}  # id -> (issues, notes) from this run
     for i, ex in enumerate(todo, 1):
         sport, view = ex["sport"], ex["view"]
         d = run / sport / view
@@ -295,8 +272,11 @@ def main():
             cmd += ["--with", t]
         if ex.get("helmet_left"):
             cmd += ["--helmet-left"]
-        if png.exists():
-            png.unlink()
+        # Both outputs go before compose runs. A compose that exits without
+        # writing JSON (an unknown token, a missing slot, a crash) must not
+        # leave the previous run's result to be read back as this one's.
+        png.unlink(missing_ok=True)
+        js.unlink(missing_ok=True)
         proc = subprocess.run(cmd, capture_output=True, text=True)
         try:
             result = json.loads(js.read_text())
@@ -315,7 +295,7 @@ def main():
         if sport not in vocab_cache:
             vocab_cache[sport] = vocab_tokens(root, sport)
         issues, notes = check(ex, result, png, cfg, vocab_cache[sport])
-        rendered.add(ex["id"])
+        rendered[ex["id"]] = (issues, notes)
         flag = "DEFECT" if issues else ("note  " if notes else "ok    ")
         print(f"  [{i:>3}/{len(todo)}] {flag} {ex['id']}")
         for x in issues:
@@ -323,12 +303,17 @@ def main():
 
     # The report and sheets cover EVERY approved example with a result on
     # disk, not just this run — so `--only` refreshes one example without
-    # throwing away the other hundred.
+    # throwing away the other hundred. An example run THIS time is reported
+    # from this run's checks, so one whose compose wrote no JSON still shows
+    # as FAILED instead of vanishing from the report.
     for ex in manifest:
         if not ex.get("approved", True):
             continue
         d = run / ex["sport"] / ex["view"]
         png, js = d / f"{ex['id']}.png", d / f"{ex['id']}.json"
+        if ex["id"] in rendered:
+            results.append((ex, png, *rendered[ex["id"]]))
+            continue
         if not js.is_file():
             continue
         try:
@@ -416,6 +401,7 @@ def main():
     for sport, view, sp, bad in sheets:
         n = len(by_tpl[(sport, view)])
         lines.append(f"| {sport} | `{view}` | {n} | {bad or ''} | [sheet](sheets/{sp.name}) |")
+    run.mkdir(parents=True, exist_ok=True)
     (run / "REPORT.md").write_text("\n".join(lines) + "\n")
 
     page = [
@@ -440,15 +426,14 @@ def main():
     print("Review: golden/run/index.html   Details: golden/run/REPORT.md")
 
     if args.strict:
-        # Everything must be clean: a note (1-2px clipping) fails too, and so
-        # does an approved example that produced no result at all.
+        # Everything must be clean: a note (1-2px clipping) fails too. A
+        # compose that wrote no result is already a FAILED defect. Selecting
+        # nothing fails as well: passing would mean nothing was checked.
+        if not todo:
+            sys.exit("STRICT: no approved example matched the selection, so nothing was checked")
         n_noted = sum(1 for _, _, i, n in results if n and not i)
-        have = {ex["id"] for ex, *_ in results}
-        absent = [m["id"] for m in todo if m["id"] not in have]
-        for x in absent:
-            print(f"!! no result for {x}")
-        if n_bad or n_noted or absent:
-            sys.exit(f"STRICT: {n_bad} with defects, {n_noted} with notes, {len(absent)} without a result")
+        if n_bad or n_noted:
+            sys.exit(f"STRICT: {n_bad} with defects, {n_noted} with notes")
         print("STRICT: every example is ok")
 
 
