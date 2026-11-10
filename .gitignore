@@ -32,3 +32,6 @@ surveys/
 .coverage.*
 coverage.json
 htmlcov/
+
+# Claude Code local state (agent worktrees, settings)
+.claude/
