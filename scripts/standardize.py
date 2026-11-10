@@ -331,75 +331,70 @@ def cmd_pad(args, root, cfg):
         if s != 1:
             corrected[(round(e["size"][0] * s), round(e["size"][1] * s))] = e["era"]
 
+    # Two passes. Pass 1 measures and classifies EVERY file and decides where
+    # each one goes; nothing is written. Pass 2 writes, and only runs once
+    # the refusals below have had their say. Checking for post-correction
+    # input after writing left a partially written destination behind a
+    # message claiming "Nothing written".
     placed, unmatched, skipped = Counter(), [], []
     already_std = 0
     post_correction = []
+    plan = []
     for f in files:
         rel = f.relative_to(src)
         with ImageOps.exif_transpose(Image.open(f)).convert("RGBA") as img:
             iw, ih = img.size
             box, cs = content_size(img)
-            if cs is None:
-                continue
+        if cs is None:
+            continue
 
-            hit = next(
-                (era for size, era in corrected.items() if abs(size[0] - cs[0]) <= tol and abs(size[1] - cs[1]) <= tol),
-                None,
-            )
-            if hit is not None:
-                post_correction.append((rel, cs, hit))
-                continue
+        hit = next(
+            (era for size, era in corrected.items() if abs(size[0] - cs[0]) <= tol and abs(size[1] - cs[1]) <= tol),
+            None,
+        )
+        if hit is not None:
+            post_correction.append((rel, cs, hit))
+            continue
 
-            # A file whose CANVAS already equals the target has been through
-            # this pipeline too, even if its era carries no scale correction.
-            if (iw, ih) == (width, height):
-                already_std += 1
-                continue
+        # A file whose CANVAS already equals the target has been through
+        # this pipeline too, even if its era carries no scale correction.
+        if (iw, ih) == (width, height):
+            already_std += 1
+            continue
 
-            img = img.crop(box)
-            cw, ch = cs
+        cw, ch = cs
 
-            era = match_era(profile, cw, ch, tol)
-            if era is None:
+        era = match_era(profile, cw, ch, tol)
+        if era is None:
+            unmatched.append((rel, cw, ch))
+            continue
+
+        # An era may override the slot canvas. Without this, one canvas
+        # has to be wide enough for every era — which would pad 1,000+
+        # standard baseball jerseys to accommodate 14 three-quarter ones.
+        ec = era.get("canvas")
+        if ec:
+            oc = cfg["canvases"].get(ec)
+            if not oc or not oc.get("width"):
                 unmatched.append((rel, cw, ch))
                 continue
+            width, height = oc["width"], oc["height"]
+        else:
+            width, height = base_width, base_height
 
-            # An era may override the slot canvas. Without this, one canvas
-            # has to be wide enough for every era — which would pad 1,000+
-            # standard baseball jerseys to accommodate 14 three-quarter ones.
-            ec = era.get("canvas")
-            if ec:
-                oc = cfg["canvases"].get(ec)
-                if not oc or not oc.get("width"):
-                    unmatched.append((rel, cw, ch))
-                    continue
-                width, height = oc["width"], oc["height"]
-            else:
-                width, height = base_width, base_height
+        s = float(era.get("scale", 1.0))
+        w, h = (round(cw * s), round(ch * s)) if s != 1.0 else (cw, ch)
+        anchor = era.get("anchor", args.anchor)
+        x = 0 if anchor.endswith("left") else (width - w if anchor.endswith("right") else (width - w) // 2)
+        y = 0 if anchor.startswith("top") else (height - h) // 2
+        x += int(era.get("dx", 0))
+        y += int(era.get("dy", 0))
 
-            s = float(era.get("scale", 1.0))
-            if s != 1.0:
-                img = img.resize((round(cw * s), round(ch * s)), Image.LANCZOS)
-            w, h = img.size
-            anchor = era.get("anchor", args.anchor)
-            x = 0 if anchor.endswith("left") else (width - w if anchor.endswith("right") else (width - w) // 2)
-            y = 0 if anchor.startswith("top") else (height - h) // 2
-            x += int(era.get("dx", 0))
-            y += int(era.get("dy", 0))
+        if x < 0 or y < 0 or x + w > width or y + h > height:
+            skipped.append((rel, cw, ch, w, h, x, y))
+            continue
 
-            if x < 0 or y < 0 or x + w > width or y + h > height:
-                skipped.append((rel, cw, ch, w, h, x, y))
-                continue
-
-            out = dest / rel
-            out.parent.mkdir(parents=True, exist_ok=True)
-            cv = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-            cv.paste(img, (x, y), img)
-            # Tag DPI explicitly. Untagged PNGs default to 72 in most tools,
-            # so they place into a 300 DPI PSD at 4.17x and make transform
-            # percentages meaningless across files.
-            cv.save(out, dpi=(args.dpi, args.dpi))
-            placed[(era["era"], cw, ch, w, h, x, y, width, height)] += 1
+        plan.append((f, rel, box, era, s, cw, ch, w, h, x, y, width, height))
 
     if post_correction:
         eras = sorted({e for _, _, e in post_correction})
@@ -427,6 +422,22 @@ def cmd_pad(args, root, cfg):
             "Re-padding would re-apply era scale corrections a second "
             "time.\nNothing written. Point `src` at the original tree."
         )
+
+    # Pass 2: every refusal has passed, so write.
+    for f, rel, box, era, s, cw, ch, w, h, x, y, cvw, cvh in plan:
+        with ImageOps.exif_transpose(Image.open(f)).convert("RGBA") as img:
+            img = img.crop(box)
+            if s != 1.0:
+                img = img.resize((w, h), Image.LANCZOS)
+            out = dest / rel
+            out.parent.mkdir(parents=True, exist_ok=True)
+            cv = Image.new("RGBA", (cvw, cvh), (0, 0, 0, 0))
+            cv.paste(img, (x, y), img)
+            # Tag DPI explicitly. Untagged PNGs default to 72 in most tools,
+            # so they place into a 300 DPI PSD at 4.17x and make transform
+            # percentages meaningless across files.
+            cv.save(out, dpi=(args.dpi, args.dpi))
+        placed[(era["era"], cw, ch, w, h, x, y, cvw, cvh)] += 1
 
     dest.mkdir(parents=True, exist_ok=True)
     (dest / MARKER).write_text(
