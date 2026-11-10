@@ -133,8 +133,28 @@ def test_consistent_fixture_passes(ci, monkeypatch, capsys, tmp_path):
     assert code == 0, out
     assert "Every composition, helmet and venue is ok." in out
     assert "## Golden suite" in summary.read_text()
-    assert (ci / "golden/run/REPORT.md").is_file()
+    assert (ci / "golden/run-ci/REPORT.md").is_file()
     assert list((tmp_path / "temp").iterdir()) == []
+
+
+def test_results_go_to_run_ci_and_leave_a_local_full_run_alone(ci, monkeypatch, capsys):
+    """golden_ci copies its results to golden/run-ci/, replacing a stale one, and never touches golden/run/."""
+    local = ci / "golden/run/football/full/ex.json"
+    local.parent.mkdir(parents=True)
+    local.write_text('{"local": true}')
+    stale = ci / "golden/run-ci/stale.txt"
+    stale.parent.mkdir(parents=True)
+    stale.write_text("old")
+    code, out = run_ci(monkeypatch, capsys, ci)
+    assert code == 0, out
+    assert sorted(p.relative_to(ci / "golden/run").as_posix() for p in (ci / "golden/run").rglob("*")) == [
+        "football",
+        "football/full",
+        "football/full/ex.json",
+    ]
+    assert local.read_text() == '{"local": true}'
+    assert not stale.exists()
+    assert (ci / "golden/run-ci/REPORT.md").is_file()
 
 
 def test_keep_leaves_the_temporary_project(ci, monkeypatch, capsys, tmp_path):
@@ -194,7 +214,7 @@ def test_unresolvable_composition_fails(ci, monkeypatch, capsys):
     code, out = run_ci(monkeypatch, capsys, ci)
     assert code == 1
     assert "- compositions: golden_run.py --strict failed (see REPORT.md)" in out
-    assert "## Defects" in (ci / "golden/run/REPORT.md").read_text()
+    assert "## Defects" in (ci / "golden/run-ci/REPORT.md").read_text()
 
 
 def test_composition_check_without_a_run_fails(ci, monkeypatch, capsys):
@@ -203,6 +223,7 @@ def test_composition_check_without_a_run_fails(ci, monkeypatch, capsys):
     code, out = run_ci(monkeypatch, capsys, ci)
     assert code == 1
     assert "- compositions: golden_run.py --strict failed (see REPORT.md)" in out
+    assert not (ci / "golden/run-ci").exists()
     assert not (ci / "golden/run").exists()
 
 

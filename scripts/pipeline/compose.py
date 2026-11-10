@@ -21,10 +21,13 @@ validate that the standardized assets, canvases and anchors actually compose.
     # compare against a hand-made composite
     uv run scripts/pipeline/compose.py ... --diff "path/to/existing.png"
 
-RESOLUTION per placement, in order:
-    1. {element}/{element} … {number} … .png   matching the requested number
-    2. {element}/{element} … .png              any unnumbered file
-Failing both: `required` errors, `if_available` skips, `explicit` skips.
+RESOLUTION per placement, when a number is requested:
+    1. {element}/{element} … {number} … .png   carrying exactly that number
+    2. {element}/{element} … .png              else an unnumbered file
+    3. otherwise FAIL — a file carrying ANOTHER number is never used
+With no number requested, any file in the folder is a candidate, unnumbered
+ones first. Within each tier, files rank as candidates() describes.
+Failing: `required` errors (exit 1), `if_available` skips, `explicit` skips.
 
 There is NO generic fallback. Generic pants were replaced by explicit
 per-element duplicates, so an unresolved placement is a real gap.
@@ -126,11 +129,17 @@ def load_template(root: Path, sport: str, view_kind: str):
 
 
 def candidates(folder: Path, element: str, number, want, vocab, player=None):
-    """Files in an element folder, best match first.
+    """Files in an element folder that may stand for this request, best match first.
+
+    With a number requested, a file carrying a DIFFERENT number is not a
+    candidate at all: resolution is that number, else an unnumbered file,
+    else nothing. It used to rank such files last but keep them, so a
+    folder with no #7 and no unnumbered file composed #3 for a request of
+    #7. Numbers are OPAQUE STRINGS — "03" != "3", "00" != "0".
 
     Ranked by, in order:
-      1. the requested number matches (numbers are OPAQUE STRINGS —
-         "03" != "3", "00" != "0")
+      1. the requested number matches (with no number requested,
+         unnumbered files first)
       2. every explicitly requested token is present
       3. the requested PLAYER matches, where one was asked for. Baseball has
          the same number on the same design worn by different players —
@@ -155,6 +164,8 @@ def candidates(folder: Path, element: str, number, want, vocab, player=None):
     scored = []
     for f in files:
         toks, num, leftover = split_tail(f.stem, element, allt)
+        if number is not None and num is not None and num != number:
+            continue  # another number: never a stand-in for the one asked for
         missing = want - toks
         extras = toks - want - default_form
         has_default = bool(toks & default_form)
@@ -164,7 +175,7 @@ def candidates(folder: Path, element: str, number, want, vocab, player=None):
         elif num is None:
             num_rank = 1
         else:
-            num_rank = 2
+            num_rank = 2  # only reachable with no number requested
         # leftover words after tokens and the number are the player surname
         who = " ".join(leftover) if leftover else None
         if not player:
@@ -233,6 +244,21 @@ def resolve(
         if toks:
             bits.append("+".join(sorted(toks)))
         return hits[0], ", ".join(bits)
+
+    folder = base / element
+    if number is not None and folder.is_dir():
+        others = sorted(
+            {
+                n
+                for f in folder.glob("*.png")
+                if not f.name.startswith(".")
+                for n in [split_tail(f.stem, element, vocab[0])[1]]
+                if n is not None
+            }
+        )
+        if others:
+            has = ", ".join("#" + n for n in others)
+            return None, f"no #{number} or unnumbered file under {base.name}/{element} (has {has})"
 
     # NOTE: there is no `Generic {colorway}` fallback any more. Generic pants
     # were eliminated in favour of explicit per-element duplicates, so every

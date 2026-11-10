@@ -116,8 +116,8 @@ def scene(root: Path, cfg: dict) -> dict:
         art(jf / f"{n}.png", (8, 8))
     want |= {(jf / f"{n}.png").relative_to(root) for n in ("2020 White", "2020 White 12", "2020 White Grad")}
     jb = root / "Football" / TEAM / "Jerseys Back" / "2020 White"
-    for n in ("2020 White 5", "2020 White 7"):
-        want.add(art(jb / f"{n}.png", (8, 8)).relative_to(root))
+    want.add(art(jb / "2020 White 5.png", (8, 8)).relative_to(root))
+    art(jb / "2020 White 7.png", (8, 8))  # another number: never a candidate for 5
 
     # The placed helmet: right side carries all six eras, left only F.
     for i, e in enumerate(ERAS):
@@ -164,7 +164,7 @@ def scene(root: Path, cfg: dict) -> dict:
         ex1,
         [
             placed(jf / "2020 White 12.png", "jersey", "front", "2020 White", "12"),
-            placed(jb / "2020 White 5.png", "jersey", "back", "2020 White", "12"),
+            placed(jb / "2020 White 5.png", "jersey", "back", "2020 White", "5"),
             placed(None, "jersey", "left", "2020 White", status="skipped"),
         ],
     )
@@ -202,15 +202,30 @@ def test_plan_copies_candidates_whole_helmets_era_top_up_and_venue_ends(project,
     assert need == s["want"]
 
 
-def test_composition_files_keeps_whole_folder_when_no_candidate_matches(project, small):
-    """With no file carrying the requested number or none, every file in the folder is kept."""
+def test_composition_files_never_keeps_another_number(project, small):
+    """With a number requested, files carrying any other number are left out, as compose never picks them."""
     folder = project / "Football" / TEAM / "Jerseys Back" / "2020 White"
     files = [art(folder / f"2020 White {n}.png", (4, 4)) for n in ("5", "7")]
     vocab = {0: gf.load_vocab(project, "football")[0]}
-    p = placed(files[0], "jersey", "back", "2020 White", "12")
-    assert gf.composition_files(p, project, vocab) == files
-    p["number_requested"] = "7"
+    p = placed(files[1], "jersey", "back", "2020 White", "7")
     assert gf.composition_files(p, project, vocab) == [files[1]]
+    plain = art(folder / "2020 White.png", (4, 4))
+    p = placed(plain, "jersey", "back", "2020 White", "12")
+    assert gf.composition_files(p, project, vocab) == [plain]
+    # a stale result naming another number still keeps the file it placed, and nothing else numbered
+    p = placed(files[0], "jersey", "back", "2020 White", "12")
+    assert gf.composition_files(p, project, vocab) == [files[0], plain]
+
+
+def test_composition_files_without_a_number_keeps_unnumbered_else_the_whole_folder(project, small):
+    """With no number requested, the unnumbered files are kept if any exist, else every file, as compose ranks them."""
+    folder = project / "Football" / TEAM / "Jerseys Back" / "2020 White"
+    files = [art(folder / f"2020 White {n}.png", (4, 4)) for n in ("5", "7")]
+    vocab = {0: gf.load_vocab(project, "football")[0]}
+    p = placed(files[0], "jersey", "back", "2020 White")
+    assert gf.composition_files(p, project, vocab) == files
+    plain = art(folder / "2020 White.png", (4, 4))
+    assert gf.composition_files(placed(plain, "jersey", "back", "2020 White"), project, vocab) == [plain]
 
 
 def test_helmet_eras_matches_marks_and_ignores_empty_files(project, small):

@@ -179,6 +179,42 @@ def test_survey_reports_sizes_eras_and_margins(project, cfg, monkeypatch, capsys
     assert "NOTE" not in out
 
 
+def test_survey_suggests_largest_post_scale_content_plus_the_margin(project, cfg, monkeypatch, capsys):
+    """survey suggests a canvas sized by the 1px rule from post-scale content, not one with ~12% headroom."""
+    a = era(cfg, "football-jersey-front", "A")
+    b = era(cfg, "football-jersey-front", "B")["size"]
+    src = project / "Football/T/Jerseys Front"
+    art(src / "1950 White" / "j.png", a["size"])
+    art(src / "1970 White" / "j.png", b, seed=1)
+    run(monkeypatch, "survey", "Football/T/Jerseys Front")
+    out = capsys.readouterr().out
+    post_w = max(scaled(a)[0], b[0])
+    post_h = max(scaled(a)[1], b[1])
+    assert f"Largest content after era scale: {post_w} x {post_h}" in out
+    assert f"Suggested canvas: {post_w + 2} x {post_h}" in out
+    assert "headroom" not in out
+
+
+def test_survey_suggestion_honours_era_anchor_and_offsets(project, cfg, monkeypatch, capsys):
+    """survey's suggestion places each size at its era's anchor and dx/dy, and says when an offset fits no canvas."""
+
+    def mutate(c):
+        """tiny_sport, plus an era whose negative dx pushes left-anchored content off the canvas."""
+        tiny_sport(c)
+        c["profiles"]["test-jersey-front"].append({"era": "off", "size": [16, 3], "anchor": "top-left", "dx": -1})
+        c["profiles"]["test-jersey-front"].append({"era": "mid", "size": [50, 50], "anchor": "middle-right"})
+
+    custom_config(project, cfg, mutate)
+    src = project / "Test/T/Jerseys Front"
+    art(src / "a" / "j.png", (10, 10))  # era shift: top-left, dx 3, dy 2
+    art(src / "b" / "j.png", (16, 3))  # era off
+    art(src / "c" / "j.png", (50, 50))  # era mid: right edge, centred vertically
+    run(monkeypatch, "survey", "Test/T/Jerseys Front")
+    out = capsys.readouterr().out
+    assert "Suggested canvas: 50 x 52" in out
+    assert "fit no canvas" in out
+
+
 def test_survey_elements_and_profile_override(project, cfg, monkeypatch, capsys):
     """--profile overrides the path's profile and --elements lists the elements at each size."""
     b = era(cfg, "football-helmet-back", "BCD")["size"]
@@ -383,7 +419,11 @@ def test_pad_reports_unmatched_skipped_and_mixed(project, cfg, monkeypatch, caps
     art(project / "src" / "odd" / "s.png", (40, 40))
     art(project / "src" / "std" / "s.png", cv, e)
     art(project / "src" / "blank" / "s.png", (9, 9), (0, 0))
-    run(monkeypatch, "pad", "src", dest)
+    with pytest.raises(SystemExit) as ex:
+        run(monkeypatch, "pad", "src", dest)
+    assert (
+        ex.value.code == "\n!! 2 files were NOT written (1 matched no era, 1 fell outside the canvas). Keep the source."
+    )
     out = capsys.readouterr().out
     written = sorted(p.relative_to(project / dest).as_posix() for p in (project / dest).rglob("*.png"))
     assert written == ["good/s.png"]
@@ -405,7 +445,8 @@ def test_pad_era_canvas_override_and_offsets(project, cfg, monkeypatch, capsys):
     art(src / "shift" / "j.png", (10, 10))
     art(src / "nocanvas" / "j.png", (20, 20))
     art(src / "blank" / "j.png", (26, 26))
-    run(monkeypatch, "pad", "src", "Test/T/Jerseys Front")
+    with pytest.raises(SystemExit, match="2 files were NOT written"):
+        run(monkeypatch, "pad", "src", "Test/T/Jerseys Front")
     dest = project / "Test/T/Jerseys Front"
     assert bbox(dest / "std" / "j.png") == ((40, 30), (1, 0, 39, 28))
     assert bbox(dest / "wide" / "j.png") == ((60, 30), (1, 0, 59, 28))

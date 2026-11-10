@@ -22,8 +22,13 @@ differently doesn't fail it.
     uv run scripts/golden/golden_ci.py                 # all three checks
     uv run scripts/golden/golden_ci.py --keep          # keep the temporary project
 
-Contact sheets and REPORT.md are copied to golden/run/ for review (CI uploads
-them as an artifact).
+The composition results (contact sheets, REPORT.md, index.html, each
+example's PNG and JSON) are copied to golden/run-ci/ for review, replacing
+any earlier copy there; CI uploads that folder as an artifact. golden/run/
+is NOT touched: it holds the last full run on the real tree, which
+golden_fixture.py builds the fixture from, and fixture results there would
+destroy it. Paths inside the copied JSONs name the temporary project, which
+is gone by then (unless --keep).
 """
 
 import argparse
@@ -47,6 +52,9 @@ from derive_crops import jobs_for  # noqa: E402
 from golden_fixture import SIDES, helmet_eras  # noqa: E402
 
 REGEN = "REGEN"
+# Where the fixture run's results are copied: NOT golden/run/, which holds the
+# local full run golden_fixture.py reads.
+RESULTS = "run-ci"
 
 
 def find_root(start: Path) -> Path:
@@ -102,9 +110,9 @@ def build_project(root: Path, fixture: Path, tmp: Path) -> None:
 
 
 def check_compositions(root: Path, tmp: Path) -> list[str]:
-    """golden_run.py --strict in the throwaway project; copies its report and sheets back to golden/run/."""
+    """golden_run.py --strict in the throwaway project; copies its results to golden/run-ci/, never golden/run/."""
     proc = run([sys.executable, str(tmp / "scripts" / "golden" / "golden_run.py"), "--strict"], tmp)
-    out = root / "golden" / "run"
+    out = root / "golden" / RESULTS
     if (tmp / "golden" / "run").is_dir():
         shutil.rmtree(out, ignore_errors=True)
         shutil.copytree(tmp / "golden" / "run", out)

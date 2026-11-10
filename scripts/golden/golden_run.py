@@ -7,6 +7,12 @@ Run the GOLDEN EXAMPLE SUITE planned by golden_plan.py.
     uv run scripts/golden/golden_run.py --only football--full--03
     uv run scripts/golden/golden_run.py --strict           # exit 1 unless every example is ok (CI)
 
+--strict judges only the examples rendered in THIS run (all approved ones,
+or the --sport / --only selection). The report and sheets still cover every
+result on disk, so a partial run refreshes part of them; results left by
+earlier runs are shown but never decide the exit code. Selecting nothing
+fails under --strict.
+
 Writes, under golden/run/
     {sport}/{view}/{id}.png      every composition
     {sport}/{view}/{id}.json     compose's structured result
@@ -24,8 +30,10 @@ AUTOMATIC CHECKS, run before you look at anything:
               note, not a defect — that is rounding.
   WRONG ERA   the file placed is a different era from the one planned —
               e.g. a short-sleeve jersey in a -ls view
-  NUMBER      a number was asked for and a file with that number exists,
-              but a different file was placed
+  NUMBER      a number was asked for and the file placed carries ANOTHER
+              number (compose must fail instead, so this means it
+              regressed), or it is unnumbered while a file with the
+              requested number exists
   EXTRA TOKEN the placed file carries tokens nobody asked for while a
               plainer file with the same number exists — a ranking bug
   EMPTY       the output has no opaque pixels
@@ -153,12 +161,13 @@ def check(example, result, png, cfg, vocab):
             if got != expect[key]:
                 issues.append(f"WRONG ERA {lab}: planned {expect[key]}, placed {got or 'unrecognised size'}")
         req = p.get("number_requested")
-        if req and p["number_found"] != req:
+        if req and p["number_found"] is not None and p["number_found"] != req:
+            # compose never places another number; seeing one means it regressed
+            issues.append(f"NUMBER {lab}: asked for {req}, placed {p['number_found']}: another number is never used")
+        elif req and p["number_found"] is None:
             folder = Path(p["file"]).parent
             if any(split_tail(f.stem, p["element"], vocab)[1] == req for f in folder.glob("*.png")):
-                issues.append(
-                    f"NUMBER {lab}: asked for {req}, a file exists, placed {p['number_found'] or 'unnumbered'}"
-                )
+                issues.append(f"NUMBER {lab}: asked for {req}, a file exists, placed unnumbered")
         if set(p["tokens_found"]) - set(p["tokens_requested"]):
             better = plainer_exists(p, vocab)
             if better:
@@ -432,15 +441,20 @@ def main():
     print("Review: golden/run/index.html   Details: golden/run/REPORT.md")
 
     if args.strict:
-        # Everything must be clean: a note (1-2px clipping) fails too. A
-        # compose that wrote no result is already a FAILED defect. Selecting
-        # nothing fails as well: passing would mean nothing was checked.
+        # Everything rendered THIS run must be clean: a note (1-2px
+        # clipping) fails too. A compose that wrote no result is already a
+        # FAILED defect. Results left on disk by earlier runs are in the
+        # report but not judged: with --sport or --only they may be stale,
+        # and judging them failed a clean selection over an old result (or
+        # passed it over an old clean one). Selecting nothing fails as well:
+        # passing would mean nothing was checked.
         if not todo:
             sys.exit("STRICT: no approved example matched the selection, so nothing was checked")
-        n_noted = sum(1 for _, _, i, n in results if n and not i)
-        if n_bad or n_noted:
-            sys.exit(f"STRICT: {n_bad} with defects, {n_noted} with notes")
-        print("STRICT: every example is ok")
+        s_bad = sum(1 for i, _ in rendered.values() if i)
+        s_noted = sum(1 for i, n in rendered.values() if n and not i)
+        if s_bad or s_noted:
+            sys.exit(f"STRICT: {s_bad} with defects, {s_noted} with notes (of {len(rendered)} rendered this run)")
+        print(f"STRICT: every example is ok ({len(rendered)} rendered this run)")
 
 
 if __name__ == "__main__":
