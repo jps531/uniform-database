@@ -28,7 +28,7 @@ import argparse
 import json
 import sys
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 MARKER = ".generated"
@@ -188,10 +188,7 @@ def cmd_survey(args, root, cfg):
         sport, team, slot, viewpoint = parsed
         canvas, profile, (cn, pn) = lookup(cfg, sport, slot, viewpoint)
         print(f"  sport={sport} team={team} slot={slot} viewpoint={viewpoint}")
-        print(
-            f"  canvas={cn or '(unassigned)'}  profile={pn}"
-            f"{'' if profile else ' (not yet defined)'}"
-        )
+        print(f"  canvas={cn or '(unassigned)'}  profile={pn}{'' if profile else ' (not yet defined)'}")
 
     print(f"\n{len(sizes)} distinct CONTENT sizes:")
     tol = cfg.get("tolerance", 3)
@@ -219,10 +216,7 @@ def cmd_survey(args, root, cfg):
                 print(f"      {nm}")
 
     if margined:
-        print(
-            f"\n{len(margined)} files carry transparent margin "
-            f"(cropped automatically on pad)"
-        )
+        print(f"\n{len(margined)} files carry transparent margin (cropped automatically on pad)")
 
     # Only meaningful for PADDED canvases. For `fills: fill` the canvas IS
     # the content size, so every source file matches it and this would fire
@@ -231,23 +225,14 @@ def cmd_survey(args, root, cfg):
         cw_, ch_ = canvas["width"], canvas["height"]
         std = sum(1 for f in files if Image.open(f).size == (cw_, ch_))
         if std == len(files):
-            print(
-                f"\nNOTE: every file is already {cw_} x {ch_} — this is "
-                f"standardized OUTPUT, not source artwork."
-            )
-            print(
-                "Sizes above are post-correction, so era A will read as "
-                "UNMATCHED (it lists pre-correction sizes)."
-            )
+            print(f"\nNOTE: every file is already {cw_} x {ch_} — this is standardized OUTPUT, not source artwork.")
+            print("Sizes above are post-correction, so era A will read as UNMATCHED (it lists pre-correction sizes).")
             print("Survey the original tree to check era coverage.")
 
     maxw = max(w for w, _ in sizes)
     maxh = max(h for _, h in sizes)
     print(f"\nLargest content: {maxw} x {maxh}")
-    print(
-        f"Suggested canvas (~12% headroom): "
-        f"{round(maxw * 1.12 / 100) * 100} x {round(maxh * 1.11 / 100) * 100}"
-    )
+    print(f"Suggested canvas (~12% headroom): {round(maxw * 1.12 / 100) * 100} x {round(maxh * 1.11 / 100) * 100}")
     if profile is None:
         print(
             "\nNo profile yet. Add one to configs/canvas_definitions.yaml "
@@ -282,10 +267,7 @@ def cmd_pad(args, root, cfg):
             sys.exit(f"No profile '{args.profile}' in config.")
 
     if not canvas or not canvas.get("width"):
-        sys.exit(
-            f"No canvas size for this path ({label}).\n"
-            "Fill it in under `canvases:` or pass --canvas WxH."
-        )
+        sys.exit(f"No canvas size for this path ({label}).\nFill it in under `canvases:` or pass --canvas WxH.")
     if not profile:
         sys.exit(
             f"No profile for this path ({label}).\n"
@@ -344,11 +326,7 @@ def cmd_pad(args, root, cfg):
                 continue
 
             hit = next(
-                (
-                    era
-                    for size, era in corrected.items()
-                    if abs(size[0] - cs[0]) <= tol and abs(size[1] - cs[1]) <= tol
-                ),
+                (era for size, era in corrected.items() if abs(size[0] - cs[0]) <= tol and abs(size[1] - cs[1]) <= tol),
                 None,
             )
             if hit is not None:
@@ -387,11 +365,7 @@ def cmd_pad(args, root, cfg):
                 img = img.resize((round(cw * s), round(ch * s)), Image.LANCZOS)
             w, h = img.size
             anchor = era.get("anchor", args.anchor)
-            x = (
-                0
-                if anchor.endswith("left")
-                else (width - w if anchor.endswith("right") else (width - w) // 2)
-            )
+            x = 0 if anchor.endswith("left") else (width - w if anchor.endswith("right") else (width - w) // 2)
             y = 0 if anchor.startswith("top") else (height - h) // 2
             x += int(era.get("dx", 0))
             y += int(era.get("dy", 0))
@@ -412,9 +386,7 @@ def cmd_pad(args, root, cfg):
 
     if post_correction:
         eras = sorted({e for _, _, e in post_correction})
-        lines = "\n".join(
-            f"     {c[0]}x{c[1]}  era {e}  {r}" for r, c, e in post_correction[:8]
-        )
+        lines = "\n".join(f"     {c[0]}x{c[1]}  era {e}  {r}" for r, c, e in post_correction[:8])
         sys.exit(
             f"{label}\n"
             f"REFUSING: {len(post_correction)} of {len(files)} files are "
@@ -444,9 +416,7 @@ def cmd_pad(args, root, cfg):
         json.dumps(
             {
                 "generated_by": "scripts/standardize.py",
-                "generated_at": datetime.now(timezone.utc).isoformat(
-                    timespec="seconds"
-                ),
+                "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
                 "source": str(src),
                 "canvas": f"{width}x{height}",
                 "profile": label,
@@ -464,15 +434,9 @@ def cmd_pad(args, root, cfg):
     print(f"{label}")
     print(f"canvas {width} x {height}, anchor {args.anchor}")
     print(f"Wrote {sum(placed.values())} of {len(files)} files to {dest}\n")
-    print(
-        f"{'era':>8}  {'content':>14}  {'after scale':>14}  {'canvas':>13}  "
-        f"{'placed at':>13}  files"
-    )
+    print(f"{'era':>8}  {'content':>14}  {'after scale':>14}  {'canvas':>13}  {'placed at':>13}  files")
     for (era, cw, ch, w, h, x, y, cvw, cvh), n in sorted(placed.items()):
-        print(
-            f"{str(era):>8}  {cw:>6} x {ch:<5}  {w:>6} x {h:<5}  "
-            f"{cvw:>5} x {cvh:<5}  ({x:>5}, {y:>4})  {n:>5}"
-        )
+        print(f"{str(era):>8}  {cw:>6} x {ch:<5}  {w:>6} x {h:<5}  {cvw:>5} x {cvh:<5}  ({x:>5}, {y:>4})  {n:>5}")
 
     if already_std:
         print(f"\n!! {already_std} files were SKIPPED — already {width} x {height}.")
@@ -504,9 +468,7 @@ def cmd_pad(args, root, cfg):
 
 
 def main():
-    ap = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--root", help="project root (default: auto-detect)")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
@@ -527,15 +489,13 @@ def main():
     p.add_argument(
         "--force",
         action="store_true",
-        help="write even if the destination looks like authored "
-        "artwork (no .generated marker)",
+        help="write even if the destination looks like authored artwork (no .generated marker)",
     )
     p.add_argument(
         "--dpi",
         type=int,
         default=300,
-        help="DPI tag written to output PNGs (default 300). "
-        "Metadata only — does not resample.",
+        help="DPI tag written to output PNGs (default 300). Metadata only — does not resample.",
     )
     p.add_argument(
         "--anchor",
@@ -548,17 +508,11 @@ def main():
             "middle-center",
             "middle-right",
         ],
-        help="default top-center (jerseys, pants). "
-        "Use top-left for right-facing helmets, "
-        "top-right for left-facing.",
+        help="default top-center (jerseys, pants). Use top-left for right-facing helmets, top-right for left-facing.",
     )
 
     args = ap.parse_args()
-    root = (
-        Path(args.root).expanduser().resolve()
-        if args.root
-        else find_root(Path.cwd().resolve())
-    )
+    root = Path(args.root).expanduser().resolve() if args.root else find_root(Path.cwd().resolve())
     cfg = load_config(root)
 
     if args.cmd == "survey":

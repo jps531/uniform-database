@@ -52,9 +52,7 @@ def slug(s):
 
 
 def main():
-    ap = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("src")
     ap.add_argument("dest")
     ap.add_argument("--root")
@@ -62,11 +60,7 @@ def main():
     ap.add_argument("--apply", action="store_true")
     args = ap.parse_args()
 
-    root = (
-        Path(args.root).expanduser().resolve()
-        if args.root
-        else find_root(Path.cwd().resolve())
-    )
+    root = Path(args.root).expanduser().resolve() if args.root else find_root(Path.cwd().resolve())
     src, dest = root / args.src, root / args.dest
     if not src.is_dir():
         sys.exit(f"Source not found: {src}")
@@ -82,11 +76,7 @@ def main():
         if len(parts) < 3:
             sys.exit(f"Cannot read sport/slot/viewpoint from {args.dest}")
         words = parts[2].split()
-        cname = (
-            (A.get(slug(parts[0])) or {})
-            .get(dir_slot.get(words[0]), {})
-            .get(words[-1].lower())
-        )
+        cname = (A.get(slug(parts[0])) or {}).get(dir_slot.get(words[0]), {}).get(words[-1].lower())
         if not cname:
             sys.exit(f"No canvas assigned for {args.dest}")
     cv = C[cname]

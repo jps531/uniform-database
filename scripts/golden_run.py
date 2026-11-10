@@ -62,9 +62,7 @@ def find_root():
 
 def font(size, bold=False):
     for f in (
-        "/System/Library/Fonts/Supplemental/Arial Bold.ttf"
-        if bold
-        else "/System/Library/Fonts/Supplemental/Arial.ttf",
+        "/System/Library/Fonts/Supplemental/Arial Bold.ttf" if bold else "/System/Library/Fonts/Supplemental/Arial.ttf",
         "/Library/Fonts/Arial.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
         if bold
@@ -104,11 +102,7 @@ def plainer_exists(placed, vocab_tokens):
 
     def toks(stem):
         tail = stem[len(el) :] if stem.startswith(el) else stem
-        found = {
-            t
-            for t in vocab_tokens
-            if re.search(rf"(?:^|\s){re.escape(t)}(?:\s|$)", tail)
-        }
+        found = {t for t in vocab_tokens if re.search(rf"(?:^|\s){re.escape(t)}(?:\s|$)", tail)}
         n = re.search(r"(?<![\d])(\d{1,2})(?![\d])", tail)
         return found, (n.group(1) if n else None)
 
@@ -164,32 +158,21 @@ def check(example, result, png, cfg, vocab):
             )
         key = f"{p['uniform']}/{p['slot']}/{p['viewpoint']}"
         if key in expect and expect[key]:
-            got = measure_era(
-                cfg, example["sport"], p["slot"], p["viewpoint"], p["file"]
-            )
+            got = measure_era(cfg, example["sport"], p["slot"], p["viewpoint"], p["file"])
             if got != expect[key]:
-                issues.append(
-                    f"WRONG ERA {lab}: planned {expect[key]}, "
-                    f"placed {got or 'unrecognised size'}"
-                )
+                issues.append(f"WRONG ERA {lab}: planned {expect[key]}, placed {got or 'unrecognised size'}")
         req = p.get("number_requested")
         if req and p["number_found"] != req:
             folder = Path(p["file"]).parent
             pat = re.compile(rf"(?<![\d]){re.escape(req)}(?![\d])")
-            if any(
-                pat.search(f.stem[len(p["element"]) :]) for f in folder.glob("*.png")
-            ):
+            if any(pat.search(f.stem[len(p["element"]) :]) for f in folder.glob("*.png")):
                 issues.append(
-                    f"NUMBER {lab}: asked for {req}, a file exists, "
-                    f"placed {p['number_found'] or 'unnumbered'}"
+                    f"NUMBER {lab}: asked for {req}, a file exists, placed {p['number_found'] or 'unnumbered'}"
                 )
         if set(p["tokens_found"]) - set(p["tokens_requested"]):
             better = plainer_exists(p, vocab)
             if better:
-                issues.append(
-                    f"EXTRA TOKEN {lab}: placed {Path(p['file']).name} "
-                    f"but plainer {better} exists"
-                )
+                issues.append(f"EXTRA TOKEN {lab}: placed {Path(p['file']).name} but plainer {better} exists")
     return issues, notes
 
 
@@ -203,9 +186,7 @@ def contact_sheet(rows, out, title):
             im.thumbnail((TH, TH))
         else:
             im = Image.new("RGBA", (TH, int(TH * 0.6)), (0, 0, 0, 0))
-            ImageDraw.Draw(im).text(
-                (20, 20), "NOT RENDERED", font=font(36, True), fill=(180, 30, 30, 255)
-            )
+            ImageDraw.Draw(im).text((20, 20), "NOT RENDERED", font=font(36, True), fill=(180, 30, 30, 255))
         thumbs.append((im, lines, bad))
     cols = min(4, len(thumbs)) or 1
     cw = TH + PADX
@@ -237,9 +218,7 @@ def contact_sheet(rows, out, title):
 
 
 def main():
-    ap = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--sport", action="append")
     ap.add_argument("--only", action="append", metavar="ID")
     args = ap.parse_args()
@@ -261,11 +240,7 @@ def main():
         and (not args.only or m["id"] in args.only)
     ]
     skipped = sum(1 for m in manifest if not m.get("approved", True))
-    print(
-        f"{len(todo)} examples to render"
-        + (f" ({skipped} not approved, skipped)" if skipped else "")
-        + "\n"
-    )
+    print(f"{len(todo)} examples to render" + (f" ({skipped} not approved, skipped)" if skipped else "") + "\n")
 
     vocab_cache, results = {}, []
     rendered = set()
@@ -420,9 +395,7 @@ def main():
     ]
     for sport, view, sp, bad in sheets:
         n = len(by_tpl[(sport, view)])
-        lines.append(
-            f"| {sport} | `{view}` | {n} | {bad or ''} | [sheet](sheets/{sp.name}) |"
-        )
+        lines.append(f"| {sport} | `{view}` | {n} | {bad or ''} | [sheet](sheets/{sp.name}) |")
     (run / "REPORT.md").write_text("\n".join(lines) + "\n")
 
     page = [
@@ -443,11 +416,8 @@ def main():
         )
     (run / "index.html").write_text("\n".join(page))
 
-    print(
-        f"\n{len(rendered)} rendered this run; report covers {len(results)}, "
-        f"{n_bad} with defects"
-    )
-    print(f"Review: golden/run/index.html   Details: golden/run/REPORT.md")
+    print(f"\n{len(rendered)} rendered this run; report covers {len(results)}, {n_bad} with defects")
+    print("Review: golden/run/index.html   Details: golden/run/REPORT.md")
 
 
 if __name__ == "__main__":

@@ -156,17 +156,11 @@ def candidates(folder: Path, element: str, number, want, vocab, player=None):
         extras = toks - want - default_form
         has_default = bool(toks & default_form)
         non_default_form = bool((toks & form_tokens) - default_form)
-        num_rank = (
-            0 if (number is not None and num == number) else (1 if num is None else 2)
-        )
+        num_rank = 0 if (number is not None and num == number) else (1 if num is None else 2)
         # leftover words after tokens and the number are the player surname
         who = " ".join(leftover) if leftover else None
         if player:
-            play_rank = (
-                0
-                if (who and who.lower() == player.lower())
-                else (1 if who is None else 2)
-            )
+            play_rank = 0 if (who and who.lower() == player.lower()) else (1 if who is None else 2)
         else:
             play_rank = 0 if who is None else 1
         scored.append(
@@ -235,9 +229,7 @@ def resolve(
 
 
 def main():
-    ap = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--root")
     ap.add_argument("--team", default="Mississippi State")
     ap.add_argument("--sport", default="football")
@@ -266,8 +258,7 @@ def main():
         action="append",
         default=[],
         metavar="TOKEN",
-        help="require a token, e.g. --with Grad --with Classic. "
-        "Without it the PLAINEST matching file wins.",
+        help="require a token, e.g. --with Grad --with Classic. Without it the PLAINEST matching file wins.",
     )
     ap.add_argument("--number", help="jersey number, as a STRING ('03' != '3')")
     ap.add_argument("--number2", help="jersey number for the SECOND uniform")
@@ -279,9 +270,7 @@ def main():
         metavar="TOKEN",
         help="require a token on the SECOND uniform",
     )
-    ap.add_argument(
-        "--player2", metavar="SURNAME", help="surname for the SECOND uniform"
-    )
+    ap.add_argument("--player2", metavar="SURNAME", help="surname for the SECOND uniform")
     ap.add_argument(
         "--player",
         metavar="SURNAME",
@@ -307,11 +296,7 @@ def main():
     ap.add_argument("--diff", help="hand-made composite to compare against")
     args = ap.parse_args()
 
-    root = (
-        Path(args.root).expanduser().resolve()
-        if args.root
-        else find_root(Path.cwd().resolve())
-    )
+    root = Path(args.root).expanduser().resolve() if args.root else find_root(Path.cwd().resolve())
     tpl = load_template(root, args.sport, args.view)
     vocab = load_vocab(root, args.sport)
     W, H = tpl["output"]["width"], tpl["output"]["height"]
@@ -338,15 +323,10 @@ def main():
     player = {1: args.player, 2: args.player2 or args.player}
     unknown = (want[1] | want[2]) - set(vocab[0])
     if unknown:
-        sys.exit(
-            f"Unknown token(s): {', '.join(sorted(unknown))}\n"
-            f"Not in configs/modifiers_{args.sport}.yaml"
-        )
+        sys.exit(f"Unknown token(s): {', '.join(sorted(unknown))}\nNot in configs/modifiers_{args.sport}.yaml")
 
     need = {
-        (p.get("uniform", 1), p["slot"])
-        for p in tpl["placements"]
-        if p.get("requirement", "required") == "required"
+        (p.get("uniform", 1), p["slot"]) for p in tpl["placements"] if p.get("requirement", "required") == "required"
     }
     absent = sorted((u, s) for u, s in need if s not in elements[u])
     if absent:
@@ -379,9 +359,7 @@ def main():
         req = p.get("requirement", "required")
         label = f"{slot}/{vp}" + (f" #{u}" if u != 1 else "")
 
-        if req == "explicit" and not (
-            slot == "helmet" and vp == "left" and args.helmet_left
-        ):
+        if req == "explicit" and not (slot == "helmet" and vp == "left" and args.helmet_left):
             print(f"{label:<22} {'—':<44} {'not requested':<20}")
             continue
 
@@ -424,9 +402,7 @@ def main():
         with ImageOps.exif_transpose(Image.open(path)).convert("RGBA") as img:
             s = float(p.get("scale", 1.0))
             if s != 1.0:
-                img = img.resize(
-                    (round(img.width * s), round(img.height * s)), Image.LANCZOS
-                )
+                img = img.resize((round(img.width * s), round(img.height * s)), Image.LANCZOS)
             rot = float(p.get("rotation", p.get("rotate", 0)))
             if rot:
                 # Rotate about the TOP-CENTRE ANCHOR, not the image centre.
@@ -455,18 +431,9 @@ def main():
             ax0, ay0, ax1, ay1 = x + ab[0], y + ab[1], x + ab[2], y + ab[3]
         else:
             ax0 = ay0 = ax1 = ay1 = 0
-        over = {
-            k: v
-            for k, v in (("L", -ax0), ("T", -ay0), ("R", ax1 - W), ("B", ay1 - H))
-            if v > 0
-        }
-        clip = (
-            "  CLIPPED " + ",".join(f"{k}{v}" for k, v in over.items()) if over else ""
-        )
-        print(
-            f"{label:<22} {path.name[:40]:<40} {how:<18} "
-            f"({x}, {y}) {img.width}x{img.height}{extra}{clip}"
-        )
+        over = {k: v for k, v in (("L", -ax0), ("T", -ay0), ("R", ax1 - W), ("B", ay1 - H)) if v > 0}
+        clip = "  CLIPPED " + ",".join(f"{k}{v}" for k, v in over.items()) if over else ""
+        print(f"{label:<22} {path.name[:40]:<40} {how:<18} ({x}, {y}) {img.width}x{img.height}{extra}{clip}")
         toks, num, leftover = split_tail(path.stem, elements[u][slot], vocab[0])
         record.append(
             {
@@ -506,7 +473,7 @@ def main():
                     "team": args.team,
                     "canvas": [W, H],
                     "output": str(args.out) if written else None,
-                    "missing": [{"label": l, "reason": r} for l, r in missing],
+                    "missing": [{"label": label, "reason": reason} for label, reason in missing],
                     "placements": record,
                 },
                 indent=2,
@@ -542,19 +509,11 @@ def main():
             ink = (a[..., 3] > 20) | (b[..., 3] > 20)
             diff = (np.abs(a[..., :3] - b[..., :3]).sum(axis=2) > 40) & ink
             pct = 100 * diff.sum() / max(ink.sum(), 1)
-            print(
-                f"  differing pixels: {diff.sum():,} of {ink.sum():,} "
-                f"inked ({pct:.2f}%)"
-            )
+            print(f"  differing pixels: {diff.sum():,} of {ink.sum():,} inked ({pct:.2f}%)")
             ys, xs = np.where(diff)
             if len(xs):
-                print(
-                    f"  differences span x {xs.min()}-{xs.max()}, "
-                    f"y {ys.min()}-{ys.max()}"
-                )
-                Image.fromarray((diff * 255).astype("uint8")).save(
-                    out.with_name(out.stem + "-diff.png")
-                )
+                print(f"  differences span x {xs.min()}-{xs.max()}, y {ys.min()}-{ys.max()}")
+                Image.fromarray((diff * 255).astype("uint8")).save(out.with_name(out.stem + "-diff.png"))
                 print(f"  wrote {out.with_name(out.stem + '-diff.png')}")
 
 

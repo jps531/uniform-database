@@ -86,11 +86,7 @@ def main():
             # temp/{Sport}/... and temp/{Team}/... both occur; find the
             # viewpoint directory by looking for a known slot word.
             vp_i = next(
-                (
-                    i
-                    for i, x in enumerate(parts)
-                    if x.split() and x.split()[0] in dir_slot
-                ),
+                (i for i, x in enumerate(parts) if x.split() and x.split()[0] in dir_slot),
                 None,
             )
             if vp_i is None:
@@ -114,11 +110,7 @@ def main():
 
             # which canvas is this sitting on
             now = (C[cname]["width"], C[cname]["height"])
-            alts = {
-                e["canvas"]
-                for e in P.get(f"{sport}-{slot}-{vp}", [])
-                if e.get("canvas")
-            }
+            alts = {e["canvas"] for e in P.get(f"{sport}-{slot}-{vp}", []) if e.get("canvas")}
             new_sizes = [now] + [(C[a]["width"], C[a]["height"]) for a in alts]
             old_sizes = [WAS[k] for k in [cname, *alts] if k in WAS]
             if any(near(canvas, s) for s in new_sizes):
@@ -136,9 +128,7 @@ def main():
                 s = e.get("scale", 1)
                 if near(content, tuple(e["size"])):
                     pre = e["era"]
-                if s != 1 and near(
-                    content, (round(e["size"][0] * s), round(e["size"][1] * s))
-                ):
+                if s != 1 and near(content, (round(e["size"][0] * s), round(e["size"][1] * s))):
                     post = e["era"]
             if post:
                 how = f"SCALED (era {post})"
@@ -152,16 +142,12 @@ def main():
             else:
                 how = "NO ERA MATCH"
 
-            groups[(base, sport, parts[vp_i - 1], view)][
-                (where, how, f"{content[0]}x{content[1]}")
-            ] += 1
+            groups[(base, sport, parts[vp_i - 1], view)][(where, how, f"{content[0]}x{content[1]}")] += 1
 
     for key in sorted(groups):
         base, sport, team, view = key
         print(f"\n{base}  {team} / {view}")
-        for (where, how, content), n in sorted(
-            groups[key].items(), key=lambda x: -x[1]
-        ):
+        for (where, how, content), n in sorted(groups[key].items(), key=lambda x: -x[1]):
             flag = "  <-- CANNOT RE-PAD" if how.startswith("SCALED") else ""
             print(f"   {n:>4}  {where:<9} content {content:<12} {how}{flag}")
 

@@ -77,8 +77,7 @@ def read_vocab(root: Path, name: str, seen=None):
     p = root / "configs" / f"modifiers_{name}.yaml"
     if not p.is_file():
         sys.exit(
-            f"No vocabulary at configs/modifiers_{name}.yaml. Nesting "
-            f"needs one to tell design tokens from variations."
+            f"No vocabulary at configs/modifiers_{name}.yaml. Nesting needs one to tell design tokens from variations."
         )
     cfg = yaml.safe_load(p.open()) or {}
     tokens, colorways = {}, []
@@ -111,7 +110,11 @@ def load_vocab(root: Path, sport: str):
             # stripped, so a token with an unexpected kind stays in the
             # element name rather than vanishing.
             design.append(label)
-    by = lambda xs: sorted(set(xs), key=len, reverse=True)
+
+    def by(xs):
+        """Distinct tokens, longest first, so matching prefers the longest token."""
+        return sorted(set(xs), key=len, reverse=True)
+
     # Every WORD that appears in a design token or a colorway. A trailing
     # capitalised word outside this set is a player surname.
     known = {w for t in design for w in t.split()} | colorways
@@ -175,20 +178,14 @@ def build_plan(src_root, dest_root, vocab, only_team):
                     continue
                 el, notes = element_for(f.stem, strip, design, shellcut, seq, known)
                 if el is None:
-                    problems.append(
-                        (f"{team_dir.name}/{view_dir.name}/{f.name}", ", ".join(notes))
-                    )
+                    problems.append((f"{team_dir.name}/{view_dir.name}/{f.name}", ", ".join(notes)))
                     continue
-                moves.append(
-                    (f, dest_root / team_dir.name / view_dir.name / el / f.name, notes)
-                )
+                moves.append((f, dest_root / team_dir.name / view_dir.name / el / f.name, notes))
     return moves, problems
 
 
 def main():
-    ap = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--root")
     ap.add_argument("--sport", default="football")
     ap.add_argument("--src")
@@ -197,16 +194,10 @@ def main():
     ap.add_argument("--apply", action="store_true")
     args = ap.parse_args()
 
-    root = (
-        Path(args.root).expanduser().resolve()
-        if args.root
-        else find_root(Path.cwd().resolve())
-    )
+    root = Path(args.root).expanduser().resolve() if args.root else find_root(Path.cwd().resolve())
     sport_dir = args.sport.replace("_", " ").title()
     src_root = root / (
-        args.src
-        if args.src
-        else (f"temp/{sport_dir}" if (root / "temp" / sport_dir).is_dir() else "temp")
+        args.src if args.src else (f"temp/{sport_dir}" if (root / "temp" / sport_dir).is_dir() else "temp")
     )
     dest_root = root / (args.dest or sport_dir)
     if not src_root.is_dir():
@@ -217,10 +208,7 @@ def main():
         f"vocabulary: {len(vocab[0])} strippable, {len(vocab[1])} design, "
         f"{len(vocab[2])} shell/cut, {len(vocab[3])} sequence"
     )
-    print(
-        f"source: {src_root.relative_to(root)}  ->  dest: "
-        f"{dest_root.relative_to(root)}\n"
-    )
+    print(f"source: {src_root.relative_to(root)}  ->  dest: {dest_root.relative_to(root)}\n")
 
     moves, problems = build_plan(src_root, dest_root, vocab, args.team)
     if not moves and not problems:
