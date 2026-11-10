@@ -302,7 +302,7 @@ def test_plan_flat_noyear_splits_team_at_the_first_colorway(project):
     for n in ("Auburn Navy A", "Ole Miss Navy Red Bill", "Kansas Powder", "Rice Dark Gray"):
         touch(project, T / f"{n}.png")
     touch(project, T / "sub" / ".Auburn Navy A.png")
-    moves, problems = mm.plan_flat_noyear(project / T, project / "Marks/Baseball", "", "Hats", "Front", project)
+    moves, problems = mm.plan_flat_noyear(project / T, project / "Marks/Baseball", "Hats", "Front", project)
     assert problems == []
     assert sorted(rels(moves, project / T, project / "Marks/Baseball")) == [
         ("Auburn Navy A.png", "Auburn/Hats Front/Navy A/Navy A.png"),
@@ -316,7 +316,7 @@ def test_plan_flat_noyear_reports_reversed_and_unknown_names(project):
     """A name starting with its colorway, or with no colorway at all, is reported rather than guessed."""
     touch(project, T / "Black Campbell.png")
     touch(project, T / "Zebra Thing.png")
-    moves, problems = mm.plan_flat_noyear(project / T, project / "Marks/Baseball", "", "Hats", "Front", project)
+    moves, problems = mm.plan_flat_noyear(project / T, project / "Marks/Baseball", "Hats", "Front", project)
     assert moves == []
     assert sorted(problems) == [
         ("no known colorway", "Zebra Thing.png", ""),
@@ -328,7 +328,7 @@ def test_plan_flat_noyear_without_colorways(project):
     """With no colorway list, flat-noyear plans nothing and says why."""
     small_configs(project)
     (project / "configs/slots_global.yaml").unlink()
-    assert mm.plan_flat_noyear(project / T, project, "", "Hats", "Front", project) == (
+    assert mm.plan_flat_noyear(project / T, project, "Hats", "Front", project) == (
         [],
         [("no colorways", "configs/slots_global.yaml", "")],
     )

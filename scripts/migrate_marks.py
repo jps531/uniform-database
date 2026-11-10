@@ -69,7 +69,6 @@ def find_root(start: Path) -> Path:
 def plan_flat_noyear(
     src_root: Path,
     dest_root: Path,
-    sport: str,
     slot_dir: str,
     viewpoint: str,
     root: Path,
@@ -349,7 +348,6 @@ def main():
         moves, problems = plan_flat_noyear(
             src_root,
             dest_root,
-            args.sport if hasattr(args, "sport") else "",
             args.slot_dir,
             args.viewpoint,
             root,
