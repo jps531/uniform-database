@@ -6,4 +6,4 @@
 # which jersey is a fact about an appearance, not about an element.
 
 extends: shared
-tokens:
+tokens: {}

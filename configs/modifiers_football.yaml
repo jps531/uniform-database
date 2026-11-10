@@ -184,12 +184,16 @@ tokens:
   bumper_attack:  { token: Attack, label: Attack bumper,  scope: variation, kind: modifier, teams: [Southern Miss] }
   bumper_eagles:  { token: Eagles, label: Eagles bumper,  scope: variation, kind: modifier, teams: [Southern Miss] }
   bumper_eagle:
-    token: Eagle
-    label: Eagle bumper
+    token: EagleHead
+    label: Eagle head bumper
     scope: variation
     kind: modifier
     teams: [Southern Miss]
-    note: Distinct from bumper_eagles — confirmed.
+    note: >
+      Distinct from bumper_eagles — confirmed. Was the token `Eagle`, which
+      collided with the DESIGN token Eagle (eagle_design): a token may not
+      appear at both folder and file level. Renamed to EagleHead; the
+      artwork filenames follow.
   bumper_rebs:
     token: Rebs
     label: Rebs bumper
@@ -230,5 +234,7 @@ colorways: [maroon, white, black, gray, dark gray, light gray, red, crimson,
             pewter, carbon, camo]
 
 # --- Counts ----------------------------------------------------------------
-#   3,242 files · 10 teams · 12 viewpoints
-#   16 colorways in use · 38 design tokens · 64 file-level tokens
+#   Survey of 3,242 files · 10 teams · 12 viewpoints: 16 colorways in use,
+#   38 design tokens, 64 file-level tokens (shared tokens included).
+#   This file lists 27 colorways and declares 24 design tokens, 53 patch and
+#   variation tokens, 6 shells, 1 finish and 5 sequence letters.

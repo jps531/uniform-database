@@ -5,8 +5,9 @@
 # point as x - (scaled_width / 2).
 #
 # SCALE applies to the whole standardized canvas, not just the artwork.
-# Because artwork is centred within a padded canvas, scaling the canvas keeps
-# the artwork centred and proportional.
+# Because artwork sits top-centre on its padded canvas (horizontally centred,
+# top edge on the canvas top), scaling the canvas keeps the artwork in the
+# same place relative to the placement point, and proportional.
 #
 # REQUIREMENT — three distinct behaviours, deliberately not two:
 #   required     the placement must resolve, or composition fails loudly.
@@ -145,7 +146,8 @@ templates:
   # Harmless — compose.py clips it.
   #
   # `-tq` variants are for the three-quarter sleeve era, whose jersey canvas
-  # is 2140 wide against the standard 1800. They were MEASURED rather than
+  # (diamond_jersey_tq) is 2114 wide against the standard 1780 (this note
+  # gave 2140 and 1800 when they were measured). They were MEASURED rather than
   # derived: jerseys are not always centred in these layouts, so the
   # arithmetic shortcut that worked for the cropped football views does not
   # hold here.

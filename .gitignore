@@ -5,9 +5,11 @@
 *.icloud
 .DS_Store
 __pycache__/
-temp/
-out/
+/temp/
+/out/
 golden/run/
+# golden_ci.py's scratch project
+golden/run-ci/
 golden/inventory.json
 /Football/
 /Baseball/
@@ -19,8 +21,7 @@ golden/inventory.json
 /Marks/
 /Venues/
 # point-in-time listings (find, survey, offsize output): local only
-surveys/
-*.whl
+/surveys/
 
 # python tooling
 .venv/
@@ -29,7 +30,9 @@ surveys/
 # tests
 .pytest_cache/
 .coverage
+# per-process data files from parallel and subprocess runs
 .coverage.*
+# Finder's "copy" names (".coverage 2") when the folder syncs through iCloud
 .coverage *
 coverage.json
 htmlcov/

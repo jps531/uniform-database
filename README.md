@@ -40,9 +40,9 @@ just the artwork the golden suite uses, so CI can run it.
 | `scripts/` | The Python asset pipeline, in three folders: `pipeline/` (standardize, crop, compose), `migration/` (bringing new artwork and marks in, and checking it), `golden/` (the golden suite) |
 | `golden/` | The golden suite's approved plan (`manifest.yaml`, `PLAN.md`), known pairings, and `fixture/`: a copy of the artwork the suite needs, so CI can run it. Renders go to `golden/run/`, which isn't tracked |
 | `tests/` | Unit tests for every script (pytest), on synthetic artwork |
-| `docs/` | Longer how-tos ([golden_suite.md](docs/golden_suite.md)) |
+| `docs/` | [reference.md](docs/reference.md), the full pipeline reference: naming grammar, invariants, eras and canvases, composition, and the mistakes not to repeat. [golden_suite.md](docs/golden_suite.md), the golden suite and its CI |
 | `pyproject.toml`, `uv.lock` | Dependencies, managed with uv, and the ruff config |
-| `CLAUDE.md` | The full reference for the pipeline: naming grammar, invariants, eras and canvases, composition, and the mistakes not to repeat. Written for AI agents, and the most complete description of the project for people too |
+| `CLAUDE.md` | The rules AI agents working here must follow, and the full command list. It points into `docs/reference.md` for detail |
 
 Not tracked, but expected in the same folder when you run anything:
 `{Sport}/{Team}/…` (uniform elements), `Marks/` (opponent helmets and hats),
@@ -59,7 +59,8 @@ uv sync          # Python 3.13 and every dependency, into .venv
 ```
 
 Run every command below from that same folder. Every script prints its full
-options with `--help`, and CLAUDE.md's "Commands" section lists them all.
+options with `--help`, and CLAUDE.md's "Commands" section lists every script
+and option.
 
 ## Compose a graphic
 
@@ -77,7 +78,8 @@ uv run scripts/pipeline/compose.py --sport football --view full \
 ```
 
 The output goes to `--out`, or `out/composed.png` by default. `--team`
-defaults to Mississippi State.
+defaults to Mississippi State, `--sport` to `football` and `--view` to
+`full`.
 
 **Views.** These are all 48 templates in `configs/view_templates.yaml`.
 Pass the sport as written here (`mens_basketball`, not `Men's Basketball`):
@@ -96,7 +98,8 @@ A view uses only the slots it needs. A single-piece view like `helmets-3`
 takes just `--helmet`.
 
 **Pick the view that matches the element's cut.** `-tq` views are for
-three-quarter-sleeve baseball and softball jerseys, `-ls` for long-sleeve
+three-quarter-sleeve baseball jerseys (softball has no three-quarter cut),
+`-ls` for long-sleeve
 soccer kits, and the volleyball condensed combos name each kit's sleeve
 (`ss`/`ls`). The wrong cut clips without an error, so check the output.
 
@@ -118,8 +121,11 @@ These flags change the pick:
 | `--number 03` | the jersey number. It's a string: `03` and `3` are different files. |
 | `--with TOKEN` | require a patch, variation or form, e.g. `--with Grad`, `--with Classic`. Repeatable. |
 | `--player SURNAME` | pick between files sharing a number (baseball's `18 Girodo` and `18 Heck`) |
+| `--with2`, `--player2` | the same, for the second uniform in a combo |
+| `--element SLOT=NAME` | any slot without its own flag, e.g. `--element sock="2019 White"` |
 | `--helmet-left` | football: add the left-helmet inset, for helmets whose two sides differ |
 | `--json PATH` | also write which file filled each placement, and anything missing or clipped |
+| `--diff PATH` | compare the result against a hand-made composite |
 
 ## Generate helmet Left and Right views from Marks
 
@@ -153,6 +159,8 @@ Things to know:
 
 - **`pad` writes immediately.** There's no dry run. That's acceptable here
   because the destination is generated and can always be rebuilt from Marks.
+  Pad directly into `.generated` trees like these; for an authored tree, pad
+  into a `… STD` sibling and check it before replacing the source.
 - **Edit the Marks file, never the generated one.** The destination folders
   carry a `.generated` marker, which is why `pad` may overwrite them. It
   refuses an unmarked destination, and `--force` would permanently mark an
@@ -199,16 +207,9 @@ real elements and lists every defect in `golden/run/REPORT.md`.
 checks, and how to fix a bad pairing.
 
 **CI runs it too**, on `golden/fixture/`, a copy of exactly the artwork the
-suite uses. It fails on any defect *or* note, on any helmet that doesn't
-re-pad from its Marks source identically, and on any venue that doesn't
-re-crop identically. After a full run on the Mac, refresh the copy and
-commit it whenever the plan or any of that artwork changes:
-
-```
-uv run scripts/golden/golden_fixture.py            # dry run: what would change
-uv run scripts/golden/golden_fixture.py --apply    # then commit golden/fixture/
-uv run scripts/golden/golden_ci.py                 # the same check CI runs
-```
+suite uses; refresh and commit that copy after any re-plan or artwork change,
+as [docs/golden_suite.md, section 3](docs/golden_suite.md#3-ci--goldenfixture-and-golden_cipy)
+describes.
 
 Every script has unit tests in `tests/` (`uv run pytest -n auto`).
 [CONTRIBUTING.md](CONTRIBUTING.md) has the checks CI runs, the tools, and
@@ -216,7 +217,8 @@ what must change together.
 
 ## Before you change artwork
 
-Two rules that have cost artwork when broken (CLAUDE.md explains both):
+Two rules that have cost artwork when broken
+([docs/reference.md](docs/reference.md) explains both):
 
 - **Never re-pad standardized output.** `standardize.py pad` is for authored
   source only; use `recanvas.py` to move standardized files to a new canvas.

@@ -15,13 +15,13 @@ slots:
     typical_sports: [baseball, softball]
   jersey:
     label: Jersey
-    typical_sports: [football, baseball, softball, basketball, soccer, volleyball]
+    typical_sports: [football, baseball, softball, mens_basketball, womens_basketball, soccer, volleyball]
   pants:
     label: Pants
     typical_sports: [football, baseball, softball]
   shorts:
     label: Shorts
-    typical_sports: [basketball, soccer, volleyball]
+    typical_sports: [mens_basketball, womens_basketball, soccer, volleyball]
 
   # Not tracked by hailstateunis, defined for other creators.
   socks:
@@ -29,7 +29,7 @@ slots:
     typical_sports: [football, baseball, softball, soccer]
 
 # `typical_sports` is advisory — it drives suggestions in the admin UI,
-# not validation. Someone will eventually track something unexpected.
+# not validation. Entries are sport slugs, as in every other config. Someone will eventually track something unexpected.
 
 viewpoints:
   - front

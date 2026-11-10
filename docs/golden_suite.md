@@ -2,7 +2,13 @@
 
 One composition per template per era, drawn from real elements, rendered and
 checked so every layout is seen working at least once before the site relies
-on it.
+on it. Every era of every placement is covered — 90 of 90 archive-wide, 48 of
+48 templates — and clipping is judged on ARTWORK, not padding.
+
+**Run it after ANY change to a template, canvas or profile.** It has caught
+a placement corrupted by a text replace, three templates with zero examples,
+80 helmet backs whose profile described only 3 of them, and 1–3px clipping
+in 16 templates.
 
 ## The workflow
 
@@ -54,8 +60,8 @@ them above each template in `PLAN.md`:
 
 | Templates | Rule |
 |---|---|
-| baseball/softball `*-tq` | three-quarter sleeve jerseys only |
-| baseball/softball with a `-tq` sibling | no three-quarter jerseys |
+| baseball `*-tq` | three-quarter sleeve jerseys only |
+| baseball with a `-tq` sibling | no three-quarter jerseys |
 | soccer `*-ls` (non-combo) | long-sleeve jerseys only |
 | soccer with a `-ls` sibling | no long-sleeve jerseys |
 | soccer `*-combo*` | uniform 1 a field kit, uniform 2 a keeper kit |
@@ -92,6 +98,9 @@ connects the two. And it **survives re-planning**, which a manifest edit
 doesn't.
 
 ### Editing the manifest
+
+An entry looks like this (illustrative — the ids, elements and eras in the
+real `golden/manifest.yaml` differ):
 
 ```yaml
 - id: football--full--05
@@ -145,10 +154,15 @@ Anything that **looks** wrong but measures right: an element sitting
 awkwardly, z-order where pieces overlap, a scale that fits but looks off, a
 rotation that reads badly. That's what the contact sheets are for — review
 every sheet regardless of the defect count.
+
 ## 3. CI — `golden/fixture/` and `golden_ci.py`
+
+This section is the one description of the fixture and CI workflow; the
+README, CONTRIBUTING.md and CLAUDE.md point here.
 
 CI can't see the iCloud tree, so it runs the suite on `golden/fixture/`: a
 copy, at the same relative paths, of exactly the artwork the suite uses.
+`golden/fixture/` is the only artwork in git.
 
 ```
 uv run scripts/golden/golden_run.py                 # full run on the Mac first
@@ -185,5 +199,9 @@ differently doesn't fail it. The job summary lists every failure, and the
 `golden-run` artifact holds the contact sheets and REPORT.md.
 
 **Refresh the fixture in the same PR** as any re-plan, or any change to
-artwork the fixture copies. CI compares the fixture with itself, so it can't
-tell that the iCloud original has moved on.
+artwork the fixture copies — and any PR touching a template, canvas, era
+profile, or what `compose.py`, `standardize.py` or the golden scripts do
+needs a full run on the Mac first. CI compares the fixture with itself, so
+it can't tell that the iCloud original has moved on. A checkout without the
+iCloud folder (a cloud session, say) can run `golden_ci.py`, but not a full
+run.
