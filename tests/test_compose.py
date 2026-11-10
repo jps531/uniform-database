@@ -752,4 +752,5 @@ def test_slot_flags_are_the_slots_templates_place(project, monkeypatch):
     out = main(monkeypatch, compose, "--help")
     for slot in ("--helmet", "--jersey", "--pants", "--hat", "--shorts"):
         assert slot in out
-    assert "--field" not in out and "--court" not in out
+    assert "--field" not in out
+    assert "--court" not in out

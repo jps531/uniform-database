@@ -18,28 +18,40 @@ def test_near_uses_tolerance():
     assert not classify.near((100, 100), (100 + classify.TOL + 1, 100))
 
 
-def test_classifies_canvas_and_scale_state(project, cfg, monkeypatch):
-    """Each file is labelled by the canvas it sits on and whether its era's scale is already applied."""
+def test_classifies_the_canvas_a_file_sits_on(project, cfg, monkeypatch):
+    """Each file is labelled by the canvas it sits on: the current one, a previous one, or none at all."""
     cv = canvas_size(cfg, "football_helmet_face")
     old = classify.WAS["football_helmet_face"]
-    a = era(cfg, "football-helmet-front", "A")
+    a = tuple(era(cfg, "football-helmet-front", "A")["size"])
     b = tuple(era(cfg, "football-helmet-front", "B")["size"])
-    post = scaled(a)
     d = project / VIEW
     art(d / "new" / "h.png", cv, b)
     art(d / "new" / "h2.png", cv, b)
-    art(d / "old" / "h.png", old, post)
-    art(d / "raw" / "h.png", tuple(a["size"]))
+    art(d / "old" / "h.png", old, a)
+    art(d / "raw" / "h.png", a)
     art(d / "odd" / "h.png", (100, 100), (50, 50))
     blank(d / "blank" / "h.png", (20, 20))
     art(d / "x" / ".hidden.png", cv, b)
     out = main(monkeypatch, classify, "Football")
     assert f"\nFootball  T / Helmets Front\n{row(2, 'NEW-STD', f'{b[0]}x{b[1]}', 'era B, no correction')}\n" in out
-    assert row(1, "OLD-STD", f"{post[0]}x{post[1]}", "SCALED (era A)", "  <-- CANNOT RE-PAD") in out
-    assert row(1, "RAW", f"{a['size'][0]}x{a['size'][1]}", f"UNSCALED (era A, needs x{a['scale']})") in out
+    assert row(1, "OLD-STD", f"{a[0]}x{a[1]}", "era A, no correction") in out
+    assert row(1, "RAW", f"{a[0]}x{a[1]}", "era A, no correction") in out
     assert row(1, "? 100x100", "50x50", "NO ERA MATCH") in out
     assert row(1, "? 20x20", "0x0", "NO ERA MATCH") in out
     assert len([ln for ln in out.splitlines() if ln.startswith("   ")]) == 5
+
+
+def test_flags_scale_state_against_a_scaled_profile(project, cfg, monkeypatch):
+    """In the helmet profiles — the only eras still carrying a scale — content reads SCALED or UNSCALED."""
+    cv = canvas_size(cfg, "football_helmet_profile")
+    a = era(cfg, "football-helmet-left", "A")
+    post = scaled(a)
+    d = project / "Football/T/Helmets Left"
+    art(d / "std" / "h.png", cv, post)
+    art(d / "raw" / "h.png", tuple(a["size"]))
+    out = main(monkeypatch, classify, "Football")
+    assert row(1, "NEW-STD", f"{post[0]}x{post[1]}", "SCALED (era A)", "  <-- CANNOT RE-PAD") in out
+    assert row(1, "RAW", f"{a['size'][0]}x{a['size'][1]}", f"UNSCALED (era A, needs x{a['scale']})") in out
 
 
 def test_era_canvas_counts_as_new(project, cfg, monkeypatch):

@@ -9,18 +9,19 @@ and points here for the detail. The golden suite has its own document,
 
 Contents:
 
-1. [Provenance — authored vs generated](#provenance--authored-vs-generated)
-2. [Naming grammar](#naming-grammar)
-3. [Invariants](#invariants)
-4. [Eras, canvases and profiles](#eras-canvases-and-profiles)
-5. [Nesting](#nesting)
-6. [Composition](#composition)
-7. [Venues](#venues)
-8. [Icons](#icons)
-9. [Never re-pad standardized output](#never-re-pad-standardized-output)
-10. [Tried and reversed — don't re-derive](#tried-and-reversed--dont-re-derive)
-11. [Gotchas](#gotchas)
-12. [Known gaps](#known-gaps)
+- [Pipeline reference](#pipeline-reference)
+  - [Provenance — authored vs generated](#provenance--authored-vs-generated)
+  - [Naming grammar](#naming-grammar)
+  - [Invariants](#invariants)
+  - [Eras, canvases and profiles](#eras-canvases-and-profiles)
+  - [Nesting](#nesting)
+  - [Composition](#composition)
+  - [Venues](#venues)
+  - [Icons](#icons)
+  - [Never re-pad standardized output](#never-re-pad-standardized-output)
+  - [Tried and reversed — don't re-derive](#tried-and-reversed--dont-re-derive)
+  - [Gotchas](#gotchas)
+  - [Known gaps](#known-gaps)
 
 ## Provenance — authored vs generated
 
@@ -154,9 +155,15 @@ unmatched.
 - **An era may set `canvas:`** to override the slot canvas — used where one
   cut is far larger than the rest (baseball three-quarter sleeves, soccer and
   volleyball long sleeves).
-- **An era may set `scale:`**, baked into the standardized file: football
-  jersey era A (21.5/24), helmet face era A (716/935), every helmet profile
-  era. These are the only DESTRUCTIVE eras to re-pad.
+- **An era may set `scale:`**, baked into the standardized file. Only the
+  football helmet PROFILE eras (left and right) carry one, because their
+  source lives in `Marks/` at native size. These are the only DESTRUCTIVE eras
+  to re-pad.
+- **Football jersey and helmet-face era A were rebased** to their stored size
+  (1604x1862 and 636x716, scale 1). They used to be authored larger and
+  reduced by 21.5/24 and 716/935; the reduction is now permanent, so new era
+  A work is drawn at the size it ships at. Pre-scale originals no longer
+  match any era — re-padding one fails loudly rather than mis-scaling.
 - **Declare each era explicitly** rather than widening tolerance.
 - **Softball's profiles are copies of baseball's**, not references: the key
   carries the sport. Change a size in one, change it in the other.
@@ -259,7 +266,7 @@ matches no era and silently writes nothing.
 
 **This destroyed 36 jersey and 8 helmet elements** (football era A, recovered
 from iCloud's 30-day window). A re-pad measured 1604x1862 against a profile
-listing 1790x2078, wrote nothing, and `rm -rf` of the source did the rest. The
+then listing 1790x2078, wrote nothing, and `rm -rf` of the source did the rest. The
 old guard only compared canvas size, and the same pass had changed the
 canvas. It now refuses any file whose content matches what an era's scale
 PRODUCES, and skips any file already sitting on the slot canvas or on any

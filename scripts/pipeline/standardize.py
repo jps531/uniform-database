@@ -310,7 +310,7 @@ def cmd_survey(args, root, cfg):
                 std += im.size == (cw_, ch_)
         if std == len(files):
             print(f"\nNOTE: every file is already {cw_} x {ch_} — this is standardized OUTPUT, not source artwork.")
-            print("Sizes above are post-correction, so era A will read as UNMATCHED (it lists pre-correction sizes).")
+            print("Sizes above are post-correction, so any SCALED era reads as UNMATCHED (it lists pre-scale sizes).")
             print("Survey the original tree to check era coverage.")
 
     maxw = max(w for w, _ in sizes)
