@@ -522,7 +522,10 @@ def cmd_pad(args, root, cfg):
             out = dest / rel
             out.parent.mkdir(parents=True, exist_ok=True)
             cv = Image.new("RGBA", (cvw, cvh), (0, 0, 0, 0))
-            cv.paste(img, (x, y), img)
+            # No mask: the canvas is empty, so a plain paste copies RGBA as
+            # is. Pasting with the image as its own mask applied alpha twice
+            # and squared every anti-aliased edge (128 -> 64, 64 -> 16).
+            cv.paste(img, (x, y))
             # Tag DPI explicitly. Untagged PNGs default to 72 in most tools,
             # so they place into a 300 DPI PSD at 4.17x and make transform
             # percentages meaningless across files.

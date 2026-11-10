@@ -433,6 +433,12 @@ off their profile — within tolerance, so they standardize fine. 17 are the
 Nike/Adidas jersey-back overlap above. That list is stale; re-run
 `offsize.py` on the authored source for the current one (see Gotchas).
 
+Squared edges, accepted: until the fix, `pad` pasted each file with itself
+as the mask, which squared the alpha of every anti-aliased pixel (128 -> 64).
+Every tree standardized in place before then keeps those edges; its
+unsquared originals exist only in the Phase 0 backups. Generated helmets
+are rebuilt from native Marks, so re-padding them restores theirs.
+
 Coverage, not correctness: Ole Miss `1979 Navy` helmet has no icon; five
 Southern Miss pants (1987 Black/Gold/White, 1988 Gold, 1997 White) have an
 icon but no Front or Left.

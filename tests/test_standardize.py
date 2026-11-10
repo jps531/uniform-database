@@ -512,6 +512,24 @@ def test_survey_of_unrecognised_path_lists_elements(project, monkeypatch, capsys
     assert "14 x 9  (1 elements)" in out and "No profile yet." in out
 
 
+def test_pad_keeps_partial_alpha_exactly(project, cfg, monkeypatch):
+    """Anti-aliased edges survive pad unchanged: partly transparent pixels keep their alpha and colour."""
+    b = era(cfg, "football-helmet-front", "B")["size"]
+    cv = canvas_size(cfg, "football_helmet_face")
+    src = project / "src" / "2000 White" / "helmet.png"
+    a = np.zeros((b[1], b[0], 4), np.uint8)
+    a[..., :3] = np.random.default_rng(3).integers(0, 255, (b[1], b[0], 3), dtype=np.uint8)
+    a[..., 3] = np.tile(np.linspace(1, 255, b[0]).astype(np.uint8), (b[1], 1))  # every alpha from 1 to 255
+    src.parent.mkdir(parents=True)
+    Image.fromarray(a).save(src)
+    run(monkeypatch, "pad", "src", HELMET_FRONT)
+    with Image.open(project / HELMET_FRONT / "2000 White" / "helmet.png") as o:
+        x = (cv[0] - b[0]) // 2
+        out = np.asarray(o.convert("RGBA"))[0 : b[1], x : x + b[0]]
+    assert np.array_equal(out[..., 3], a[..., 3])
+    assert np.array_equal(out, a)
+
+
 # ---------------------------------------------------------------- fixed bugs
 
 
