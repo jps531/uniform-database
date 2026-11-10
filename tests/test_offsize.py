@@ -134,9 +134,8 @@ def test_explicit_root_and_bad_target(project, monkeypatch, capsys, tmp_path):
     monkeypatch.chdir(elsewhere)
     (project / "Football").mkdir()
     assert "No files were checked" in main(monkeypatch, offsize, "Football", "--root", str(project))
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match="Not a directory"):
         main(monkeypatch, offsize, "Nope", "--root", str(project))
-    assert "Not a directory" in str(e.value)
 
 
 def test_files_on_an_era_canvas_are_skipped_as_standardized(project, cfg, monkeypatch, capsys):

@@ -300,9 +300,8 @@ def test_same_pixels_compares_size_and_rgba(tmp_path):
 
 def test_find_root_exits_without_configs(tmp_path):
     """find_root() exits when no directory above holds the configs."""
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match=r"No configs/canvas_definitions\.yaml"):
         common.find_root(tmp_path)
-    assert "No configs/canvas_definitions.yaml" in str(e.value.code)
 
 
 def test_png_set_ignores_dot_folders_only_inside_the_folder(tmp_path):

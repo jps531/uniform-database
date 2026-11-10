@@ -281,9 +281,8 @@ def test_main_exits_on_problems(project, small, monkeypatch, capsys):
     """main() lists the problems and exits without writing."""
     s = scene(project, small)
     (project / "golden/run/football/jersey-full" / f"{s['ex'][0]['id']}.json").unlink()
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match=r"^Fix these before syncing the fixture\.$"):
         main(monkeypatch, gf, "--root", str(project), "--apply")
-    assert e.value.code == "Fix these before syncing the fixture."
     assert "!! 1 problems:" in capsys.readouterr().out
     assert not (project / "golden/fixture").exists()
 
@@ -294,9 +293,8 @@ def test_main_refuses_fixture_outside_golden(project, small, monkeypatch, tmp_pa
     outside = tmp_path / "outside"
     outside.mkdir()
     os.symlink(outside, project / "golden/fixture")
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match="is outside golden/"):
         main(monkeypatch, gf, "--root", str(project), "--apply")
-    assert "is outside golden/" in str(e.value.code)
     assert list(outside.iterdir()) == []
 
 
@@ -309,6 +307,5 @@ def test_main_finds_root_from_cwd(project, small, monkeypatch):
 
 def test_find_root_exits_without_configs(tmp_path):
     """find_root() exits when no directory above holds the configs."""
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match=r"No configs/canvas_definitions\.yaml"):
         common.find_root(tmp_path)
-    assert "No configs/canvas_definitions.yaml" in str(e.value.code)

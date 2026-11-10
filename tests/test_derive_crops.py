@@ -87,9 +87,8 @@ def test_refuses_to_apply_while_a_source_is_off_canvas(project, monkeypatch, cap
     W, H = canvas_size(cfg, "football_field_full")
     assert f"{bad.relative_to(project)}  (7x9, expected {W}x{H})" in out
     assert "DRY RUN — 1 files would be written." in out
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match=r"^Refusing to apply while problems remain\.$"):
         main(monkeypatch, dc, "--root", str(project), "--sport", "football", "--apply")
-    assert e.value.code == "Refusing to apply while problems remain."
     assert not cropped_of(good).exists()
 
 
@@ -102,7 +101,7 @@ def test_refuses_a_crop_box_outside_the_source(project, monkeypatch, capsys):
 
     cfg = small_configs(project, push)
     full(project, cfg)
-    with pytest.raises(SystemExit):
+    with pytest.raises(SystemExit, match=r"^Refusing to apply while problems remain\.$"):
         main(monkeypatch, dc, "--root", str(project), "--sport", "football", "--apply")
     assert "football/field/cropped  (crop box falls outside the source canvas)" in capsys.readouterr().out
 
@@ -123,9 +122,8 @@ def test_prints_error_rules_and_exits_when_no_rules_remain(project, monkeypatch,
         cfg["canvases"]["football_field_cropped"]["derived_from"]["canvas"] = "nowhere"
 
     small_configs(project, broken)
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match=r"^No canvases carry a `derived_from` block for sport 'football'\.$"):
         main(monkeypatch, dc, "--root", str(project), "--sport", "football")
-    assert e.value.code == "No canvases carry a `derived_from` block for sport 'football'."
     assert "!! football/field/cropped: no viewpoint of football/field uses nowhere" in capsys.readouterr().out
 
 
@@ -138,9 +136,8 @@ def test_exits_when_no_canvas_is_derived(project, monkeypatch):
             c.pop("derived_from", None)
 
     small_configs(project, strip)
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match=r"^No canvases carry a `derived_from` block\.$"):
         main(monkeypatch, dc, "--root", str(project))
-    assert e.value.code == "No canvases carry a `derived_from` block."
 
 
 def test_sport_tree_fallback_and_teams_without_source(project, monkeypatch, capsys):
@@ -171,9 +168,8 @@ def test_main_finds_root_from_cwd(project, monkeypatch):
 
 def test_find_root_exits_without_configs(tmp_path):
     """find_root() exits when no directory above holds the configs."""
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match=r"No configs/canvas_definitions\.yaml"):
         common.find_root(tmp_path)
-    assert "No configs/canvas_definitions.yaml" in str(e.value.code)
 
 
 def test_markers_count_each_teams_own_files(project, monkeypatch, capsys):
@@ -199,9 +195,8 @@ def test_a_rotated_file_is_reported_off_canvas(project, monkeypatch, capsys):
         exif = im.getexif()
         exif[0x0112] = 6
         im.save(f, exif=exif, dpi=(300, 300))
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match=r"^Refusing to apply while problems remain\.$"):
         main(monkeypatch, dc, "--root", str(project), "--sport", "football", "--apply")
-    assert e.value.code == "Refusing to apply while problems remain."
     assert f"{f.relative_to(project)}  ({H}x{W}, expected {W}x{H})" in capsys.readouterr().out
     assert not cropped_of(f).exists()
 
@@ -215,9 +210,8 @@ def test_refuses_to_apply_into_an_authored_cropped_folder(project, monkeypatch, 
     main(monkeypatch, dc, "--root", str(project), "--sport", "football")
     dst = cropped_of(f).parents[1]
     assert f"{dst.relative_to(project)}  (holds 1 PNGs but no .generated marker" in capsys.readouterr().out
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match=r"^Refusing to apply while problems remain\.$"):
         main(monkeypatch, dc, "--root", str(project), "--sport", "football", "--apply")
-    assert e.value.code == "Refusing to apply while problems remain."
     assert authored.read_bytes() == before
     assert not cropped_of(f).exists()
     assert not (dst / ".generated").exists()

@@ -267,13 +267,11 @@ def test_font_falls_back_to_default(monkeypatch):
 def test_find_root_and_missing_manifest(tmp_path, project, monkeypatch):
     """No configs above the cwd exits; a project without a manifest exits telling you to plan first."""
     monkeypatch.chdir(tmp_path)
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match=r"No configs/canvas_definitions\.yaml"):
         main(monkeypatch, gr)
-    assert "No configs/canvas_definitions.yaml" in str(e.value)
     monkeypatch.chdir(project)
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match=r"run scripts/golden/golden_plan\.py first"):
         main(monkeypatch, gr)
-    assert "run scripts/golden/golden_plan.py first" in str(e.value)
 
 
 # --------------------------------------------------------------------------
@@ -319,9 +317,8 @@ def test_end_to_end_failed_placement(project, cfg, monkeypatch, capsys):
     draw_icons(project, cfg)
     els = {"helmet": "2020 Maroon", "jersey": "1999 Nothing", "pants": "2020 Maroon"}
     manifest(project, [entry("football--icons-horizontal--01", uniform1=els)])
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match=r"^STRICT: 1 with defects, 0 with notes \(of 1 rendered this run\)$"):
         main(monkeypatch, gr, "--strict")
-    assert str(e.value) == "STRICT: 1 with defects, 0 with notes (of 1 rendered this run)"
     out = capsys.readouterr().out
     assert "DEFECT football--icons-horizontal--01" in out
     assert "- FAILED jersey/icon: no file under Jerseys Icon/1999 Nothing" in out
@@ -384,9 +381,8 @@ def test_every_outcome_reported(project, monkeypatch, tmp_path, capsys):
     A compose that wrote no result is a FAILED defect of this run, so it is in the report too.
     """
     fake = suite(project, monkeypatch, tmp_path)
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match=r"^STRICT: 6 with defects, 1 with notes \(of 9 rendered this run\)$"):
         main(monkeypatch, gr, "--strict")
-    assert str(e.value) == "STRICT: 6 with defects, 1 with notes (of 9 rendered this run)"
     out = capsys.readouterr().out
     assert "9 examples to render (1 not approved, skipped)" in out
     assert "[  1/9] ok     fb--a--01" in out
@@ -434,9 +430,8 @@ def test_every_outcome_reported(project, monkeypatch, tmp_path, capsys):
 def test_strict_counts_a_note_alone(project, monkeypatch, tmp_path, capsys):
     """Under --strict a 1-2px clipping note fails the run even with no defects."""
     suite(project, monkeypatch, tmp_path)
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match=r"^STRICT: 0 with defects, 1 with notes \(of 1 rendered this run\)$"):
         main(monkeypatch, gr, "--strict", "--only", "fb--a--02")
-    assert str(e.value) == "STRICT: 0 with defects, 1 with notes (of 1 rendered this run)"
     assert "1 examples to render" in capsys.readouterr().out
 
 
@@ -474,7 +469,7 @@ def test_only_strict_ok(project, monkeypatch, tmp_path, capsys):
 def test_strict_with_sport_ignores_earlier_results_on_disk(project, monkeypatch, tmp_path, capsys):
     """--strict --sport passes on a clean sport even when another sport's earlier results on disk have defects."""
     suite(project, monkeypatch, tmp_path)
-    with pytest.raises(SystemExit):
+    with pytest.raises(SystemExit, match="^STRICT: 6 with defects, 1 with notes"):
         main(monkeypatch, gr, "--sport", "football", "--strict")
     capsys.readouterr()
     main(monkeypatch, gr, "--sport", "soccer", "--strict")
@@ -488,9 +483,8 @@ def test_strict_judges_this_runs_defect_not_an_older_clean_result(project, monke
     fake = suite(project, monkeypatch, tmp_path)
     main(monkeypatch, gr, "--only", "fb--a--01")
     fake.behaviours["sc--c--01"] = fake.behaviours["fb--a--03"]
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match=r"^STRICT: 1 with defects, 0 with notes \(of 1 rendered this run\)$"):
         main(monkeypatch, gr, "--sport", "soccer", "--strict")
-    assert str(e.value) == "STRICT: 1 with defects, 0 with notes (of 1 rendered this run)"
 
 
 def test_sport_filter_and_report_from_disk(project, monkeypatch, tmp_path, capsys):
@@ -526,9 +520,8 @@ def test_stale_json_not_read_as_ok(project, monkeypatch, tmp_path, capsys):
     assert js.is_file()
     capsys.readouterr()
     fake.behaviours["fb--a--01"] = (None, None, "Unknown token(s): Bogus\nNot in configs/modifiers_football.yaml\n")
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match="^STRICT: 1 with defects"):
         main(monkeypatch, gr, "--only", "fb--a--01", "--strict")
-    assert str(e.value).startswith("STRICT: 1 with defects")
     out = capsys.readouterr().out
     assert "DEFECT fb--a--01" in out
     assert "- FAILED compose: Not in configs/modifiers_football.yaml" in out
@@ -547,9 +540,8 @@ def test_end_to_end_unknown_token_after_ok_run(project, cfg, monkeypatch, capsys
     main(monkeypatch, gr, "--strict")
     capsys.readouterr()
     manifest(project, [{**ex, "with": ["Bogus"]}])
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match="^STRICT: 1 with defects"):
         main(monkeypatch, gr, "--strict")
-    assert str(e.value).startswith("STRICT: 1 with defects")
     out = capsys.readouterr().out
     assert "DEFECT football--icons-horizontal--01" in out
     assert "- FAILED compose: " in out
@@ -572,9 +564,8 @@ def test_nothing_selected_reports_zero(project, monkeypatch, capsys, entries, ar
     assert "**0 examples, 0 with defects.**" in report(project)
     assert "0 rendered" in (project / "golden/run/index.html").read_text()
     assert "0 rendered this run; report covers 0" in capsys.readouterr().out
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match="^STRICT: no approved example matched the selection, so nothing was checked$"):
         main(monkeypatch, gr, *argv, "--strict")
-    assert str(e.value) == "STRICT: no approved example matched the selection, so nothing was checked"
 
 
 def test_contact_sheet_labels_and_outline(tmp_path):

@@ -30,7 +30,9 @@ def report_path() -> Path:
 
 def stale_against(report: Path) -> Path | None:
     """The newest file under scripts/ or tests/ if it changed after `report` was written, else None."""
-    files = [p for d in ("scripts", "tests") for p in (REPO / d).rglob("*") if p.is_file() and "__pycache__" not in p.parts]
+    files = [
+        p for d in ("scripts", "tests") for p in (REPO / d).rglob("*") if p.is_file() and "__pycache__" not in p.parts
+    ]
     newest = max(files, key=lambda p: p.stat().st_mtime)
     return newest if newest.stat().st_mtime > report.stat().st_mtime else None
 

@@ -2,6 +2,7 @@
 
 import copy
 import json
+import re
 from pathlib import Path
 
 import common
@@ -58,9 +59,8 @@ def test_find_root_walks_up_and_exits_when_absent(project, tmp_path):
     assert common.find_root(sub) == project
     lone = tmp_path / "lone"
     lone.mkdir()
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match=r"No configs/canvas_definitions\.yaml in"):
         common.find_root(lone)
-    assert "No configs/canvas_definitions.yaml in" in str(e.value)
 
 
 def test_resolve_takes_relative_paths_from_root(project, tmp_path):
@@ -225,9 +225,8 @@ def test_survey_profile_override_inside_a_sport_tree(project, cfg, monkeypatch, 
 def test_survey_rejects_unknown_profile(project, monkeypatch):
     """survey exits naming a --profile that isn't in the config."""
     art(project / "src" / "x.png", (5, 5))
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match=r"No profile 'nope' in config\."):
         main(monkeypatch, standardize, "survey", "src", "--profile", "nope")
-    assert "No profile 'nope' in config." in str(e.value)
 
 
 def test_survey_without_profile_groups_and_truncates_elements(project, monkeypatch, capsys):
@@ -286,13 +285,11 @@ def test_survey_mixed_canvas_sizes_no_note(project, cfg, monkeypatch, capsys):
 
 def test_survey_refuses_missing_or_empty_dirs(project, monkeypatch):
     """survey exits on a path that isn't a directory, and on one with no PNGs."""
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match="Not a directory"):
         main(monkeypatch, standardize, "survey", "nothing")
-    assert "Not a directory" in str(e.value)
     (project / "empty").mkdir()
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match="No PNGs under") as e:
         main(monkeypatch, standardize, "survey", "empty")
-    assert "No PNGs under" in str(e.value)
     assert "brctl download" in str(e.value)
 
 
@@ -393,11 +390,11 @@ def test_pad_reports_unmatched_skipped_and_mixed(project, cfg, monkeypatch, caps
     art(project / "src" / "odd" / "s.png", (40, 40))
     art(project / "src" / "std" / "s.png", cv, e)
     art(project / "src" / "blank" / "s.png", (9, 9), (0, 0))
-    with pytest.raises(SystemExit) as ex:
+    with pytest.raises(
+        SystemExit,
+        match=r"^\n!! 2 files were NOT written \(1 matched no era, 1 fell outside the canvas\)\. Keep the source\.$",
+    ):
         main(monkeypatch, standardize, "pad", "src", dest)
-    assert (
-        ex.value.code == "\n!! 2 files were NOT written (1 matched no era, 1 fell outside the canvas). Keep the source."
-    )
     out = capsys.readouterr().out
     written = sorted(p.relative_to(project / dest).as_posix() for p in (project / dest).rglob("*.png"))
     assert written == ["good/s.png"]
@@ -465,9 +462,8 @@ def test_pad_refuses_unmarked_authored_destination(project, cfg, monkeypatch):
     before = authored.read_bytes()
     art(project / "src" / "x" / "h.png", b, seed=4)
     art(project / "src" / "y" / "h.png", b, seed=5)
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match="REFUSING to write") as e:
         main(monkeypatch, standardize, "pad", "src", HELMET_FRONT)
-    assert "REFUSING to write" in str(e.value)
     assert "holds 1 PNGs" in str(e.value)
     assert authored.read_bytes() == before
     assert not (dest / "y").exists()
@@ -502,12 +498,10 @@ def test_pad_refuses_post_correction_input(project, cfg, monkeypatch):
     w, h = scaled(a)
     art(project / "src" / "1960 White" / "h.png", (w + tol, h - tol))
     art(project / "src" / "2000 White" / "h.png", b)
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match=r"REFUSING: 1 of 2 files are ALREADY POST-CORRECTION \(era A\)") as e:
         main(monkeypatch, standardize, "pad", "src", HELMET_FRONT)
-    msg = str(e.value)
-    assert "REFUSING: 1 of 2 files are ALREADY POST-CORRECTION (era A)" in msg
-    assert f"{w + tol}x{h - tol}  era A  1960 White/h.png" in msg
-    assert "Nothing written" in msg
+    assert f"{w + tol}x{h - tol}  era A  1960 White/h.png" in str(e.value)
+    assert "Nothing written" in str(e.value)
     assert not (project / HELMET_FRONT).exists()
 
 
@@ -517,15 +511,14 @@ def test_pad_refuses_input_already_on_canvas(project, cfg, monkeypatch):
     b = era(cfg, "football-helmet-front", "B")["size"]
     art(project / "src" / "x" / "h.png", cv, b)
     art(project / "src" / "y" / "h.png", cv, b)
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match=f"All 2 files are ALREADY {cv[0]} x {cv[1]}"):
         main(monkeypatch, standardize, "pad", "src", HELMET_FRONT)
-    assert f"All 2 files are ALREADY {cv[0]} x {cv[1]}" in str(e.value)
     assert not (project / HELMET_FRONT).exists()
 
 
-def test_pad_refuses_bad_arguments(project, monkeypatch, tmp_path):
-    """pad exits on a missing source, dest == src, an empty source, and unknown canvas or profile."""
-    cases = [
+@pytest.mark.parametrize(
+    "argv, msg",
+    [
         (("pad", "missing", HELMET_FRONT), "Not a directory"),
         (("pad", "src", "src"), "Destination must differ from source."),
         (("pad", "empty", HELMET_FRONT), "No PNGs under"),
@@ -533,13 +526,14 @@ def test_pad_refuses_bad_arguments(project, monkeypatch, tmp_path):
         (("pad", "src", "Football/T/Helmets Side"), "No canvas size for this path (football/helmet/side"),
         (("pad", "src", "out/x", "--canvas", "10x10"), "No profile for this path"),
         (("pad", "src", HELMET_FRONT, "--profile", "nope"), "No profile 'nope' in config."),
-    ]
+    ],
+)
+def test_pad_refuses_bad_arguments(project, monkeypatch, argv, msg):
+    """pad exits on a missing source, dest == src, an empty source, and unknown canvas or profile, writing nothing."""
     art(project / "src" / "x.png", (5, 5))
     (project / "empty").mkdir()
-    for argv, msg in cases:
-        with pytest.raises(SystemExit) as e:
-            main(monkeypatch, standardize, *argv)
-        assert msg in str(e.value), argv
+    with pytest.raises(SystemExit, match=re.escape(msg)):
+        main(monkeypatch, standardize, *argv)
     assert not (project / HELMET_FRONT).exists()
     assert not (project / "out").exists()
 
@@ -628,18 +622,16 @@ def test_pad_refuses_input_all_on_slot_or_era_canvases(project, cfg, monkeypatch
     custom_config(project, cfg, tiny_sport)
     art(project / "src" / "a" / "j.png", (40, 30), (38, 28))
     art(project / "src" / "b" / "j.png", (60, 30), (58, 28))
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match="All 2 files are ALREADY 40 x 30 or 60 x 30"):
         main(monkeypatch, standardize, "pad", "src", "Test/T/Jerseys Front")
-    assert "All 2 files are ALREADY 40 x 30 or 60 x 30" in str(e.value)
     assert not (project / "Test").exists()
 
 
 def test_pad_canvas_hint_fits_centred_content_with_a_margin(project, monkeypatch, capsys):
     """The canvas hint is content plus 1px each side on a centred axis, never the canvas that just failed."""
     art(project / "src" / "w" / "s.png", (781, 537))
-    with pytest.raises(SystemExit) as e:  # every file falls off the canvas: nothing written
+    with pytest.raises(SystemExit, match="Nothing written"):  # every file falls off the canvas: nothing written
         main(monkeypatch, standardize, "pad", "src", "Soccer/T/Shorts Front")
-    assert "Nothing written" in str(e.value)
     out = capsys.readouterr().out
     assert "781x537 -> 781x537 at (-1,0)  w/s.png" in out
     assert "A canvas of at least 783 x 537 would fit them (soccer_shorts)." in out
@@ -679,9 +671,8 @@ def test_pad_canvas_hint_per_canvas_and_for_offsets_that_never_fit(project, cfg,
     art(project / "src" / "huge" / "j.png", (70, 10))
     art(project / "src" / "off" / "j.png", (30, 3))
     art(project / "src" / "deep" / "j.png", (12, 40))
-    with pytest.raises(SystemExit) as e:  # every file falls off the canvas: nothing written
+    with pytest.raises(SystemExit, match="Nothing written"):  # every file falls off the canvas: nothing written
         main(monkeypatch, standardize, "pad", "src", "Test/T/Jerseys Front")
-    assert "Nothing written" in str(e.value)
     out = capsys.readouterr().out
     assert "!! 3 files fall outside the canvas:" in out
     assert "A canvas of at least 40 x 40 would fit them (tiny)." in out
@@ -696,10 +687,10 @@ def test_pad_blank_file_does_not_slip_standardized_output_past_the_refusal(proje
     art(project / "src" / "x" / "h.png", cv, b)
     art(project / "src" / "y" / "h.png", cv, b)
     art(project / "src" / "z" / "blank.png", cv, (0, 0))
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(
+        SystemExit, match=re.escape(f"All 2 files are ALREADY {cv[0]} x {cv[1]} (1 fully transparent file ignored)")
+    ):
         main(monkeypatch, standardize, "pad", "src", HELMET_FRONT)
-    msg = str(e.value)
-    assert f"All 2 files are ALREADY {cv[0]} x {cv[1]} (1 fully transparent file ignored)" in msg
     assert not (project / HELMET_FRONT).exists()
 
 
@@ -707,18 +698,16 @@ def test_pad_refuses_a_source_with_no_opaque_content(project, cfg, monkeypatch):
     """A source of only fully transparent files is refused, and nothing (not even a marker) is written."""
     art(project / "src" / "a" / "blank.png", (9, 9), (0, 0))
     art(project / "src" / "b" / "blank.png", (9, 9), (0, 0))
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match="No file has opaque content: all 2 PNGs are fully transparent"):
         main(monkeypatch, standardize, "pad", "src", HELMET_FRONT)
-    assert "No file has opaque content: all 2 PNGs are fully transparent" in str(e.value)
     assert not (project / HELMET_FRONT).exists()
 
 
 def test_pad_writes_no_marker_when_nothing_was_written(project, monkeypatch, capsys):
     """When no file both matches an era and fits, pad reports why, exits 1 and creates no destination or marker."""
     art(project / "src" / "odd" / "h.png", (40, 40))
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match="Nothing written"):
         main(monkeypatch, standardize, "pad", "src", HELMET_FRONT)
-    assert "Nothing written" in str(e.value)
     assert "!! 1 files matched NO era and were NOT written:" in capsys.readouterr().out
     assert not (project / HELMET_FRONT).exists()
 

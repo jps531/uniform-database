@@ -1,6 +1,7 @@
 """Tests for scripts/migration/recanvas.py: moving standardized files to a new canvas without ever rescaling."""
 
 import json
+import re
 
 import common
 import numpy as np
@@ -19,9 +20,8 @@ def test_find_root(project, tmp_path):
     assert common.find_root(sub) == project
     lone = tmp_path / "lone"
     lone.mkdir()
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match=r"No configs/canvas_definitions\.yaml in"):
         common.find_root(lone)
-    assert "No configs/canvas_definitions.yaml in" in str(e.value)
 
 
 def test_dry_run_reports_and_writes_nothing(project, cfg, monkeypatch, capsys):
@@ -84,9 +84,8 @@ def test_too_big_is_listed_and_blocks_apply(project, cfg, monkeypatch, capsys):
     assert "!! 2 files are LARGER than the canvas:" in out
     assert f"{W + 1}x10  big/h.png" in out
     assert f"10x{H + 1}  tall/h.png" in out
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match=r"Refusing to apply while files exceed the canvas\."):
         main(monkeypatch, recanvas, "old", DEST, "--apply")
-    assert "Refusing to apply while files exceed the canvas." in str(e.value)
     assert not (project / DEST).exists()
 
 
@@ -125,9 +124,8 @@ def test_explicit_root(project, monkeypatch, tmp_path, capsys):
 def test_refusals(project, monkeypatch, src, dest, msg):
     """recanvas exits on a missing source, an unparseable destination, and one with no canvas."""
     art(project / "old" / "x.png", (5, 5))
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match=re.escape(msg)):
         main(monkeypatch, recanvas, src, dest)
-    assert msg in str(e.value)
 
 
 @pytest.mark.parametrize("dest", ["old", "old/", "./old", "x/../old"])
@@ -135,9 +133,8 @@ def test_refuses_destination_equal_to_source(project, monkeypatch, dest):
     """A destination that resolves to the source is refused before anything is read or written."""
     src = art(project / "old" / "x" / "h.png", (5, 5))
     before = src.read_bytes()
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match=r"Destination must differ from source\."):
         main(monkeypatch, recanvas, "old", dest, "--canvas", "football_helmet_face", "--apply")
-    assert "Destination must differ from source." in str(e.value)
     assert src.read_bytes() == before
 
 
@@ -152,9 +149,8 @@ def test_std_sibling_resolves_its_canvas(project, cfg, monkeypatch, capsys):
 def test_destination_outside_the_project_is_unreadable(project, monkeypatch, tmp_path):
     """A destination outside the project root cannot name a canvas, and exits cleanly."""
     art(project / "old" / "x.png", (5, 5))
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match="Cannot read sport/slot/viewpoint from"):
         main(monkeypatch, recanvas, "old", str(tmp_path / "elsewhere" / "Football/T/Jerseys Front"))
-    assert "Cannot read sport/slot/viewpoint from" in str(e.value)
 
 
 def test_refuses_an_authored_destination(project, cfg, monkeypatch):
@@ -163,9 +159,8 @@ def test_refuses_an_authored_destination(project, cfg, monkeypatch):
     authored = art(project / DEST / "x" / "h.png", (7, 7), seed=4)
     before = authored.read_bytes()
     for flags in ((), ("--apply",)):
-        with pytest.raises(SystemExit) as e:
+        with pytest.raises(SystemExit, match="REFUSING to write to") as e:
             main(monkeypatch, recanvas, "old", DEST, *flags)
-        assert "REFUSING to write to" in str(e.value)
         assert "holds 1 PNGs but has no .generated marker" in str(e.value)
     assert authored.read_bytes() == before
 

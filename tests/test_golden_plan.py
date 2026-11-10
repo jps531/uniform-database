@@ -68,9 +68,8 @@ def reduced_configs(project, templates, views, **files):
 def test_find_root_exits_without_configs(tmp_path, monkeypatch):
     """main() exits when no configs/canvas_definitions.yaml is above the cwd."""
     monkeypatch.chdir(tmp_path)
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match=r"No configs/canvas_definitions\.yaml"):
         main(monkeypatch, gp)
-    assert "No configs/canvas_definitions.yaml" in str(e.value)
 
 
 def test_find_root_from_a_subdirectory(project, monkeypatch):

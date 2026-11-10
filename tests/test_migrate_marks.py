@@ -128,9 +128,8 @@ def test_main_flat_blocks_on_problems_and_collisions(project, monkeypatch, capsy
     assert "!! 1 destination collisions" in out
     assert "Alabama/Helmets Right/2015 Crimson/2015 Crimson Speedflex.png (2 sources)" in out
     assert "Resolve the flagged items first" in out
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match="Refusing to apply"):
         main(monkeypatch, mm, "--root", str(project), "--apply")
-    assert "Refusing to apply" in str(e.value.code)
     assert not (project / D).exists()
 
 
@@ -144,9 +143,8 @@ def test_main_refuses_to_overwrite_a_different_existing_file(project, monkeypatc
     assert "!! 1 files already exist at the destination with different contents:" in out
     assert "     Alabama/Helmets Right/2015 Crimson/2015 Crimson Speedflex.png" in out
     assert "Resolve the flagged items first" in out
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match="Refusing to apply"):
         main(monkeypatch, mm, "--root", str(project), "--apply")
-    assert "Refusing to apply" in str(e.value.code)
     assert there.read_bytes() == before
 
 
@@ -168,13 +166,11 @@ def test_main_skips_an_identical_existing_file(project, monkeypatch, capsys):
 
 def test_main_exits_without_source_or_team(project, monkeypatch):
     """A missing source tree, or nested mode without --team, exits with a message."""
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match="Source not found"):
         main(monkeypatch, mm, "--root", str(project))
-    assert "Source not found" in str(e.value.code)
     (project / T).mkdir(parents=True)
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match="^--team is required in nested mode$"):
         main(monkeypatch, mm, "--root", str(project), "--mode", "nested")
-    assert e.value.code == "--team is required in nested mode"
 
 
 def test_main_finds_root_from_cwd(project, monkeypatch):
@@ -185,9 +181,8 @@ def test_main_finds_root_from_cwd(project, monkeypatch):
 
 def test_find_root_exits_without_configs(tmp_path):
     """find_root() exits when no directory above holds the configs."""
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match=r"pass --root\."):
         common.find_root(tmp_path)
-    assert "pass --root." in str(e.value.code)
 
 
 # ---------------------------------------------------------------- nested
@@ -288,7 +283,7 @@ def test_main_nested_blocks_on_an_empty_mark(project, monkeypatch, capsys):
     """An empty mark is printed among nested problems and blocks --apply."""
     small_configs(project)
     art(project / "Incoming/Helmets Left/2015 Crimson/2015 Crimson.png", (20, 20), (0, 0))
-    with pytest.raises(SystemExit):
+    with pytest.raises(SystemExit, match="Refusing to apply while flagged problems"):
         main(monkeypatch, mm, "--root", str(project), "--mode", "nested", "--team", "X", "--src", "Incoming", "--apply")
     out = capsys.readouterr().out
     assert "!! 1 no opaque content:" in out
@@ -315,7 +310,7 @@ def test_main_nested_reports_problems_and_collisions_then_refuses(project, monke
     assert "!! 1 unrecognised trailing token:" in out
     assert "!! 1 size matches no era:" in out
     assert "!! 1 destination collisions" in out
-    with pytest.raises(SystemExit):
+    with pytest.raises(SystemExit, match="Refusing to apply while flagged problems"):
         main(monkeypatch, mm, "--root", str(project), *flags, "--apply")
     assert not (project / D).exists()
 
@@ -385,7 +380,7 @@ def test_main_flat_noyear_refuses_collisions(project, monkeypatch, capsys):
     """Two hats that would land on one destination block --apply."""
     touch(project, T / "a" / "Auburn Navy A.png")
     touch(project, T / "b" / "Auburn Navy A.png")
-    with pytest.raises(SystemExit):
+    with pytest.raises(SystemExit, match="Refusing to apply while flagged problems"):
         main(monkeypatch, mm, "--root", str(project), "--mode", "flat-noyear", "--dest", "Marks/Baseball", "--apply")
     assert "!! 1 destination collisions" in capsys.readouterr().out
     assert not (project / "Marks/Baseball").exists()
@@ -402,7 +397,7 @@ def test_main_flat_noyear_prints_problems_and_refuses(project, monkeypatch, caps
     assert "!! 1 no known colorway:\n     Zebra Thing.png" in out
     assert "!! 1 nothing before the colorway — team and colour may be reversed:\n     Black Campbell.png" in out
     assert "Resolve the flagged items first" in out
-    with pytest.raises(SystemExit):
+    with pytest.raises(SystemExit, match="Refusing to apply while flagged problems"):
         main(monkeypatch, mm, "--root", str(project), *flags, "--apply")
     assert not (project / "Marks/Baseball").exists()
     assert good.is_file()
@@ -412,6 +407,6 @@ def test_main_flat_noyear_without_colorways_refuses(project, monkeypatch, capsys
     """With no colorway list, main() says so and refuses --apply."""
     override_configs(project, {"slots_global.yaml": None})
     touch(project, T / "Auburn Navy A.png")
-    with pytest.raises(SystemExit):
+    with pytest.raises(SystemExit, match="Refusing to apply while flagged problems"):
         main(monkeypatch, mm, "--root", str(project), "--mode", "flat-noyear", "--dest", "Marks/Baseball", "--apply")
     assert "!! 1 no colorways:\n     configs/slots_global.yaml" in capsys.readouterr().out
