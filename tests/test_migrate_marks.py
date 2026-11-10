@@ -252,6 +252,27 @@ def test_plan_nested_reports_each_problem(project):
     )
 
 
+def test_plan_nested_reports_an_empty_mark(project):
+    """A fully transparent mark with no shell token is a problem, not a crash."""
+    small_configs(project)
+    art(project / "Incoming/Helmets Left/2015 Crimson/2015 Crimson.png", (20, 20), (0, 0))
+    moves, problems = mm.plan_nested(project / "Incoming", project / D, "Alabama", project)
+    assert moves == []
+    assert problems == [("no opaque content", "2015 Crimson/2015 Crimson.png", "")]
+
+
+def test_main_nested_blocks_on_an_empty_mark(project, monkeypatch, capsys):
+    """An empty mark is printed among nested problems and blocks --apply."""
+    small_configs(project)
+    art(project / "Incoming/Helmets Left/2015 Crimson/2015 Crimson.png", (20, 20), (0, 0))
+    with pytest.raises(SystemExit):
+        run_main(monkeypatch, project, "--mode", "nested", "--team", "X", "--src", "Incoming", "--apply")
+    out = capsys.readouterr().out
+    assert "!! 1 no opaque content:" in out
+    assert "2015 Crimson/2015 Crimson.png" in out
+    assert not (project / D).exists()
+
+
 def test_content_size_of_an_empty_file_is_none(tmp_path):
     """content_size() is None for a fully transparent image and the bbox size otherwise."""
     assert mm.content_size(art(tmp_path / "e.png", (6, 6), (0, 0))) is None
@@ -352,6 +373,33 @@ def test_main_flat_noyear_refuses_collisions(project, monkeypatch, capsys):
         run_main(monkeypatch, project, "--mode", "flat-noyear", "--dest", "Marks/Baseball", "--apply")
     assert "!! 1 destination collisions" in capsys.readouterr().out
     assert not (project / "Marks/Baseball").exists()
+
+
+def test_main_flat_noyear_prints_problems_and_refuses(project, monkeypatch, capsys):
+    """Reversed and colourless hat names are printed, flagged in the dry run, and block --apply."""
+    good = touch(project, T / "Auburn Navy A.png")
+    touch(project, T / "Black Campbell.png")
+    touch(project, T / "Zebra Thing.png")
+    flags = ("--mode", "flat-noyear", "--dest", "Marks/Baseball")
+    run_main(monkeypatch, project, *flags)
+    out = capsys.readouterr().out
+    assert "!! 1 no known colorway:\n     Zebra Thing.png" in out
+    assert "!! 1 nothing before the colorway — team and colour may be reversed:\n     Black Campbell.png" in out
+    assert "Resolve the flagged items first" in out
+    with pytest.raises(SystemExit):
+        run_main(monkeypatch, project, *flags, "--apply")
+    assert not (project / "Marks/Baseball").exists()
+    assert good.is_file()
+
+
+def test_main_flat_noyear_without_colorways_refuses(project, monkeypatch, capsys):
+    """With no colorway list, main() says so and refuses --apply."""
+    small_configs(project)
+    (project / "configs/slots_global.yaml").unlink()
+    touch(project, T / "Auburn Navy A.png")
+    with pytest.raises(SystemExit):
+        run_main(monkeypatch, project, "--mode", "flat-noyear", "--dest", "Marks/Baseball", "--apply")
+    assert "!! 1 no colorways:\n     configs/slots_global.yaml" in capsys.readouterr().out
 
 
 def test_runs_as_a_script(monkeypatch):
