@@ -25,7 +25,11 @@ package = false
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["scripts/pipeline", "scripts/migration", "scripts/golden", "tests"]
-addopts = "--cov --cov-report=term-missing --cov-report=json"
+# Coverage runs only when asked for with --cov (CI and the documented full
+# run: `uv run pytest -n auto --cov`), so a one-file run never overwrites
+# coverage.json with partial data; the reports below apply when it does run.
+# loadgroup keeps each xdist_group (test_golden_ci's module) on one worker.
+addopts = "--cov-report=term-missing --cov-report=json --dist loadgroup"
 
 [tool.coverage.run]
 branch = true

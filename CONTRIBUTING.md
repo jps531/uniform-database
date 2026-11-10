@@ -37,7 +37,7 @@ whatever its size:
   uv run ruff check .
   uv run ruff format --check .
   uv run docstr-coverage scripts tests --skip-magic --skip-init
-  uv run pytest -n auto
+  uv run pytest -n auto --cov
   uv run python tests/coverage_gate.py
   uv run scripts/golden/golden_ci.py
   ```
@@ -102,13 +102,14 @@ use of it unresolved.
 
 **Tests.** `tests/test_<script>.py` holds each script's unit tests, run
 with pytest. They never touch the real artwork. The `project` fixture
-(`tests/conftest.py`) makes a throwaway project linked to the real
-`configs/`, and `art()` draws synthetic PNGs at exact content sizes, so the
-tests use the same canvases, profiles and eras as the pipeline.
+(`tests/conftest.py`) makes a throwaway project with a copy of the real
+`configs/`, and `art()` (`tests/helpers.py`) draws synthetic PNGs at exact
+content sizes, so the tests use the same canvases, profiles and eras as the
+pipeline.
 
 ```
-uv run pytest -n auto                  # every test, in parallel, with coverage
-uv run pytest tests/test_compose.py    # one script's tests
+uv run pytest -n auto --cov            # every test, in parallel, with coverage
+uv run pytest tests/test_compose.py    # one script's tests (no coverage)
 uv run python tests/coverage_gate.py   # 95% or more for every script
 ```
 
@@ -116,7 +117,7 @@ Coverage counts lines and branches together, and it includes scripts run
 as subprocesses (`golden_ci.py` runs others). coverage.py's own threshold
 checks only the total, which would let one untested script hide behind the
 rest; `coverage_gate.py` checks each script. For a browsable report, run
-`uv run pytest --cov-report=html`, then open `htmlcov/index.html`.
+`uv run pytest -n auto --cov --cov-report=html`, then open `htmlcov/index.html`.
 
 A test asserts what the script does: files written, pixels, messages, exit
 codes. It never asserts on behaviour that's a bug. Fix the bug, or leave
