@@ -363,10 +363,18 @@ def cmd_pad(args, root, cfg):
     # order, so a standard jersey sorted after a three-quarter one was padded
     # again. Erring this way can only skip a file and report it, never
     # re-pad one.
-    on_canvas = {(base_width, base_height)}
+    #
+    # `fills: fill` canvases are left out. There the canvas IS the content
+    # size, so authored source cropped to its content is already canvas-sized
+    # and the check can't tell source from output. Re-padding output there is
+    # harmless unless an era scales, and scaled output is refused above by
+    # the post-correction check, which runs first.
+    on_canvas = set()
+    if canvas.get("fills") != "fill":
+        on_canvas.add((base_width, base_height))
     for e in profile:
         oc = cfg["canvases"].get(e.get("canvas") or "") or {}
-        if oc.get("width"):
+        if oc.get("width") and oc.get("fills") != "fill":
             on_canvas.add((oc["width"], oc["height"]))
     # Provenance guard. A destination holding authored artwork must never be
     # overwritten by a generated run. Generated trees carry a .generated
@@ -415,12 +423,14 @@ def cmd_pad(args, root, cfg):
     era_canvases = {}
     post_correction = []
     plan = []
+    blank = 0  # fully transparent: nothing to measure, so never counted as source or output
     for f in files:
         rel = f.relative_to(src)
         with ImageOps.exif_transpose(Image.open(f)).convert("RGBA") as img:
             iw, ih = img.size
             box, cs = content_size(img)
         if cs is None:
+            blank += 1
             continue
 
         hit = next(
@@ -488,10 +498,16 @@ def cmd_pad(args, root, cfg):
             "touching scale."
         )
 
-    if already_std.total() == len(files):
+    measured = len(files) - blank
+    ignored = f" ({blank} fully transparent file{'s' if blank != 1 else ''} ignored)" if blank else ""
+    if not measured:
+        sys.exit(f"{label}\nNo file has opaque content: all {len(files)} PNGs are fully transparent.\nNothing written.")
+    # Judged on files with content: a blank file must not let standardized
+    # output past this refusal.
+    if already_std.total() == measured:
         sys.exit(
             f"{label}\n"
-            f"All {len(files)} files are ALREADY {sizes_text(already_std)}.\n"
+            f"All {measured} files are ALREADY {sizes_text(already_std)}{ignored}.\n"
             "This looks like standardized output, not source artwork. "
             "Re-padding would re-apply era scale corrections a second "
             "time.\nNothing written. Point `src` at the original tree."
@@ -513,28 +529,31 @@ def cmd_pad(args, root, cfg):
             cv.save(out, dpi=(args.dpi, args.dpi))
         placed[(era["era"], cw, ch, w, h, x, y, cvw, cvh)] += 1
 
-    dest.mkdir(parents=True, exist_ok=True)
-    (dest / MARKER).write_text(
-        json.dumps(
-            {
-                "generated_by": "scripts/pipeline/standardize.py",
-                "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
-                "source": str(src),
-                # The slot canvas, always; any era canvas a written file
-                # sits on instead is listed beside it.
-                "canvas": f"{base_width}x{base_height}",
-                "era_canvases": dict(sorted(era_canvases.items())),
-                "profile": label,
-                "anchor": args.anchor,
-                "dpi": args.dpi,
-                "files_written": sum(placed.values()),
-                "note": "Generated output. Do not edit by hand — the next run "
-                "overwrites this directory. Edit the source instead.",
-            },
-            indent=2,
+    # The marker claims "this tree is generated from that source". With
+    # nothing written there is no such tree, so leave no marker (or folder).
+    if plan:
+        dest.mkdir(parents=True, exist_ok=True)
+        (dest / MARKER).write_text(
+            json.dumps(
+                {
+                    "generated_by": "scripts/pipeline/standardize.py",
+                    "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
+                    "source": str(src),
+                    # The slot canvas, always; any era canvas a written file
+                    # sits on instead is listed beside it.
+                    "canvas": f"{base_width}x{base_height}",
+                    "era_canvases": dict(sorted(era_canvases.items())),
+                    "profile": label,
+                    "anchor": args.anchor,
+                    "dpi": args.dpi,
+                    "files_written": sum(placed.values()),
+                    "note": "Generated output. Do not edit by hand — the next run "
+                    "overwrites this directory. Edit the source instead.",
+                },
+                indent=2,
+            )
+            + "\n"
         )
-        + "\n"
-    )
 
     print(f"{label}")
     print(f"canvas {base_width} x {base_height}, anchor {args.anchor}")
@@ -571,6 +590,13 @@ def cmd_pad(args, root, cfg):
     if not unmatched and not skipped and not already_std:
         print("\nAll files matched an era and fit the canvas.")
         print("Spot-check one element per era against a hand-made composite.")
+
+    if blank:
+        print(
+            f"\n{blank} fully transparent file{'s' if blank != 1 else ''} had nothing to pad and {'were' if blank != 1 else 'was'} skipped."
+        )
+    if not plan:
+        sys.exit("\nNothing written: no file both matched an era and fit its canvas. No destination or marker created.")
 
 
 # ---------------------------------------------------------------- main
