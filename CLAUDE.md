@@ -161,7 +161,8 @@ Token kinds, in `modifiers_{sport}.yaml`:
   one sport — conference, postseason, commemorative and university marks.
   They're shared because they're institutional, not because sports
   resemble each other. A token redefined in a sport's file wins. Softball
-  uses baseball's vocabulary; courts have their own.
+  uses baseball's vocabulary; courts have their own. Every sport slug needs a
+  file — softball's and both basketballs' only `extends`.
 - **Add every new colorway to `slots_global.yaml` too.** It drifted seven
   colorways behind the sport files once; cross-sport colour search depends on
   the global list.
