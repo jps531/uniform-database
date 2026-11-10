@@ -1,4 +1,6 @@
 *.png
+# ...except the golden suite's copy of the artwork it needs (golden_fixture.py)
+!/golden/fixture/**/*.png
 *.psd
 *.icloud
 .DS_Store

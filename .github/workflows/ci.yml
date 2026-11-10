@@ -48,3 +48,29 @@ jobs:
               yaml.safe_load(f.read_text())
           print(f"{len(files)} YAML files parse")
           PY
+
+  # The golden suite on golden/fixture/, the copy of the artwork it needs
+  # (scripts/golden_fixture.py builds it on the Mac). Fails on any defect or
+  # note, on any helmet that doesn't re-pad from its Marks source identically,
+  # and on any venue that doesn't re-crop identically.
+  golden:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: true
+      - name: Install (exactly as locked)
+        run: uv sync --frozen
+      - name: Golden suite (compositions, helmets, venues)
+        run: uv run --frozen scripts/golden_ci.py
+      - name: Upload contact sheets and report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: golden-run
+          path: golden/run/
+          if-no-files-found: ignore

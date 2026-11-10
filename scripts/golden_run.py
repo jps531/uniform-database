@@ -5,6 +5,7 @@ Run the GOLDEN EXAMPLE SUITE planned by golden_plan.py.
     uv run scripts/golden_run.py                   # every approved example
     uv run scripts/golden_run.py --sport soccer
     uv run scripts/golden_run.py --only football--full--03
+    uv run scripts/golden_run.py --strict           # exit 1 unless every example is ok (CI)
 
 Writes, under golden/run/
     {sport}/{view}/{id}.png      every composition
@@ -234,6 +235,11 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--sport", action="append")
     ap.add_argument("--only", action="append", metavar="ID")
+    ap.add_argument(
+        "--strict",
+        action="store_true",
+        help="exit 1 if any example has a defect OR a note, or has no result: for CI",
+    )
     args = ap.parse_args()
 
     root = find_root()
@@ -432,6 +438,18 @@ def main():
 
     print(f"\n{len(rendered)} rendered this run; report covers {len(results)}, {n_bad} with defects")
     print("Review: golden/run/index.html   Details: golden/run/REPORT.md")
+
+    if args.strict:
+        # Everything must be clean: a note (1-2px clipping) fails too, and so
+        # does an approved example that produced no result at all.
+        n_noted = sum(1 for _, _, i, n in results if n and not i)
+        have = {ex["id"] for ex, *_ in results}
+        absent = [m["id"] for m in todo if m["id"] not in have]
+        for x in absent:
+            print(f"!! no result for {x}")
+        if n_bad or n_noted or absent:
+            sys.exit(f"STRICT: {n_bad} with defects, {n_noted} with notes, {len(absent)} without a result")
+        print("STRICT: every example is ok")
 
 
 if __name__ == "__main__":

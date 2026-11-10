@@ -29,14 +29,16 @@ kept separately, for matchup graphics later.
 
 ## What's in the repository
 
-Code and configuration only. The working copy lives in iCloud Drive, with
-the artwork folders inside it alongside the code, and git ignores them.
+Code and configuration, plus one copy of artwork for testing. The working
+copy lives in iCloud Drive, with the artwork folders inside it alongside the
+code, and git ignores them. The exception is `golden/fixture/`, a copy of
+just the artwork the golden suite uses, so CI can run it.
 
 | Path | What it is |
 |---|---|
 | `configs/` | Everything the pipeline knows, as YAML: canvases and era profiles, the 48 view templates, slots and colorways, and each sport's token vocabulary |
 | `scripts/` | The Python asset pipeline: DPI fixes, nesting, standardizing, cropping, composing, the golden suite |
-| `golden/` | The golden suite's approved plan (`manifest.yaml`, `PLAN.md`) and known pairings; renders go to `golden/run/`, which isn't tracked |
+| `golden/` | The golden suite's approved plan (`manifest.yaml`, `PLAN.md`), known pairings, and `fixture/`: a copy of the artwork the suite needs, so CI can run it. Renders go to `golden/run/`, which isn't tracked |
 | `docs/` | Longer how-tos ([golden_suite.md](docs/golden_suite.md)) |
 | `pyproject.toml`, `uv.lock` | Dependencies, managed with uv, and the ruff config |
 | `CLAUDE.md` | The full reference for the pipeline: naming grammar, invariants, eras and canvases, composition, and the mistakes not to repeat. Written for AI agents, and the most complete description of the project for people too |
@@ -195,6 +197,18 @@ real elements and lists every defect in `golden/run/REPORT.md`.
 [docs/golden_suite.md](docs/golden_suite.md) explains the plan, what it
 checks, and how to fix a bad pairing.
 
+**CI runs it too**, on `golden/fixture/`, a copy of exactly the artwork the
+suite uses. It fails on any defect *or* note, on any helmet that doesn't
+re-pad from its Marks source identically, and on any venue that doesn't
+re-crop identically. After a full run on the Mac, refresh the copy and
+commit it whenever the plan or any of that artwork changes:
+
+```
+uv run scripts/golden_fixture.py            # dry run: what would change
+uv run scripts/golden_fixture.py --apply    # then commit golden/fixture/
+uv run scripts/golden_ci.py                 # the same check CI runs
+```
+
 [CONTRIBUTING.md](CONTRIBUTING.md) has the checks CI runs, the tools, and
 what must change together.
 
@@ -215,6 +229,6 @@ Copyright © 2012–2026 Paul Sullivan. All rights reserved.
 
 The code is public so anyone can read it and see how the archive is built,
 but it's source-available, not open source: using, copying or hosting it
-needs the author's written permission. The uniform artwork isn't in this
-repository, and nothing here grants any rights to it. See
-[LICENSE](LICENSE).
+needs the author's written permission. The uniform artwork is the author's
+original work too: the copies in `golden/fixture/` are there only for the
+tests, and nothing here grants any rights to them. See [LICENSE](LICENSE).

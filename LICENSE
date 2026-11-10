@@ -8,5 +8,8 @@ copy, modify, distribute, run or host this software, in whole or in part,
 without the copyright owner's written permission. To ask for permission, write
 to HailStateUnis@gmail.com.
 
-The uniform artwork the software processes is not in this repository and is
-not licensed by this notice.
+The uniform artwork is the copyright owner's original work. Copies of some of
+it are in golden/fixture/, solely so the automated tests can run; the rest is
+not in this repository. The restrictions above apply to that artwork in full:
+you may view it on GitHub, but not copy, modify, distribute, publish or use it
+in any other way without written permission.

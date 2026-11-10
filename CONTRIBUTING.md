@@ -24,25 +24,31 @@ whatever its size:
 
 - **One topic per PR.** A fix you find along the way that's off topic gets
   its own PR.
-- **CI must be green** before merging (`.github/workflows/ci.yml`): lint,
-  formatting, docstrings, and that every config file parses. Run the same
+- **CI must be green** before merging (`.github/workflows/ci.yml`). Two
+  jobs: `checks` (lint, formatting, docstrings, every config file parses)
+  and `golden` (the golden suite on `golden/fixture/`). Run the same
   locally first:
 
   ```
   uv run ruff check .
   uv run ruff format --check .
   uv run docstr-coverage scripts --skip-magic --skip-init
+  uv run scripts/golden_ci.py
   ```
 
-- **CI can't see the artwork.** The asset trees aren't in git, so the golden
-  suite runs only on the Mac that holds the iCloud folder. A PR that touches
-  a template, canvas, era profile or anything `compose.py`, `standardize.py`
-  or the golden scripts do needs a golden run before merging. Say in the
-  description that it ran clean, or what it reported:
+  When `golden` fails, the job summary lists why, and the run's
+  `golden-run` artifact holds the contact sheets and REPORT.md.
+
+- **CI sees only the fixture.** `golden/fixture/` is a copy of the artwork
+  the current plan uses, not the whole archive. A PR that touches a template,
+  canvas, era profile, or anything `compose.py`, `standardize.py` or the
+  golden scripts do also needs a full run on the Mac. Re-plan if the change
+  calls for it, and refresh the fixture in the same PR:
 
   ```
-  uv run scripts/golden_plan.py
-  uv run scripts/golden_run.py      # then golden/run/REPORT.md
+  uv run scripts/golden_plan.py     # if the plan should change
+  uv run scripts/golden_run.py      # full run; then golden/run/REPORT.md
+  uv run scripts/golden_fixture.py --apply
   ```
 
 - **Say what a change does to the files on disk** when it does more than
@@ -86,6 +92,7 @@ command line.
 | The canvas of anything a cropped football view is sized from | That view's canvas, which was derived from element extents. Anchors keep everything else still. |
 | An outline or stroke in the artwork | Re-measure the profile (`standardize.py survey`): restyling moves the content bounding box. |
 | A pairing the golden planner gets wrong | `golden/pairings.yaml`, not `manifest.yaml`, which `golden_plan.py` overwrites. |
+| The golden plan (`manifest.yaml`), or any artwork the fixture copies | A full `golden_run.py`, then `golden_fixture.py --apply`, committed with the change. CI can't tell a stale fixture from a current one. |
 | A script, a command or an option | Its module docstring and CLAUDE.md's "Commands". |
 | How the pipeline behaves (resolution, ranking, nesting rules) | The section of CLAUDE.md that describes it, and "Tried and reversed" if it undoes an earlier choice. |
 | A dependency | `pyproject.toml` and `uv.lock`, through `uv add` or `uv lock`. |
@@ -100,15 +107,18 @@ default branch):
 - **Require a pull request before merging**, with 0 required approvals
   (GitHub doesn't let an author approve their own PR, so for one maintainer
   the checks are the gate).
-- **Require status checks to pass**: `checks` (CI).
+- **Require status checks to pass**: `checks` and `golden` (CI).
 - **Block force pushes** and **restrict deletions**.
 - **Allowed merge method: squash**, so `main` reads as one commit per pull
   request.
 
 ## Don't
 
-- **Don't commit artwork.** PNGs, PSDs and the asset trees are gitignored;
-  iCloud is their home until they move to R2.
+- **Don't commit artwork** except through `golden_fixture.py`. PNGs, PSDs
+  and the asset trees are gitignored; iCloud is their home until they move
+  to R2. `golden/fixture/` holds copies, never originals: don't edit
+  artwork there, and don't point git at the real tree. A checkout or reset
+  would then overwrite or delete real artwork.
 - **Don't add a `.generated` marker to an authored folder**, or `--force` a
   pad into one. A marker says the folder can be rebuilt; on authored work
   that's a lie that costs artwork later.

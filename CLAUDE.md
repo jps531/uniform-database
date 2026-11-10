@@ -47,11 +47,14 @@ CONTRIBUTING.md has the checks CI runs and what must change together.
 Site: Next.js, Node, Postgres with Drizzle, Cloudflare R2 for images. Assets
 live in iCloud Drive.
 
-**Git holds code and config only.** The artwork trees (`{Sport}/`, `Marks/`,
-`Venues/`), `temp/`, `surveys/` and the golden suite's renders are
-gitignored. A checkout without the iCloud folder — a cloud session, say — can
-lint and read config but can't run the pipeline or the golden suite; say so
-rather than guessing at results.
+**Git holds code and config, plus `golden/fixture/`.** The artwork trees
+(`{Sport}/`, `Marks/`, `Venues/`), `temp/`, `surveys/` and the golden suite's
+renders are gitignored. `golden/fixture/` is a COPY, at the same relative
+paths, of just the artwork the golden suite uses; `golden_fixture.py` builds
+it from a full run. A checkout without the iCloud folder — a cloud session,
+say — can run `golden_ci.py` on the fixture, but not the pipeline or a full
+golden run. Say so rather than guessing at results. Never track the real
+tree: a checkout or reset would overwrite or delete artwork.
 
 ## Layout
 
@@ -74,7 +77,8 @@ Uniform Database/
 ├── Marks/Football/{Team}/Helmets {Left|Right}/…   native scale, 258 teams
 ├── Marks/Baseball/{Team}/Hats Front/…             on canvas, 41 teams
 ├── Venues/{Sport}/{Team}/{Fields|Courts} {Full|Cropped}/…
-├── golden/                   golden suite: manifest, plan, pairings, run/
+├── golden/                   golden suite: manifest, plan, pairings, run/,
+│                             fixture/ (tracked copy of the artwork it uses)
 ├── surveys/                  point-in-time listings; local only, not in git
 └── temp/                     staging; cleared after nesting
 ```
@@ -304,6 +308,13 @@ in 16 templates.
 
 - `golden_plan.py` OVERWRITES the manifest. Durable knowledge goes in
   `golden/pairings.yaml` (uniforms known to be worn together).
+- **CI** runs `golden_ci.py` on `golden/fixture/`: `golden_run.py --strict`
+  (a note fails too), every fixture Marks helmet re-padded and compared
+  pixel for pixel with its generated copy (all eras A–F, both sides), and
+  every cropped venue re-derived and compared. After any re-plan, or any
+  change to artwork the fixture copies, run a full `golden_run.py`, then
+  `golden_fixture.py --apply`, and commit the fixture. CI can't see a stale
+  fixture.
 - Clipping is judged on ARTWORK, not padding. Every era of every placement
   is covered — 90 of 90 archive-wide, 48 of 48 templates.
 
@@ -342,7 +353,9 @@ recanvas.py SRC DEST [--apply]
 derive_crops.py [--sport S] [--apply] cropped surfaces from `derived_from`
 migrate_marks.py --mode flat|nested|flat-noyear
 compose.py --sport S --view V --{slot} ELEMENT …
-golden_plan.py / golden_run.py
+golden_plan.py / golden_run.py [--strict]
+golden_fixture.py [--apply]           sync golden/fixture/ from the last full run
+golden_ci.py [--keep]                 what CI runs: the suite on the fixture
 ```
 
 `nest_elements`, `recanvas`, `derive_crops` and `migrate_marks` dry-run
