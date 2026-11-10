@@ -166,8 +166,11 @@ uv run scripts/golden/golden_plan.py     # → golden/PLAN.md + manifest.yaml
 uv run scripts/golden/golden_run.py      # → golden/run/index.html + REPORT.md
 ```
 
-`golden_plan.py` OVERWRITES the manifest; durable knowledge goes in
-`golden/pairings.yaml`. CI runs the suite on `golden/fixture/`, which must be
+`golden_plan.py` OVERWRITES the manifest (with `--sport`, only that sport's
+entries and PLAN.md sections); durable knowledge goes in
+`golden/pairings.yaml`. `--strict` judges only the examples rendered in
+that run. `golden_ci.py` writes its results to `golden/run-ci/` and never
+touches `golden/run/`. CI runs the suite on `golden/fixture/`, which must be
 refreshed and committed after any re-plan or change to artwork it copies:
 `docs/golden_suite.md`, section 3, is the one description of that workflow.
 
@@ -210,7 +213,11 @@ outside `pipeline/` import from it by adding the sibling folder to
 
 `nest_elements`, `recanvas`, `derive_crops`, `migrate_marks`,
 `golden_fixture` and `fix_dpi set` dry-run until `--apply` and copy rather
-than move. **`pad` writes immediately**, into the destination you name — for
+than move; `nest_elements` and `migrate_marks` never overwrite an existing
+destination file (a different one blocks `--apply`, an identical one is
+skipped). **`pad` writes immediately**, and exits 1 if any file was not
+written (no era, or off the canvas) — so `pad … && rm` can't lose the
+unwritten ones — into the destination you name: for
 an authored tree pad into a `… STD` sibling, check it, then rename over the
 source; a `.generated` tree is padded into directly. Paths beginning
 `Marks/` or `Venues/` resolve exactly like sport trees.
