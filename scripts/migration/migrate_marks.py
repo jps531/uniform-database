@@ -14,8 +14,8 @@ exist in more than one shell, and omitting it on singletons would make naming
 inconsistent inside the same folder. It also gives era a second, independent
 signal alongside content size.
 
-    uv run scripts/migrate_marks.py            # dry run — prints the plan
-    uv run scripts/migrate_marks.py --apply    # copies files
+    uv run scripts/migration/migrate_marks.py            # dry run — prints the plan
+    uv run scripts/migration/migrate_marks.py --apply    # copies files
 
 COPIES, never moves. The source tree stays intact until you have verified.
 
@@ -69,7 +69,6 @@ def find_root(start: Path) -> Path:
 def plan_flat_noyear(
     src_root: Path,
     dest_root: Path,
-    sport: str,
     slot_dir: str,
     viewpoint: str,
     root: Path,
@@ -142,7 +141,8 @@ def plan_nested(src_root: Path, dest_root: Path, team: str, root: Path):
         sys.exit("Missing dependencies: run `uv sync` (nested mode reads image sizes)")
     # Path parsing and the sport-qualified profile key are shared with `pad`.
     # Imported here because standardize.py requires Pillow and the flat
-    # modes do not.
+    # modes do not. It lives in scripts/pipeline/.
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "pipeline"))
     from standardize import lookup, parse_dest
 
     cfg = yaml.safe_load((root / "configs" / "canvas_definitions.yaml").open())
@@ -349,7 +349,6 @@ def main():
         moves, problems = plan_flat_noyear(
             src_root,
             dest_root,
-            args.sport if hasattr(args, "sport") else "",
             args.slot_dir,
             args.viewpoint,
             root,

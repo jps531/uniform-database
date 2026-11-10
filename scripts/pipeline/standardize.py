@@ -8,10 +8,10 @@ so this script holds no per-era knowledge of its own.
     uv sync
 
     # inspect a slot before configuring it
-    uv run scripts/standardize.py survey "Football/Mississippi State/Helmets Right"
+    uv run scripts/pipeline/standardize.py survey "Football/Mississippi State/Helmets Right"
 
     # standardize into place (canvas + profile looked up from the path)
-    uv run scripts/standardize.py pad \\
+    uv run scripts/pipeline/standardize.py pad \\
         "~/.../MSU Uniforms/Football/Helmets Right" \\
         "Football/Mississippi State/Helmets Right"
 
@@ -323,7 +323,7 @@ def cmd_pad(args, root, cfg):
     # every already-scaled era A jersey sail past it. They then matched no
     # era (stored at 1604x1862 against a profile listing 1790x2078) and were
     # silently not written — and a following `rm -rf` of the source lost
-    # them. Use scripts/recanvas.py to move standardized files to a new
+    # them. Use scripts/migration/recanvas.py to move standardized files to a new
     # canvas; it never touches scale.
     corrected = {}
     for e in profile:
@@ -409,7 +409,7 @@ def cmd_pad(args, root, cfg):
             "again would re-apply the scale — or, if the sizes no longer "
             "match any era, drop the files entirely.\n\n"
             "Nothing written. Point `src` at the authored tree, or use\n"
-            "  python3 scripts/recanvas.py SRC DEST\n"
+            "  uv run scripts/migration/recanvas.py SRC DEST\n"
             "to move standardized files to a different canvas without "
             "touching scale."
         )
@@ -443,7 +443,7 @@ def cmd_pad(args, root, cfg):
     (dest / MARKER).write_text(
         json.dumps(
             {
-                "generated_by": "scripts/standardize.py",
+                "generated_by": "scripts/pipeline/standardize.py",
                 "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
                 "source": str(src),
                 "canvas": f"{width}x{height}",

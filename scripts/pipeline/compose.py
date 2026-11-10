@@ -9,17 +9,17 @@ validate that the standardized assets, canvases and anchors actually compose.
 
     uv sync
 
-    uv run scripts/compose.py \\
+    uv run scripts/pipeline/compose.py \\
         --team "Mississippi State" \\
         --helmet "2025 Black" --jersey "2025 Black" --pants "2025 Black" \\
         --number 0 \\
         --out out/2025-black.png
 
     # show the left helmet inset (only when the two sides differ)
-    uv run scripts/compose.py ... --helmet-left
+    uv run scripts/pipeline/compose.py ... --helmet-left
 
     # compare against a hand-made composite
-    uv run scripts/compose.py ... --diff "path/to/existing.png"
+    uv run scripts/pipeline/compose.py ... --diff "path/to/existing.png"
 
 RESOLUTION per placement, in order:
     1. {element}/{element} … {number} … .png   matching the requested number

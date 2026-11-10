@@ -7,9 +7,9 @@ on it.
 ## The workflow
 
 ```
-uv run scripts/golden_plan.py       # 1. plan
+uv run scripts/golden/golden_plan.py       # 1. plan
 #    review golden/PLAN.md, edit golden/manifest.yaml
-uv run scripts/golden_run.py        # 2. run
+uv run scripts/golden/golden_run.py        # 2. run
 #    review golden/run/index.html and golden/run/REPORT.md
 ```
 
@@ -113,9 +113,9 @@ a different era, or delete the key to skip that check.
 ## 2. Run — `golden_run.py`
 
 ```
-uv run scripts/golden_run.py                       # everything approved
-uv run scripts/golden_run.py --sport soccer
-uv run scripts/golden_run.py --only football--full--05
+uv run scripts/golden/golden_run.py                       # everything approved
+uv run scripts/golden/golden_run.py --sport soccer
+uv run scripts/golden/golden_run.py --only football--full--05
 ```
 
 `--only` re-renders one example; the report and sheets still cover every
@@ -151,10 +151,10 @@ CI can't see the iCloud tree, so it runs the suite on `golden/fixture/`: a
 copy, at the same relative paths, of exactly the artwork the suite uses.
 
 ```
-uv run scripts/golden_run.py                 # full run on the Mac first
-uv run scripts/golden_fixture.py             # dry run: files to add, update, remove
-uv run scripts/golden_fixture.py --apply     # then commit golden/fixture/
-uv run scripts/golden_ci.py                  # what CI runs; --keep to inspect
+uv run scripts/golden/golden_run.py                 # full run on the Mac first
+uv run scripts/golden/golden_fixture.py             # dry run: files to add, update, remove
+uv run scripts/golden/golden_fixture.py --apply     # then commit golden/fixture/
+uv run scripts/golden/golden_ci.py                  # what CI runs; --keep to inspect
 ```
 
 `golden_fixture.py` reads the last run's results, so it copies what was

@@ -32,8 +32,8 @@ Grad" — element "2015 White 85s", number 19, patch Grad.
 
     uv sync
 
-    uv run scripts/nest_elements.py --sport football
-    uv run scripts/nest_elements.py --sport baseball --apply
+    uv run scripts/migration/nest_elements.py --sport football
+    uv run scripts/migration/nest_elements.py --sport baseball --apply
 
 COPIES, never moves.
 """

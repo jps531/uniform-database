@@ -1,6 +1,6 @@
 # Golden example suite. Set `approved: false` on any example to skip
 # it, edit elements or numbers freely, or add your own entries.
-# Then: python3 scripts/golden_run.py
+# Then: python3 scripts/golden/golden_run.py
 
 - id: baseball--diamond-jersey--01
   approved: true

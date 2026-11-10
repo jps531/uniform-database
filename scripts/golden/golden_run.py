@@ -2,10 +2,10 @@
 """
 Run the GOLDEN EXAMPLE SUITE planned by golden_plan.py.
 
-    uv run scripts/golden_run.py                   # every approved example
-    uv run scripts/golden_run.py --sport soccer
-    uv run scripts/golden_run.py --only football--full--03
-    uv run scripts/golden_run.py --strict           # exit 1 unless every example is ok (CI)
+    uv run scripts/golden/golden_run.py                   # every approved example
+    uv run scripts/golden/golden_run.py --sport soccer
+    uv run scripts/golden/golden_run.py --only football--full--03
+    uv run scripts/golden/golden_run.py --strict           # exit 1 unless every example is ok (CI)
 
 Writes, under golden/run/
     {sport}/{view}/{id}.png      every composition
@@ -246,7 +246,7 @@ def main():
     gold = root / "golden"
     mf = gold / "manifest.yaml"
     if not mf.is_file():
-        sys.exit("No golden/manifest.yaml — run scripts/golden_plan.py first.")
+        sys.exit("No golden/manifest.yaml — run scripts/golden/golden_plan.py first.")
     manifest = yaml.safe_load(mf.open()) or []
     cfg = yaml.safe_load((root / "configs/canvas_definitions.yaml").open())
     run = gold / "run"
@@ -269,7 +269,7 @@ def main():
         png, js = d / f"{ex['id']}.png", d / f"{ex['id']}.json"
         cmd = [
             sys.executable,
-            str(root / "scripts/compose.py"),
+            str(root / "scripts/pipeline/compose.py"),
             "--root",
             str(root),
             "--sport",

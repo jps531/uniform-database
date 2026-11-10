@@ -19,8 +19,8 @@ touch the repository or the real tree, then checks three things:
 Pixels are compared, not bytes, so a Pillow upgrade that compresses
 differently doesn't fail it.
 
-    uv run scripts/golden_ci.py                 # all three checks
-    uv run scripts/golden_ci.py --keep          # keep the temporary project
+    uv run scripts/golden/golden_ci.py                 # all three checks
+    uv run scripts/golden/golden_ci.py --keep          # keep the temporary project
 
 Contact sheets and REPORT.md are copied to golden/run/ for review (CI uploads
 them as an artifact).
@@ -40,7 +40,9 @@ try:
 except ImportError:
     sys.exit("Missing dependencies: run `uv sync`")
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+# Sibling scripts live in scripts/pipeline/ and here in scripts/golden/.
+SCRIPTS = Path(__file__).resolve().parents[1]
+sys.path[:0] = [str(SCRIPTS / "pipeline"), str(SCRIPTS / "golden")]
 from derive_crops import jobs_for  # noqa: E402
 from golden_fixture import SIDES, helmet_eras  # noqa: E402
 
@@ -98,7 +100,7 @@ def build_project(root: Path, fixture: Path, tmp: Path) -> None:
 
 def check_compositions(root: Path, tmp: Path) -> list[str]:
     """golden_run.py --strict in the throwaway project; copies its report and sheets back to golden/run/."""
-    proc = run([sys.executable, str(tmp / "scripts" / "golden_run.py"), "--strict"], tmp)
+    proc = run([sys.executable, str(tmp / "scripts" / "golden" / "golden_run.py"), "--strict"], tmp)
     out = root / "golden" / "run"
     if (tmp / "golden" / "run").is_dir():
         shutil.rmtree(out, ignore_errors=True)
@@ -121,7 +123,7 @@ def check_helmets(tmp: Path, cfg: dict) -> list[str]:
         proc = run(
             [
                 sys.executable,
-                str(tmp / "scripts" / "standardize.py"),
+                str(tmp / "scripts" / "pipeline" / "standardize.py"),
                 "--root",
                 str(tmp),
                 "pad",
@@ -152,7 +154,9 @@ def check_venues(tmp: Path, cfg: dict) -> list[str]:
         target = expected / c.relative_to(tmp)
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(c), str(target))
-    proc = run([sys.executable, str(tmp / "scripts" / "derive_crops.py"), "--root", str(tmp), "--apply"], tmp)
+    proc = run(
+        [sys.executable, str(tmp / "scripts" / "pipeline" / "derive_crops.py"), "--root", str(tmp), "--apply"], tmp
+    )
     if proc.returncode:
         return ["venues: derive_crops.py refused"]
     fails = []
@@ -185,7 +189,7 @@ def main():
     root = Path(args.root).expanduser().resolve() if args.root else find_root(Path.cwd().resolve())
     fixture = root / "golden" / "fixture"
     if not png_set(fixture):
-        summary(["golden/fixture/ is empty: run scripts/golden_fixture.py --apply on the Mac and commit it"])
+        summary(["golden/fixture/ is empty: run scripts/golden/golden_fixture.py --apply on the Mac and commit it"])
         sys.exit(1)
     cfg = yaml.safe_load((root / "configs" / "canvas_definitions.yaml").open())
 

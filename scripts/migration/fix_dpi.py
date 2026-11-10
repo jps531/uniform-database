@@ -9,8 +9,8 @@ files. Tagging everything 300 DPI makes placement 1:1.
 
     uv sync
 
-    uv run scripts/fix_dpi.py check "Football/Mississippi State"
-    uv run scripts/fix_dpi.py set   "Football/Mississippi State" 300
+    uv run scripts/migration/fix_dpi.py check "Football/Mississippi State"
+    uv run scripts/migration/fix_dpi.py set   "Football/Mississippi State" 300
 
 `check` is read-only. Run it first.
 """

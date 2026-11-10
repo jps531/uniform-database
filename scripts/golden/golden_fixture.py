@@ -7,9 +7,9 @@ files the golden suite needs, at the same relative paths, under
 golden/fixture/. This script builds that copy from a full golden run on the
 Mac, so run the suite first:
 
-    uv run scripts/golden_run.py                  # full run, on the real tree
-    uv run scripts/golden_fixture.py              # dry run: what would change
-    uv run scripts/golden_fixture.py --apply      # copy, update, remove
+    uv run scripts/golden/golden_run.py                  # full run, on the real tree
+    uv run scripts/golden/golden_fixture.py              # dry run: what would change
+    uv run scripts/golden/golden_fixture.py --apply      # copy, update, remove
 
 What goes in:
 
@@ -44,7 +44,8 @@ try:
 except ImportError:
     sys.exit("Missing dependencies: run `uv sync`")
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+# compose.py and standardize.py live in scripts/pipeline/.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "pipeline"))
 from compose import SLOT_DIR, load_vocab, split_tail  # noqa: E402
 from standardize import match_era  # noqa: E402
 
@@ -118,10 +119,10 @@ def plan(root: Path) -> tuple[set, list]:
             continue
         js = run / ex["sport"] / ex["view"] / f"{ex['id']}.json"
         if not js.is_file():
-            errors.append(f"no result for {ex['id']}: run scripts/golden_run.py first")
+            errors.append(f"no result for {ex['id']}: run scripts/golden/golden_run.py first")
             continue
         if js.stat().st_mtime < mtime:
-            errors.append(f"{ex['id']}: result is older than manifest.yaml, re-run scripts/golden_run.py")
+            errors.append(f"{ex['id']}: result is older than manifest.yaml, re-run scripts/golden/golden_run.py")
             continue
         result = json.loads(js.read_text())
         if ex["sport"] not in vocab:

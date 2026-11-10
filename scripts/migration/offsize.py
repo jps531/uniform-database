@@ -7,9 +7,9 @@ This reports them so the source artwork can be corrected instead.
 
     uv sync
 
-    uv run scripts/offsize.py "Football"
-    uv run scripts/offsize.py "Football/Southern Miss/Pants Front"
-    uv run scripts/offsize.py "Football" --csv offsize.csv
+    uv run scripts/migration/offsize.py "Football"
+    uv run scripts/migration/offsize.py "Football/Southern Miss/Pants Front"
+    uv run scripts/migration/offsize.py "Football" --csv offsize.csv
 
 Walks any directory: a whole tree, one team, or one viewpoint. Read-only.
 """
@@ -29,6 +29,7 @@ except ImportError:
 # Path -> (sport, team, slot, viewpoint) and the sport-qualified profile key
 # live in standardize.py. Reuse them: a private copy here built the key
 # without the sport, so every lookup missed and every file read as "exact".
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "pipeline"))
 from standardize import find_root, lookup, parse_dest
 
 
