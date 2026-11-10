@@ -1,0 +1,5 @@
+# Asset pipeline (scripts/). Python 3.
+Pillow>=10
+PyYAML>=6
+# Only for `compose.py --diff`
+numpy>=1.24

@@ -41,6 +41,8 @@ a place in the golden suite.
 ## Stack
 
 Python for the asset pipeline (`scripts/`), YAML for all pipeline config.
+`pip install -r requirements.txt` (Pillow, PyYAML; numpy only for
+`compose.py --diff`).
 Site: Next.js, Node, Postgres with Drizzle, Cloudflare R2 for images. Assets
 live in iCloud Drive.
 
@@ -49,7 +51,8 @@ live in iCloud Drive.
 ```
 Uniform Database/
 ├── CLAUDE.md
-├── docs/golden-suite.md
+├── requirements.txt
+├── docs/golden_suite.md
 ├── configs/
 │   canvas_definitions.yaml   canvases, era profiles, assignments
 │   view_templates.yaml       composition layouts (48)
@@ -277,7 +280,7 @@ Icons can exist with no matching element and vice versa.
 
 ## Golden suite
 
-Every template, every era, from real elements. See `docs/golden-suite.md`.
+Every template, every era, from real elements. See `docs/golden_suite.md`.
 
 ```
 python3 scripts/golden_plan.py     # → golden/PLAN.md + manifest.yaml
@@ -353,7 +356,9 @@ sport trees.
 - **A `role` axis** (soccer field/keeper, volleyball libero). Keepers are
   distinct designs (`Keeper` token); a libero wears an existing jersey. Roles
   exist at the appearance level, not the asset level.
-- **Generic fallback artwork.** See Invariants.
+- **Generic fallback artwork.** See Invariants. The one-off
+  `expand_generics.py` that replaced it was applied and then deleted; it's in
+  git history if ever needed.
 
 ## Gotchas
 
@@ -390,4 +395,4 @@ needs them.
   inline notes explain each canvas's sizing and history
 - `configs/view_templates.yaml` — every composition layout
 - `configs/modifiers_{sport}.yaml` — token vocabularies
-- `docs/golden-suite.md` — the golden suite workflow
+- `docs/golden_suite.md` — the golden suite workflow
