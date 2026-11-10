@@ -368,7 +368,7 @@ def test_pad_reports_unmatched_skipped_and_mixed(project, cfg, monkeypatch, caps
     assert "!! 1 files matched NO era and were NOT written:" in out
     assert "40x40  odd/s.png" in out
     assert "!! 1 files fall outside the canvas:" in out
-    assert "would fit them." in out
+    assert f"A canvas of at least {wide[0] + 2} x {e[1]} would fit them (soccer_shorts)." in out
     assert "All files matched" not in out
 
 
@@ -510,3 +510,103 @@ def test_survey_of_unrecognised_path_lists_elements(project, monkeypatch, capsys
     assert "sport=" not in out
     assert size_line((14, 9), 1, "") in out
     assert "14 x 9  (1 elements)" in out and "No profile yet." in out
+
+
+# ---------------------------------------------------------------- fixed bugs
+
+
+def test_survey_of_only_transparent_files_reports_and_exits_cleanly(project, monkeypatch, capsys):
+    """survey of a tree whose every PNG is fully transparent says so instead of crashing."""
+    art(project / HELMET_FRONT / "x" / "blank.png", (9, 9), (0, 0))
+    art(project / HELMET_FRONT / "y" / "blank.png", (4, 4), (0, 0))
+    run(monkeypatch, "survey", HELMET_FRONT)
+    out = capsys.readouterr().out
+    assert "2 PNGs under Helmets Front" in out
+    assert "No file has opaque content: all 2 PNGs are fully transparent." in out
+    assert "Largest content" not in out
+
+
+def test_pad_already_on_canvas_check_does_not_depend_on_file_order(project, cfg, monkeypatch, capsys):
+    """Files on the slot canvas or an era's canvas are skipped wherever they sort; the marker keeps the slot canvas."""
+    custom_config(project, cfg, tiny_sport)
+    src = project / "src"
+    art(src / "a" / "j.png", (58, 28))  # authored, era `wide` -> tiny_wide
+    art(src / "b" / "j.png", (40, 30), (38, 28))  # already on the slot canvas
+    art(src / "c" / "j.png", (38, 28))  # authored, era `std` -> tiny
+    art(src / "d" / "j.png", (60, 30), (58, 28))  # already on the era canvas
+    before = {p: p.read_bytes() for p in src.rglob("*.png")}
+    run(monkeypatch, "pad", "src", "Test/T/Jerseys Front")
+    dest = project / "Test/T/Jerseys Front"
+    written = sorted(p.relative_to(dest).as_posix() for p in dest.rglob("*.png"))
+    assert written == ["a/j.png", "c/j.png"]
+    assert bbox(dest / "a" / "j.png")[0] == (60, 30) and bbox(dest / "c" / "j.png")[0] == (40, 30)
+    assert all(p.read_bytes() == b for p, b in before.items())
+    out = capsys.readouterr().out
+    assert "!! 2 files were SKIPPED — already 40 x 30 or 60 x 30." in out
+    assert "canvas 40 x 30, anchor top-center" in out
+    assert "era canvas tiny_wide 60 x 30" in out
+    marker = json.loads((dest / ".generated").read_text())
+    assert marker["canvas"] == "40x30"
+    assert marker["era_canvases"] == {"tiny_wide": "60x30"}
+
+
+def test_pad_refuses_input_all_on_slot_or_era_canvases(project, cfg, monkeypatch):
+    """Source entirely on the slot canvas and an era's canvas is refused, and nothing is written."""
+    custom_config(project, cfg, tiny_sport)
+    art(project / "src" / "a" / "j.png", (40, 30), (38, 28))
+    art(project / "src" / "b" / "j.png", (60, 30), (58, 28))
+    with pytest.raises(SystemExit) as e:
+        run(monkeypatch, "pad", "src", "Test/T/Jerseys Front")
+    assert "All 2 files are ALREADY 40 x 30 or 60 x 30" in str(e.value)
+    assert not (project / "Test").exists()
+
+
+def test_pad_canvas_hint_fits_centred_content_with_a_margin(project, monkeypatch, capsys):
+    """The canvas hint is content plus 1px each side on a centred axis, never the canvas that just failed."""
+    art(project / "src" / "w" / "s.png", (781, 537))
+    run(monkeypatch, "pad", "src", "Soccer/T/Shorts Front")
+    out = capsys.readouterr().out
+    assert "781x537 -> 781x537 at (-1,0)  w/s.png" in out
+    assert "A canvas of at least 783 x 537 would fit them (soccer_shorts)." in out
+
+
+@pytest.mark.parametrize(
+    "anchor, extent, offset, need",
+    [
+        ("start", 10, 3, 13),
+        ("start", 10, -1, None),
+        ("end", 10, -3, 13),
+        ("end", 10, 1, None),
+        ("centre", 10, 0, 12),
+        ("centre", 11, 0, 13),
+        ("centre", 10, 3, 17),
+        ("centre", 10, -2, 16),
+    ],
+)
+def test_fit_extent(anchor, extent, offset, need):
+    """fit_extent is the smallest canvas side holding the content at its anchor, with 1px each side when centred."""
+    assert standardize.fit_extent(anchor, extent, offset) == need
+
+
+def test_pad_canvas_hint_per_canvas_and_for_offsets_that_never_fit(project, cfg, monkeypatch, capsys):
+    """Skipped files get a hint per canvas, and one pushed off its anchored edge is named as fitting no canvas."""
+
+    def mutate(c):
+        """tiny_sport plus a too-wide era on tiny_wide, a too-tall one, and one whose dx pushes it off the left."""
+        tiny_sport(c)
+        c["profiles"]["test-jersey-front"] += [
+            {"era": "huge", "size": [70, 10], "canvas": "tiny_wide"},
+            {"era": "off", "size": [30, 3], "anchor": "top-left", "dx": -1},
+            {"era": "deep", "size": [12, 40]},
+        ]
+
+    custom_config(project, cfg, mutate)
+    art(project / "src" / "huge" / "j.png", (70, 10))
+    art(project / "src" / "off" / "j.png", (30, 3))
+    art(project / "src" / "deep" / "j.png", (12, 40))
+    run(monkeypatch, "pad", "src", "Test/T/Jerseys Front")
+    out = capsys.readouterr().out
+    assert "!! 3 files fall outside the canvas:" in out
+    assert "A canvas of at least 40 x 40 would fit them (tiny)." in out
+    assert "A canvas of at least 72 x 30 would fit them (tiny_wide)." in out
+    assert "No canvas fits off/j.png: its era's dx/dy pushes it past the anchored edge." in out
