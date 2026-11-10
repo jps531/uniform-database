@@ -388,11 +388,12 @@ sport trees.
 
 ## Known gaps
 
-Near-misses: at the pipeline baseline `offsize.py Football` listed ~100
-files 1–3px off their profile (within tolerance, so they standardize fine).
-17 are the Nike/Adidas jersey-back overlap above; the rest are worth fixing
-at source when convenient. Re-run it for the current list — it isn't kept
-in git.
+Near-misses: an early `offsize.py` run (before profiles were keyed by
+sport) listed ~100 football files 1–3px off their profile — within
+tolerance, so they standardize fine. 17 are the Nike/Adidas jersey-back
+overlap above. **`offsize.py` can't currently re-check:** it still builds
+profile keys as `{slot}-{viewpoint}`, misses every profile, and prints
+"exact match" for anything. Fix that before trusting its output.
 
 Coverage, not correctness: Ole Miss `1979 Navy` helmet has no icon; five
 Southern Miss pants (1987 Black/Gold/White, 1988 Gold, 1997 White) have an
