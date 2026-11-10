@@ -25,3 +25,10 @@ surveys/
 # python tooling
 .venv/
 .ruff_cache/
+
+# tests
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.json
+htmlcov/

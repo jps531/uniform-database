@@ -37,8 +37,12 @@ jobs:
         run: uv run --frozen ruff check .
       - name: Formatting
         run: uv run --frozen ruff format --check .
-      - name: Docstrings (every module and function)
-        run: uv run --frozen docstr-coverage scripts --skip-magic --skip-init --fail-under 100
+      - name: Docstrings (every module and function, tests included)
+        run: uv run --frozen docstr-coverage scripts tests --skip-magic --skip-init --fail-under 100
+      - name: Unit tests
+        run: uv run --frozen pytest -n auto
+      - name: Coverage (95% or more for every script)
+        run: uv run --frozen python tests/coverage_gate.py
       - name: Config parses
         run: |
           uv run --frozen python - <<'PY'

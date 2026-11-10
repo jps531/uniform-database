@@ -12,12 +12,29 @@ dependencies = [
 [dependency-groups]
 dev = [
     "docstr-coverage>=2.3",
+    "pytest>=9.2.0",
+    "pytest-cov>=7.1.0",
+    "pytest-xdist>=3.8.0",
     "ruff>=0.9",
 ]
 
 # scripts/ is a folder of command-line tools, not an installable package.
 [tool.uv]
 package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["scripts", "tests"]
+addopts = "--cov --cov-report=term-missing --cov-report=json"
+
+[tool.coverage.run]
+branch = true
+source = ["scripts"]
+# golden_ci.py and golden_run.py run other scripts as subprocesses; measure those too.
+patch = ["subprocess"]
+
+[tool.coverage.json]
+output = "coverage.json"
 
 [tool.ruff]
 target-version = "py311"
