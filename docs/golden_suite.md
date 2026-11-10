@@ -145,3 +145,45 @@ Anything that **looks** wrong but measures right: an element sitting
 awkwardly, z-order where pieces overlap, a scale that fits but looks off, a
 rotation that reads badly. That's what the contact sheets are for — review
 every sheet regardless of the defect count.
+## 3. CI — `golden/fixture/` and `golden_ci.py`
+
+CI can't see the iCloud tree, so it runs the suite on `golden/fixture/`: a
+copy, at the same relative paths, of exactly the artwork the suite uses.
+
+```
+uv run scripts/golden_run.py                 # full run on the Mac first
+uv run scripts/golden_fixture.py             # dry run: files to add, update, remove
+uv run scripts/golden_fixture.py --apply     # then commit golden/fixture/
+uv run scripts/golden_ci.py                  # what CI runs; --keep to inspect
+```
+
+`golden_fixture.py` reads the last run's results, so it copies what was
+actually placed. It copies:
+
+| What | Why |
+|---|---|
+| Each placed element's files with the requested number, plus its unnumbered files | the candidates compose ranks; a file with another number can't win while one of these exists. If there are none, it copies the whole folder |
+| Every Helmets Left/Right element used, whole, and its folder in `Marks/` | so CI can re-pad the marks and compare |
+| One more helmet element for any era (A–F, per side) not reached | so every helmet era is re-padded |
+| The first and last file of every Fields/Courts Full folder, and their cropped copies | so every sport's crop is re-derived |
+
+It refuses while any approved example has no result, or a result older than
+the manifest, or a needed file is still in iCloud only. It writes and deletes
+only inside `golden/fixture/`.
+
+`golden_ci.py` copies the fixture into a temporary project and fails on any
+of these:
+
+| Check | Fails when |
+|---|---|
+| Compositions | `golden_run.py --strict` finds a defect, a note (1–2px clipping), or an example with no result |
+| Helmets | a re-padded mark is missing, extra, or differs by a single pixel from the fixture's generated helmet, or an era isn't covered |
+| Venues | a re-derived crop is missing, extra, or differs, or a sport with `derived_from` canvases has no venue in the fixture |
+
+Pixels are compared, not bytes, so a Pillow upgrade that compresses
+differently doesn't fail it. The job summary lists every failure, and the
+`golden-run` artifact holds the contact sheets and REPORT.md.
+
+**Refresh the fixture in the same PR** as any re-plan, or any change to
+artwork the fixture copies. CI compares the fixture with itself, so it can't
+tell that the iCloud original has moved on.
