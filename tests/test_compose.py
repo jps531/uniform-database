@@ -765,3 +765,14 @@ def test_missing_dependencies_exit_with_a_hint(monkeypatch):
     monkeypatch.setitem(sys.modules, "PIL", None)
     with pytest.raises(SystemExit, match="uv sync"):
         runpy.run_path(SCRIPT, run_name="compose_noimport")
+
+
+def test_slot_flags_are_the_slots_templates_place(project, monkeypatch, capsys):
+    """compose offers --{slot} only for slots a template places: venue slots (field, court) are not combination slots."""
+    monkeypatch.setattr(sys, "argv", ["compose.py", "--help"])
+    with pytest.raises(SystemExit):
+        compose.main()
+    out = capsys.readouterr().out
+    for slot in ("--helmet", "--jersey", "--pants", "--hat", "--shorts"):
+        assert slot in out
+    assert "--field" not in out and "--court" not in out

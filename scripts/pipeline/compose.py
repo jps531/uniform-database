@@ -252,7 +252,12 @@ def main():
     pre = argparse.ArgumentParser(add_help=False)
     add_root_arg(pre)
     root = root_from(pre.parse_known_args()[0])
-    SLOTS = tuple(slot_dirs(load_config(root)))
+    # Only slots a template places get flags: `directory_slots` also lists the
+    # venue slots (field, court), which are never part of a combination.
+    placed = {
+        p["slot"] for t in load_yaml(root / "configs" / "view_templates.yaml")["templates"] for p in t["placements"]
+    }
+    SLOTS = tuple(s for s in slot_dirs(load_config(root)) if s in placed)
 
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     add_root_arg(ap)
