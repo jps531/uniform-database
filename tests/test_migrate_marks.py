@@ -5,6 +5,7 @@ import runpy
 import sys
 from pathlib import Path
 
+import common
 import migrate_marks as mm
 import pytest
 from conftest import REPO, art, era
@@ -40,7 +41,7 @@ def test_plan_flat_parses_team_year_side_shell_and_number(project):
     touch(project, T / "Double Bar" / "Alabama 1965 White 1.png")
     touch(project, T / "Speedflex" / ".Alabama 2015 Crimson 1.png")
     (project / T / "notes.txt").write_text("")
-    moves, problems = mm.plan(project / T, project / D, mm.known_colorways(project))
+    moves, problems = mm.plan(project / T, project / D, mm.known_colorways(project), "Helmets")
     assert problems == []
     assert sorted(rels(moves, project / T, project / D)) == sorted(
         [
@@ -60,7 +61,7 @@ def test_plan_flat_reports_unknown_shells_unparsed_names_and_colorways(project):
     touch(project, T / "Mystery" / "Alabama 2015 Crimson 1.png")
     touch(project, T / "Speed" / "garbage.png")
     touch(project, T / "Speed" / "Alabama 2015 Zebra 1.png")
-    moves, problems = mm.plan(project / T, project / D, mm.known_colorways(project))
+    moves, problems = mm.plan(project / T, project / D, mm.known_colorways(project), "Helmets")
     assert ("unknown shell directory", "Mystery", "") in problems
     assert ("unparsed filename", "Speed/garbage.png", "") in problems
     assert ("unknown colorway", "zebra", "Speed/Alabama 2015 Zebra 1.png") in problems
@@ -70,7 +71,7 @@ def test_plan_flat_reports_unknown_shells_unparsed_names_and_colorways(project):
 def test_plan_flat_without_colorways_skips_the_colour_check(project):
     """With no colorway list, no colour is reported unknown."""
     touch(project, T / "Speed" / "Alabama 2015 Zebra 1.png")
-    moves, problems = mm.plan(project / T, project / D, set())
+    moves, problems = mm.plan(project / T, project / D, set(), "Helmets")
     assert problems == []
     assert len(moves) == 1
 
@@ -82,14 +83,15 @@ def test_known_colorways_accepts_keys_tokens_and_labels(project):
 
 
 def test_known_colorways_and_shells_with_missing_or_odd_config(project):
-    """Missing vocabulary files give empty results; a colorway with no mapping still counts by key."""
+    """A missing slots_global gives no colorways and a missing vocabulary exits; a colorway with no mapping counts by key."""
     small_configs(project)
     (project / "configs/slots_global.yaml").write_text("colorways:\n  plain:\n  fancy: {label: Fancy Red}\n")
     assert mm.known_colorways(project) == {"plain", "fancy", "fancy red"}
     (project / "configs/slots_global.yaml").unlink()
     (project / "configs/modifiers_football.yaml").unlink()
     assert mm.known_colorways(project) == set()
-    assert mm.shell_by_era(project) == {}
+    with pytest.raises(SystemExit, match="No vocabulary at configs/modifiers_football.yaml"):
+        mm.shell_by_era(project)
 
 
 def test_shell_by_era_reads_the_shell_tokens(project):
@@ -197,8 +199,8 @@ def test_main_finds_root_from_cwd(project, monkeypatch, capsys):
 def test_find_root_exits_without_configs(tmp_path):
     """find_root() exits when no directory above holds the configs."""
     with pytest.raises(SystemExit) as e:
-        mm.find_root(tmp_path)
-    assert "Pass --root." in str(e.value.code)
+        common.find_root(tmp_path)
+    assert "pass --root." in str(e.value.code)
 
 
 # ---------------------------------------------------------------- nested
@@ -311,14 +313,6 @@ def test_content_size_of_an_empty_file_is_none(tmp_path):
     """content_size() is None for a fully transparent image and the bbox size otherwise."""
     assert mm.content_size(art(tmp_path / "e.png", (6, 6), (0, 0))) is None
     assert mm.content_size(art(tmp_path / "f.png", (6, 6), (3, 2))) == (3, 2)
-
-
-def test_plan_nested_needs_pillow(project, monkeypatch):
-    """Nested mode exits when Pillow is unavailable, since it reads image sizes."""
-    monkeypatch.setattr(mm, "Image", None)
-    with pytest.raises(SystemExit) as e:
-        mm.plan_nested(project, project / D, "Alabama", project)
-    assert "nested mode reads image sizes" in str(e.value.code)
 
 
 def test_main_nested_reports_problems_and_collisions_then_refuses(project, monkeypatch, capsys):

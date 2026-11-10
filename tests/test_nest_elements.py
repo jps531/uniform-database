@@ -4,6 +4,7 @@ import os
 import runpy
 import sys
 
+import common
 import nest_elements as ne
 import pytest
 import yaml
@@ -24,8 +25,8 @@ def baseball():
 
 def nest(stem, vocab):
     """element_for() on one stem with a loaded vocabulary."""
-    strip, design, form, seq, known = vocab
-    return ne.element_for(stem, strip, design, form, seq, known)
+    strip, design, form, _seq, known = vocab
+    return ne.element_for(stem, strip, design, form, known)
 
 
 def custom_configs(project, files):
@@ -72,7 +73,8 @@ def test_sport_token_overrides_shared_and_colorways_inherit(project):
         project,
         {"modifiers_mine.yaml": {"extends": "shared", "tokens": {"grad": {"label": "Grad", "scope": "design"}}}},
     )
-    tokens, colorways = ne.read_vocab(project, "mine")
+    v = common.load_vocabulary(project, "mine")
+    tokens, colorways = v.tokens, v.colorways
     assert tokens["grad"]["scope"] == "design"
     assert "ncaa" in tokens
     assert "pink" in colorways
@@ -103,7 +105,7 @@ def test_circular_extends_exits(project):
     """Vocabularies that extend each other in a loop exit rather than recursing forever."""
     custom_configs(project, {"modifiers_a.yaml": {"extends": "b"}, "modifiers_b.yaml": {"extends": "a"}})
     with pytest.raises(SystemExit, match="Circular `extends` reaching modifiers_a.yaml"):
-        ne.read_vocab(project, "a")
+        common.load_vocabulary(project, "a")
 
 
 def test_missing_vocabulary_exits(project):
@@ -117,7 +119,7 @@ def test_empty_vocabulary_file_is_allowed(project):
     (project / "configs").unlink()
     (project / "configs").mkdir()
     (project / "configs" / "modifiers_blank.yaml").write_text("")
-    assert ne.read_vocab(project, "blank") == ({}, [])
+    assert common.load_vocabulary(project, "blank") == common.Vocabulary({}, [])
 
 
 # --- element_for -------------------------------------------------------------
@@ -174,6 +176,8 @@ def test_football_element_names(football, stem, element, notes):
         ("2020 White Teal Belt", "2020 White", ["Teal Belt"]),
         ("2020 Maroon White", "2020 Maroon White", []),
         ("2014 Heck", "2014 Heck", []),
+        # purple is a SHARED colorway: baseball's own list adds to shared's, so it is not read as a surname
+        ("2020 White Purple", "2020 White Purple", []),
     ],
 )
 def test_baseball_element_names(baseball, stem, element, notes):
@@ -366,14 +370,14 @@ def test_source_without_pngs_exits(project, monkeypatch):
 
 
 def test_find_root_walks_up_and_fails_cleanly(project, tmp_path):
-    """find_root() finds configs/ and scripts/ from a subdirectory, and exits when there are none above."""
+    """find_root() finds the project from a subdirectory, and exits when there is none above."""
     sub = project / "temp" / "deep"
     sub.mkdir(parents=True)
-    assert ne.find_root(sub) == project
+    assert common.find_root(sub) == project
     lone = tmp_path / "lone"
     lone.mkdir()
-    with pytest.raises(SystemExit, match="Could not find the project root"):
-        ne.find_root(lone)
+    with pytest.raises(SystemExit, match="No configs/canvas_definitions.yaml in"):
+        common.find_root(lone)
 
 
 def test_runs_as_a_script(project, monkeypatch, capsys):
@@ -387,6 +391,13 @@ def test_runs_as_a_script(project, monkeypatch, capsys):
 
 def test_missing_pyyaml_exits_with_a_hint(monkeypatch):
     """Without PyYAML installed the script exits telling the user to run `uv sync`."""
+    monkeypatch.delitem(sys.modules, "common", raising=False)
     monkeypatch.setitem(sys.modules, "yaml", None)
     with pytest.raises(SystemExit, match="uv sync"):
         runpy.run_path(str(REPO / "scripts" / "migration" / "nest_elements.py"), run_name="nest_noimport")
+
+
+def test_equal_length_tokens_are_ordered_alphabetically(football):
+    """Within one length, tokens are in alphabetical order, so the plan prints the same way every run."""
+    for tokens in football[:3]:
+        assert tokens == sorted(tokens, key=lambda t: (-len(t), t))

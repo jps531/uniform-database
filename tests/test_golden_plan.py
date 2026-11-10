@@ -1,9 +1,11 @@
 """Tests for scripts/golden/golden_plan.py: inventory, era resolution, greedy coverage, constraints and outputs."""
 
+import argparse
 import json
 import os
 import sys
 
+import common
 import golden_plan as gp
 import pytest
 import yaml
@@ -14,11 +16,8 @@ from conftest import REPO, art, canvas_size, era
 # --------------------------------------------------------------------------
 
 
-@pytest.fixture(autouse=True)
-def fresh_globals(monkeypatch):
-    """Give every test its own COLORWAYS and PAIRINGS, which main() fills in place."""
-    monkeypatch.setattr(gp, "COLORWAYS", ["vegas gold", "maroon", "white", "gold", "gray", "blue", "natural"])
-    monkeypatch.setattr(gp, "PAIRINGS", {})
+# The known colorways, longest first, that the planning tests pass in.
+COLORWAYS = ["vegas gold", "maroon", "white", "gold", "gray", "blue", "natural"]
 
 
 def post(cfg, key, name):
@@ -48,10 +47,10 @@ def names(templates, sport):
     return {t["view_kind"] for t in templates if t["sport"] == sport}
 
 
-def plan(templates, cfg, view, inv):
-    """Run plan_template on a real template against a crafted inventory."""
+def plan(templates, cfg, view, inv, pairings=None):
+    """Run plan_template on a real template against a crafted inventory, with these known pairings (default none)."""
     t = tpl(templates, view)
-    return gp.plan_template(t, names(templates, t["sport"]), inv, cfg)
+    return gp.plan_template(t, names(templates, t["sport"]), inv, pairings or {}, COLORWAYS)
 
 
 def picks(examples):
@@ -83,25 +82,19 @@ def run_main(monkeypatch, *argv):
 # --------------------------------------------------------------------------
 
 
-def test_slug_matches_config_keys():
-    """Directory names become config keys: lowercase, apostrophes dropped, spaces to underscores."""
-    assert gp.slug("Men's Basketball") == "mens_basketball"
-    assert gp.slug("Women’s Basketball") == "womens_basketball"
-
-
 def test_find_root_exits_without_configs(tmp_path, monkeypatch):
-    """find_root() exits when no configs/view_templates.yaml is above the cwd."""
+    """main() exits when no configs/canvas_definitions.yaml is above the cwd."""
     monkeypatch.chdir(tmp_path)
     with pytest.raises(SystemExit) as e:
-        gp.find_root()
-    assert "No configs/view_templates.yaml" in str(e.value)
+        run_main(monkeypatch)
+    assert "No configs/canvas_definitions.yaml" in str(e.value)
 
 
 def test_find_root_from_a_subdirectory(project, monkeypatch):
-    """find_root() walks up from a subdirectory to the project root."""
+    """Without --root the project is found by walking up from a subdirectory."""
     (project / "a" / "b").mkdir(parents=True)
     monkeypatch.chdir(project / "a" / "b")
-    assert gp.find_root() == project
+    assert common.root_from(argparse.Namespace(root=None)) == project
 
 
 def test_era_for_uses_post_scale_size(cfg):
@@ -125,14 +118,14 @@ def test_era_for_tolerance_and_nearest(cfg):
 
 
 def test_content_size_bbox_and_transparent(tmp_path):
-    """content_size() is the opaque bbox, or the full image when nothing is opaque."""
+    """content_size() is the opaque bbox, or None when nothing is opaque."""
     p = art(tmp_path / "a.png", (40, 30), (10, 7), top=2)
-    assert gp.content_size(p) == [10, 7]
+    assert gp.content_size(p) == (10, 7)
     from PIL import Image
 
     q = tmp_path / "b.png"
     Image.new("RGBA", (12, 9), (0, 0, 0, 0)).save(q)
-    assert gp.content_size(q) == [12, 9]
+    assert gp.content_size(q) is None
 
 
 def test_numbers_in_opaque_strings_sorted():
@@ -179,11 +172,11 @@ def test_constraints_and_describe(templates):
 
 def test_colorway_longest_match():
     """colorway() takes the longest known colourway, falls back to the first word, and is empty for a bare year."""
-    assert gp.colorway("2020 Vegas Gold Alt") == "vegas gold"
-    assert gp.colorway("2020 Gold") == "gold"
-    assert gp.colorway("2026 Teal Keeper") == "teal"
-    assert gp.colorway("Generic Maroon") == "generic"
-    assert gp.colorway("2020") == ""
+    assert gp.colorway("2020 Vegas Gold Alt", COLORWAYS) == "vegas gold"
+    assert gp.colorway("2020 Gold", COLORWAYS) == "gold"
+    assert gp.colorway("2026 Teal Keeper", COLORWAYS) == "teal"
+    assert gp.colorway("Generic Maroon", COLORWAYS) == "generic"
+    assert gp.colorway("2020", COLORWAYS) == ""
 
 
 def test_pick_number_prefers_back(cfg):
@@ -351,9 +344,8 @@ def test_pairing_beats_heuristics(cfg, templates, monkeypatch):
     ex, *_ = plan(templates, cfg, "baseball-condensed", inv)
     assert ex[0][1][(1, "jersey")] == "2015 Maroon"
     group = {"hat": "2015 Maroon Fauxback", "jersey": "2015 Natural Wool", "pants": "2015 Natural Wool"}
-    for s, e in group.items():
-        gp.PAIRINGS[(B, "Mississippi State", e)] = {k: v for k, v in group.items() if k != s}
-    ex, *_ = plan(templates, cfg, "baseball-condensed", inv)
+    pairings = {(B, "Mississippi State", e): {k: v for k, v in group.items() if k != s} for s, e in group.items()}
+    ex, *_ = plan(templates, cfg, "baseball-condensed", inv, pairings)
     assert ex[0][1] == {
         (1, "hat"): "2015 Maroon Fauxback",
         (1, "jersey"): "2015 Natural Wool",
@@ -477,7 +469,7 @@ def test_reference_without_jersey_and_yearless(cfg):
             }
         }
     }
-    ex, *_ = gp.plan_template(t, {"custom"}, inv, cfg)
+    ex, *_ = gp.plan_template(t, {"custom"}, inv, {}, COLORWAYS)
     assert len(ex) == 1
     c = ex[0][1]
     # uniform 2's helmet follows uniform 2's pants (same name), and differs from uniform 1's
@@ -485,7 +477,7 @@ def test_reference_without_jersey_and_yearless(cfg):
     assert c[(2, "helmet")] != c[(1, "helmet")]
     inv[F]["Mississippi State"]["helmet"].pop("2020 Maroon")
     inv[F]["Mississippi State"]["pants"].pop("2020 Maroon")
-    ex, *_ = gp.plan_template(t, {"custom"}, inv, cfg)
+    ex, *_ = gp.plan_template(t, {"custom"}, inv, {}, COLORWAYS)
     assert ex[0][1] == {(1, "helmet"): "Generic White", (2, "pants"): "Generic White", (2, "helmet"): "Generic White"}
 
 
@@ -700,9 +692,11 @@ def test_main_reads_colorway_tokens_and_labels(project, templates, monkeypatch, 
         )
     )
     (project / "golden/inventory.json").write_text("{}")
+    seen, real = [], gp.plan_template
+    monkeypatch.setattr(gp, "plan_template", lambda *a: seen.append(a[4]) or real(*a))
     run_main(monkeypatch)
-    assert gp.COLORWAYS[:2] == ["powder blue", "vegas gold"]
-    assert set(gp.COLORWAYS) == {
+    assert seen[0][:2] == ["powder blue", "vegas gold"]
+    assert set(seen[0]) == {
         "powder blue",
         "vegas gold",
         "old gold",
@@ -870,3 +864,17 @@ def test_legacy_inventory_covers_the_sports_it_holds(project, cfg, templates, mo
     saved = json.loads((project / "golden/inventory.json").read_text())
     assert saved["sports"] == ["football", "womens_basketball"]
     assert saved["elements"][M] == legacy[M]
+
+
+def test_root_flag_and_manifest_header(project, tmp_path, monkeypatch, capsys):
+    """--root plans a project from elsewhere, and the manifest it writes warns that a re-plan overwrites it."""
+    (project / "golden/inventory.json").write_text("{}")
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    run_main(monkeypatch, "--root", str(project), "--sport", "womens_basketball")
+    text = (project / "golden/manifest.yaml").read_text()
+    assert text.startswith(gp.MANIFEST_HEADER)
+    assert "WARNING: golden_plan.py OVERWRITES this file." in text
+    assert "golden/pairings.yaml" in text
+    assert not (elsewhere / "golden").exists()

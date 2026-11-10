@@ -41,43 +41,37 @@ import sys
 from pathlib import Path
 
 try:
-    import yaml
-    from PIL import Image, ImageOps
+    from PIL import Image
 except ImportError:
     sys.exit("Missing dependencies: run `uv sync`")
 
-SLOT_DIR = {
-    "helmet": "Helmets",
-    "jersey": "Jerseys",
-    "pants": "Pants",
-    "hat": "Hats",
-    "shorts": "Shorts",
-}
-
-# Physical form variants that select a canvas — see nest_elements.py.
-FORM_KINDS = ("shell", "cut", "style")
+from common import (
+    DPI,
+    FORM_KINDS,
+    add_root_arg,
+    alpha_box,
+    load_config,
+    load_vocabulary,
+    load_yaml,
+    longest_first,
+    open_rgba,
+    pngs,
+    root_from,
+    slot_dirs,
+    sport_dir,
+    token_name,
+)
 
 
 def load_vocab(root: Path, sport: str):
-    """Return (all_tokens_longest_first, form_tokens, default_form_tokens)."""
+    """Return (all_tokens_longest_first, form_tokens, default_form_tokens) for a sport, `extends` followed.
 
-    def read(name, seen=frozenset()):
-        """Token dict for one vocabulary file, merged over the file it `extends`; a sport's own token wins."""
-        if name in seen:
-            return {}
-        q = root / "configs" / f"modifiers_{name}.yaml"
-        if not q.is_file():
-            return {}
-        cfg = yaml.safe_load(q.open()) or {}
-        base = read(cfg["extends"], seen | {name}) if cfg.get("extends") else {}
-        return {**base, **(cfg.get("tokens") or {})}
-
-    tokens = read(sport)
-    if not tokens:
-        return [], set(), set()
+    Exits naming the file when the sport's vocabulary, or one it extends, is
+    missing, or the chain loops.
+    """
     allt, form, default = [], set(), set()
-    for v in tokens.values():
-        t = v.get("token") or v.get("label")
+    for v in load_vocabulary(root, sport).tokens.values():
+        t = token_name(v)
         if not t or v.get("kind") == "sequence":
             continue
         allt.append(t)
@@ -85,7 +79,7 @@ def load_vocab(root: Path, sport: str):
             form.add(t)
             if v.get("default"):
                 default.add(t)
-    return sorted(set(allt), key=len, reverse=True), form, default
+    return longest_first(allt), form, default
 
 
 def split_tail(stem, element, vocab_tokens):
@@ -111,17 +105,9 @@ def split_tail(stem, element, vocab_tokens):
     return set(found), num, leftover
 
 
-def find_root(start: Path) -> Path:
-    """The nearest directory at or above `start` holding configs/view_templates.yaml; exits if none."""
-    for d in [start, *start.parents]:
-        if (d / "configs" / "view_templates.yaml").is_file():
-            return d
-    sys.exit(f"No configs/view_templates.yaml above {start}")
-
-
 def load_template(root: Path, sport: str, view_kind: str):
     """The view template for this sport and view kind; exits if there is none."""
-    cfg = yaml.safe_load((root / "configs" / "view_templates.yaml").open())
+    cfg = load_yaml(root / "configs" / "view_templates.yaml")
     for t in cfg["templates"]:
         if t["sport"] == sport and t["view_kind"] == view_kind:
             return t
@@ -153,9 +139,7 @@ def candidates(folder: Path, element: str, number, want, vocab, player=None):
     Before this, ranking ignored tokens entirely and fell back to alphabetical
     order, which quietly picked patched artwork nobody asked for.
     """
-    if not folder.is_dir():
-        return []
-    files = sorted(f for f in folder.glob("*.png") if not f.name.startswith("."))
+    files = pngs(folder, recursive=False)
     if not files:
         return []
     allt, form_tokens, default_form = vocab
@@ -203,23 +187,6 @@ def candidates(folder: Path, element: str, number, want, vocab, player=None):
     return [f for _, f in scored]
 
 
-def sport_dir(root: Path, sport: str) -> Path:
-    """Sport slug -> its directory. NOT `sport.title()`: that turns
-    mens_basketball into Mens_Basketball and never finds "Men's Basketball",
-    so every basketball composition failed. Match on the slug instead —
-    the same normalisation standardize.py uses — so the apostrophe round-trips.
-    """
-
-    def slug(s):
-        """Directory name -> sport slug: lowercase, apostrophes dropped, spaces to underscores."""
-        return s.lower().replace("\u2019", "").replace("'", "").replace(" ", "_")
-
-    for d in root.iterdir():
-        if d.is_dir() and slug(d.name) == sport:
-            return d
-    return root / sport.replace("_", " ").title()
-
-
 def resolve(
     root: Path,
     team: str,
@@ -232,8 +199,17 @@ def resolve(
     vocab,
     player=None,
 ):
-    """Return (path, how) or (None, reason)."""
-    base = sport_dir(root, sport) / team / f"{SLOT_DIR[slot]} {viewpoint.title()}"
+    """Return (path, how) or (None, reason).
+
+    The sport's directory is matched by slug (common.sport_dir), so
+    mens_basketball finds "Men's Basketball"; the slot's directory word comes
+    from `directory_slots`.
+    """
+    view_dir = f"{slot_dirs(load_config(root))[slot]} {viewpoint.title()}"
+    sd = sport_dir(root, sport)
+    if sd is None:
+        return None, f"no file under {view_dir}/{element} (no directory for sport '{sport}')"
+    base = sd / team / view_dir
 
     hits = candidates(base / element, element, number, want, vocab, player)
     if hits:
@@ -250,8 +226,7 @@ def resolve(
         others = sorted(
             {
                 n
-                for f in folder.glob("*.png")
-                if not f.name.startswith(".")
+                for f in pngs(folder, recursive=False)
                 for n in [split_tail(f.stem, element, vocab[0])[1]]
                 if n is not None
             }
@@ -273,8 +248,19 @@ def main():
     With --json, also writes the structured result (placements, missing,
     clipping), including when nothing could be written.
     """
+    # The project is found first: the slot flags come from its config.
+    pre = argparse.ArgumentParser(add_help=False)
+    add_root_arg(pre)
+    root = root_from(pre.parse_known_args()[0])
+    # Only slots a template places get flags: `directory_slots` also lists the
+    # venue slots (field, court), which are never part of a combination.
+    placed = {
+        p["slot"] for t in load_yaml(root / "configs" / "view_templates.yaml")["templates"] for p in t["placements"]
+    }
+    SLOTS = tuple(s for s in slot_dirs(load_config(root)) if s in placed)
+
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--root")
+    add_root_arg(ap)
     ap.add_argument("--team", default="Mississippi State")
     ap.add_argument("--sport", default="football")
     ap.add_argument("--view", default="full")
@@ -286,7 +272,8 @@ def main():
     # view. A combo shows two kits side by side — soccer pairs a field kit
     # with a keeper kit, volleyball pairs two jerseys that may differ in
     # sleeve length. Placements carry `uniform: 2` to select the second set.
-    for slot in ("helmet", "jersey", "pants", "hat", "shorts"):
+    # The slots are those of `directory_slots` in canvas_definitions.yaml.
+    for slot in SLOTS:
         ap.add_argument(f"--{slot}")
         ap.add_argument(f"--{slot}2", dest=f"{slot}2")
     ap.add_argument(
@@ -340,11 +327,9 @@ def main():
     ap.add_argument("--diff", help="hand-made composite to compare against")
     args = ap.parse_args()
 
-    root = Path(args.root).expanduser().resolve() if args.root else find_root(Path.cwd().resolve())
     tpl = load_template(root, args.sport, args.view)
     vocab = load_vocab(root, args.sport)
     W, H = tpl["output"]["width"], tpl["output"]["height"]
-    SLOTS = ("helmet", "jersey", "pants", "hat", "shorts")
     elements = {
         1: {s: getattr(args, s) for s in SLOTS if getattr(args, s)},
         2: {s: getattr(args, f"{s}2") for s in SLOTS if getattr(args, f"{s}2")},
@@ -443,7 +428,7 @@ def main():
             )
             continue
 
-        with ImageOps.exif_transpose(Image.open(path)).convert("RGBA") as img:
+        with open_rgba(path) as img:
             s = float(p.get("scale", 1.0))
             if not math.isclose(s, 1.0):
                 img = img.resize((round(img.width * s), round(img.height * s)), Image.Resampling.LANCZOS)
@@ -466,18 +451,19 @@ def main():
                 x = int(p["x"] - img.width / 2)  # top-CENTRE anchor
                 y = int(p["y"])
             canvas.alpha_composite(img, (x, y))
+            # Clipping is judged on the ARTWORK, not the padded element canvas.
+            # Transparent padding hanging past the edge is harmless; only opaque
+            # pixels landing outside the view are a defect.
+            ab = alpha_box(img)
+            iw, ih = img.size
         extra = f" rot {rot:g}deg" if rot else ""
-        # Clipping is judged on the ARTWORK, not the padded element canvas.
-        # Transparent padding hanging past the edge is harmless; only opaque
-        # pixels landing outside the view are a defect.
-        ab = img.getchannel("A").getbbox()
         if ab:
             ax0, ay0, ax1, ay1 = x + ab[0], y + ab[1], x + ab[2], y + ab[3]
         else:
             ax0 = ay0 = ax1 = ay1 = 0
         over = {k: v for k, v in (("L", -ax0), ("T", -ay0), ("R", ax1 - W), ("B", ay1 - H)) if v > 0}
         clip = "  CLIPPED " + ",".join(f"{k}{v}" for k, v in over.items()) if over else ""
-        print(f"{label:<22} {path.name[:40]:<40} {how:<18} ({x}, {y}) {img.width}x{img.height}{extra}{clip}")
+        print(f"{label:<22} {path.name[:40]:<40} {how:<18} ({x}, {y}) {iw}x{ih}{extra}{clip}")
         toks, num, leftover = split_tail(path.stem, elements[u][slot], vocab[0])
         record.append(
             {
@@ -496,7 +482,7 @@ def main():
                 "tokens_requested": sorted(want[u]),
                 "tokens_found": sorted(toks),
                 "at": [x, y],
-                "size": [img.width, img.height],
+                "size": [iw, ih],
                 "scale": float(p.get("scale", 1.0)),
                 "rotation": rot,
                 "artwork_bbox": [ax0, ay0, ax1, ay1],
@@ -534,7 +520,7 @@ def main():
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    canvas.save(out, dpi=(300, 300))
+    canvas.save(out, dpi=(DPI, DPI))
     dump(True)
     print(f"\nWrote {out}")
 
@@ -542,7 +528,7 @@ def main():
         ref_path = Path(args.diff)
         if not ref_path.is_file():
             sys.exit(f"Reference not found: {ref_path}")
-        with Image.open(ref_path).convert("RGBA") as ref:
+        with Image.open(ref_path) as raw, raw.convert("RGBA") as ref:
             print(f"\nreference {ref.size}  composed {canvas.size}")
             if ref.size != canvas.size:
                 print("  sizes differ — scaling reference to compare")

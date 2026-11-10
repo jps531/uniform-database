@@ -4,6 +4,7 @@ import json
 import runpy
 import sys
 
+import common
 import derive_crops as dc
 import numpy as np
 import pytest
@@ -190,7 +191,7 @@ def test_main_finds_root_from_cwd(project, monkeypatch, capsys):
 def test_find_root_exits_without_configs(tmp_path):
     """find_root() exits when no directory above holds the configs."""
     with pytest.raises(SystemExit) as e:
-        dc.find_root(tmp_path)
+        common.find_root(tmp_path)
     assert "No configs/canvas_definitions.yaml" in str(e.value.code)
 
 
@@ -273,3 +274,13 @@ def test_marker_records_source_and_crop_canvas(project, monkeypatch):
     assert marker["canvas_name"] == "football_field_cropped"
     assert marker["source_canvas"] == "football_field_full"
     assert marker["crop_at"] == list(c["derived_from"]["crop_at"])
+
+
+def test_venue_directory_is_matched_by_slug(project, monkeypatch, capsys):
+    """A Venues sport folder is found by its slug, so "football" (not the title-cased "Football") is cropped too."""
+    cfg = small_configs(project)
+    src = full(project, cfg)
+    lower = project / "Venues" / "football"
+    (project / "Venues" / "Football").rename(lower)
+    run_main(monkeypatch, project, "--sport", "football", "--apply")
+    assert cropped_of(lower / src.relative_to(project / "Venues" / "Football")).is_file()

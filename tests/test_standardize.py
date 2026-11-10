@@ -6,12 +6,14 @@ import os
 import sys
 from pathlib import Path
 
+import common
 import numpy as np
 import pytest
 import standardize
 import yaml
 from conftest import art, canvas_size, era
 from PIL import Image
+from test_golden_fixture import small_configs
 
 HELMET_FRONT = "Football/T/Helmets Front"
 
@@ -81,12 +83,12 @@ def test_find_root_walks_up_and_exits_when_absent(project, tmp_path):
     """find_root finds the project from a subdirectory and exits when no config is above."""
     sub = project / "a" / "b"
     sub.mkdir(parents=True)
-    assert standardize.find_root(sub) == project
+    assert common.find_root(sub) == project
     lone = tmp_path / "lone"
     lone.mkdir()
     with pytest.raises(SystemExit) as e:
-        standardize.find_root(lone)
-    assert "Could not find configs/canvas_definitions.yaml" in str(e.value)
+        common.find_root(lone)
+    assert "No configs/canvas_definitions.yaml in" in str(e.value)
 
 
 def test_resolve_takes_relative_paths_from_root(project, tmp_path):
@@ -133,10 +135,10 @@ def test_pngs_skips_hidden_files_and_directories(tmp_path):
 
 
 def test_content_size_of_opaque_and_empty_images(tmp_path):
-    """content_size returns the alpha bbox and its size, or (None, None) for a blank image."""
+    """measure returns an open image's alpha bbox and its size, or (None, None) for a blank image."""
     with Image.open(art(tmp_path / "a.png", (20, 10), (6, 4), top=2)) as im:
-        assert standardize.content_size(im.convert("RGBA")) == ((7, 2, 13, 6), (6, 4))
-    assert standardize.content_size(Image.new("RGBA", (5, 5))) == (None, None)
+        assert standardize.measure(im.convert("RGBA")) == ((7, 2, 13, 6), (6, 4))
+    assert standardize.measure(Image.new("RGBA", (5, 5))) == (None, None)
 
 
 def test_match_era_within_tolerance_only(cfg):
@@ -144,11 +146,11 @@ def test_match_era_within_tolerance_only(cfg):
     tol = cfg["tolerance"]
     profile = cfg["profiles"]["football-helmet-front"]
     w, h = era(cfg, "football-helmet-front", "B")["size"]
-    matched = standardize.match_era(profile, w + tol, h - tol, tol)
+    matched = standardize.match_era(profile, (w + tol, h - tol), tol)
     assert matched is not None
     assert matched["era"] == "B"
-    assert standardize.match_era(profile, w + tol + 1, h, tol) is None
-    assert standardize.match_era(profile, w, h - tol - 1, tol) is None
+    assert standardize.match_era(profile, (w + tol + 1, h), tol) is None
+    assert standardize.match_era(profile, (w, h - tol - 1), tol) is None
 
 
 # ---------------------------------------------------------------- survey
@@ -750,3 +752,22 @@ def test_pad_fill_canvas_source_cropped_to_content_is_padded_not_refused(project
         assert a.size == b.size == cv
         assert a.convert("RGBA").tobytes() == b.convert("RGBA").tobytes()
     assert (project / "Football/T/Pants Front/.generated").is_file()
+
+
+def test_pad_takes_the_closest_era_where_windows_overlap(project, cfg, monkeypatch, capsys):
+    """671px is within tolerance of helmet back E (667) and E2 (674): pad files it as E2, the closer, not the first listed."""
+    h = era(cfg, "football-helmet-back", "E")["size"][1]
+    art(project / "src" / "2010 White" / "h.png", (671, h))
+    run(monkeypatch, "pad", "src", "Football/T/Helmets Back")
+    rows = [line.split() for line in capsys.readouterr().out.splitlines()]
+    assert ["E2", "671", "x", str(h)] in [r[:4] for r in rows]
+
+
+def test_survey_and_pad_need_tolerance_in_the_config(project, monkeypatch):
+    """With no `tolerance` in the config, survey and pad exit saying so rather than guessing one."""
+    small_configs(project, lambda c: c.pop("tolerance"))
+    b = era(standardize.load_config(project), "football-helmet-front", "B")["size"]
+    art(project / "src" / "x" / "h.png", b)
+    for argv in (("survey", "src"), ("pad", "src", HELMET_FRONT)):
+        with pytest.raises(SystemExit, match="No `tolerance`"):
+            run(monkeypatch, *argv)

@@ -13,6 +13,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+import common
 import derive_crops
 import golden_ci
 import golden_fixture
@@ -309,7 +310,7 @@ def test_main_finds_root_from_cwd(project, monkeypatch, capsys):
 def test_find_root_exits_without_configs(tmp_path):
     """find_root() exits when no directory above holds the configs."""
     with pytest.raises(SystemExit) as e:
-        golden_ci.find_root(tmp_path)
+        common.find_root(tmp_path)
     assert "No configs/canvas_definitions.yaml" in str(e.value.code)
 
 

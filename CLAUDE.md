@@ -83,7 +83,8 @@ Uniform Database/
 │   slots_hailstateunis.yaml  what a combination picks from, per sport
 │   modifiers_{name}.yaml     token vocabularies, chained by `extends`
 ├── scripts/                  see "Commands" below
-│   pipeline/                 standardize, compose, derive_crops
+│   pipeline/                 standardize, compose, derive_crops;
+│                             common.py, the helpers every script shares
 │   migration/                bringing artwork in: fix_dpi, nest_elements,
 │                             migrate_marks; recanvas, classify, offsize
 │   golden/                   golden_plan, golden_run, golden_fixture, golden_ci
@@ -149,7 +150,8 @@ soccer, volleyball — Mississippi State.
 
 Profiles are keyed `{sport}-{slot}-{viewpoint}`; eras match on content size
 within `tolerance` (5px, below the closest 7px pair: helmet back E 667 vs E2
-674; where windows overlap, the closest era wins). A `fills: pad` canvas is
+674; where windows overlap, the closest era wins, in every script, through
+`common.match_era`). A `fills: pad` canvas is
 the widest post-scale content plus 1px each side, and exactly the tallest
 content high (top-centre anchoring needs no vertical margin); the
 exceptions are `football_helmet_profile` (no margin) and
@@ -177,8 +179,9 @@ refreshed and committed after any re-plan or change to artwork it copies:
 ## Commands
 
 Run as `uv run scripts/{folder}/{script}.py …`. Every script prints its
-options with `--help`. Most take `--root` (default: found from the current
-directory).
+options with `--help` and takes `--root` (default: the nearest directory
+above the current one holding `configs/canvas_definitions.yaml`); relative
+paths are read from the root, not the current directory.
 
 ```
 pipeline/   standardize.py survey PATH [--profile P] [--elements]
@@ -200,14 +203,23 @@ migration/  fix_dpi.py check PATH                 always first; every file is 30
             recanvas.py SRC DEST [--canvas NAME] [--apply]
             classify.py PATH [--sport S]          provenance and scale state
             offsize.py PATH [--csv FILE]          within tolerance but not exact
-golden/     golden_plan.py [--rescan] [--sport S]
+golden/     golden_plan.py [--rescan] [--sport S]  overwrites golden/manifest.yaml
             golden_run.py [--sport S] [--only ID] [--strict]
             golden_fixture.py [--apply]           sync golden/fixture/ from the last full run
             golden_ci.py [--keep]                 what CI runs: the suite on the fixture
 ```
 
-`--sport`, `--only`, `--with`, `--with2` and `--element` repeat. Scripts
-outside `pipeline/` import from it by adding the sibling folder to
+`--sport`, `--only`, `--with`, `--with2` and `--element` repeat.
+
+**Shared helpers live in `scripts/pipeline/common.py`**: the root and
+`--root`, config and `tolerance` (no default: a config without it exits),
+sport slugs and sport directories (matched by slug, never `.title()`), the
+merged vocabulary (`extends` followed, colorways merged), era matching
+(closest within tolerance, ties to the first listed, `post_scale` for
+standardized files), content measurement (EXIF applied; a fully transparent
+file is None), the PNG walker (hidden judged below its root), `DPI` and
+`MARKER`. Use them; never write a local copy. Scripts outside `pipeline/`
+import it, and `standardize`/`compose`, by adding the sibling folder to
 `sys.path`. Tests get all three folders via `pythonpath` in
 `pyproject.toml`.
 

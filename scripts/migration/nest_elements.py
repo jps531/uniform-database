@@ -29,7 +29,12 @@ never a silent one.
 
 Order matters: tokens match by LONGEST MATCH *before* any numeric or sequence
 rule, because some design tokens end in a digit (DWS100) or a single capital
-(Flying M, M over S).
+(Flying M, M over S). Tokens of equal length go alphabetically, so the plan
+prints the same way every run.
+
+Colorways from every vocabulary in the `extends` chain are merged: baseball
+lists its own and still knows shared's `purple`, so "Purple" is read as a
+colorway rather than a surname.
 
 The number is not assumed to be trailing. Baseball has "2015 White 85s 19
 Grad" — element "2015 White 85s", number 19, patch Grad.
@@ -52,63 +57,27 @@ import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
-try:
-    import yaml
-except ImportError:
-    sys.exit("Missing dependencies: run `uv sync`")
-
-# Sport slug -> directory is compose's: it lives in scripts/pipeline/.
+# The vocabulary loader and slug -> directory matching are shared: they live
+# in scripts/pipeline/common.py.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "pipeline"))
-from compose import sport_dir as find_sport_dir  # noqa: E402
-
-# Physical form variants that select a canvas: helmet shell, jersey cut, hat
-# style. Different domain words, identical handling — all are file-level and
-# stripped before the element name is taken.
-FORM_KINDS = ("shell", "cut", "style")
-
-
-def find_root(start: Path) -> Path:
-    """The nearest directory at or above `start` holding both configs/ and scripts/; exits if none."""
-    for d in [start, *start.parents]:
-        if (d / "configs").is_dir() and (d / "scripts").is_dir():
-            return d
-    sys.exit(f"Could not find the project root above {start}. Pass --root.")
-
-
-def read_vocab(root: Path, name: str, seen=None):
-    """Load a vocabulary, following `extends:` so sports can share a base.
-
-    A token defined in the extending file WINS over the same key in the base,
-    so one sport can override a shared definition without copying the rest.
-    """
-    seen = seen or set()
-    if name in seen:
-        sys.exit(f"Circular `extends` reaching modifiers_{name}.yaml")
-    seen.add(name)
-    p = root / "configs" / f"modifiers_{name}.yaml"
-    if not p.is_file():
-        sys.exit(
-            f"No vocabulary at configs/modifiers_{name}.yaml. Nesting needs one to tell design tokens from variations."
-        )
-    cfg = yaml.safe_load(p.open()) or {}
-    tokens, colorways = {}, []
-    if cfg.get("extends"):
-        tokens, colorways = read_vocab(root, cfg["extends"], seen)
-    return {**tokens, **(cfg.get("tokens") or {})}, (cfg.get("colorways") or colorways)
+from common import FORM_KINDS, add_root_arg, load_vocabulary, longest_first, pngs, root_from, sport_dir  # noqa: E402
 
 
 def load_vocab(root: Path, sport: str):
     """Sort a sport's vocabulary into what nesting strips and what it keeps.
 
     Returns (strip, design, form, sequence, known_words): patch/variation
-    tokens, design tokens and form tokens each longest first, the sequence
-    letters, and every word of a design token or colorway (anything else
-    trailing and capitalised is read as a surname).
+    tokens, design tokens and form tokens each longest first (alphabetical
+    within a length), the sequence letters, and every word of a design token
+    or colorway (anything else trailing and capitalised is read as a
+    surname). Colorways are merged across the `extends` chain. Exits when the
+    sport has no vocabulary: nesting can't tell design tokens from variations
+    without one.
     """
-    tokens, cw = read_vocab(root, sport)
-    colorways = {c.title() for c in cw}
+    vocab = load_vocabulary(root, sport)
+    colorways = {c.title() for c in vocab.colorways}
     strip, design, shellcut, seq = [], [], [], []
-    for v in tokens.values():
+    for v in vocab.tokens.values():
         # TOKEN is the string as it appears in filenames; `label` is the
         # display name and is often different (file: SBC, label: Sun Belt
         # Conference). Match on token, falling back to label.
@@ -129,17 +98,13 @@ def load_vocab(root: Path, sport: str):
             # element name rather than vanishing.
             design.append(label)
 
-    def by(xs):
-        """Distinct tokens, longest first, so matching prefers the longest token."""
-        return sorted(set(xs), key=len, reverse=True)
-
     # Every WORD that appears in a design token or a colorway. A trailing
     # capitalised word outside this set is a player surname.
     known = {w for t in design for w in t.split()} | colorways
-    return by(strip), by(design), by(shellcut), set(seq), known
+    return longest_first(strip), longest_first(design), longest_first(shellcut), set(seq), known
 
 
-def element_for(stem, strip, design, shellcut, _seq, known_words=frozenset()):
+def element_for(stem, strip, design, shellcut, known_words=frozenset()):
     """Derive the element folder name from a filename stem.
 
     Returns (element, notes), notes listing what was stripped (form, patches,
@@ -197,16 +162,14 @@ def build_plan(src_root, dest_root, vocab, only_team):
     are (path, reason) for files no element could be derived for. Writes
     nothing.
     """
-    strip, design, shellcut, seq, known = vocab
+    strip, design, shellcut, _seq, known = vocab
     moves, problems = [], []
     for team_dir in sorted(d for d in src_root.iterdir() if d.is_dir()):
         if only_team and team_dir.name != only_team:
             continue
         for view_dir in sorted(d for d in team_dir.iterdir() if d.is_dir()):
-            for f in sorted(view_dir.glob("*.png")):
-                if f.name.startswith("."):
-                    continue
-                el, notes = element_for(f.stem, strip, design, shellcut, seq, known)
+            for f in pngs(view_dir, recursive=False):
+                el, notes = element_for(f.stem, strip, design, shellcut, known)
                 if el is None:
                     problems.append((f"{team_dir.name}/{view_dir.name}/{f.name}", ", ".join(notes)))
                     continue
@@ -236,7 +199,7 @@ def main():
     the sport slug.
     """
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--root")
+    add_root_arg(ap)
     ap.add_argument("--sport", default="football")
     ap.add_argument("--src")
     ap.add_argument("--dest")
@@ -244,15 +207,15 @@ def main():
     ap.add_argument("--apply", action="store_true")
     args = ap.parse_args()
 
-    root = Path(args.root).expanduser().resolve() if args.root else find_root(Path.cwd().resolve())
+    root = root_from(args)
     # Match directories on the sport slug, never `.title()` the slug: that
     # turns mens_basketball into "Mens Basketball" and nests a whole sport
     # into a new, wrongly named tree beside "Men's Basketball".
     temp = root / "temp"
-    staged = find_sport_dir(temp, args.sport) if temp.is_dir() else None
+    staged = sport_dir(temp, args.sport)
     if args.src:
         src_root = root / args.src
-    elif staged and staged.is_dir():
+    elif staged:
         src_root = staged
     else:
         src_root = temp
@@ -261,8 +224,8 @@ def main():
     if args.dest:
         dest_root = root / args.dest
     else:
-        dest_root = find_sport_dir(root, args.sport)
-        if not dest_root.is_dir():
+        dest_root = sport_dir(root, args.sport)
+        if dest_root is None:
             sys.exit(
                 f"No directory for sport '{args.sport}' under {root}. "
                 "Pass --dest to name it rather than have one guessed."

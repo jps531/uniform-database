@@ -13,6 +13,10 @@ files. Tagging everything 300 DPI makes placement 1:1.
     uv run scripts/migration/fix_dpi.py set   "Football/Mississippi State" 300
     uv run scripts/migration/fix_dpi.py set   "Football/Mississippi State" 300 --apply
 
+A relative PATH is taken from the project root (`--root`, default: found
+above the current directory), as in every other script; an absolute one
+works anywhere.
+
 `check` is read-only. Run it first. `set` is a DRY RUN until `--apply`: it
 reports how many files it would retag, and from which tags.
 
@@ -39,15 +43,10 @@ try:
 except ImportError:
     sys.exit("Missing dependencies: run `uv sync`")
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "pipeline"))
+from common import add_root_arg, pngs, resolve, root_from  # noqa: E402
+
 ORIENTATION = 0x0112  # the EXIF tag Finder's "rotate" writes instead of rotating pixels
-
-
-def pngs(root: Path):
-    """Yield every PNG under root, sorted, skipping anything inside a hidden directory or hidden itself."""
-    for p in sorted(root.rglob("*.png")):
-        if any(part.startswith(".") for part in p.relative_to(root).parts):
-            continue
-        yield p
 
 
 def read_dpi(path: Path):
@@ -59,7 +58,7 @@ def read_dpi(path: Path):
 
 def cmd_check(root: Path):
     """Report how many PNGs under root carry each DPI tag. Read-only."""
-    files = list(pngs(root))
+    files = pngs(root)
     if not files:
         sys.exit(f"No PNGs under {root}")
     counts = Counter()
@@ -138,7 +137,7 @@ def cmd_set(root: Path, target: int, apply: bool = False):
     Files already at the target are never opened for writing. See retag()
     for how each file is written and verified.
     """
-    files = list(pngs(root))
+    files = pngs(root)
     if not files:
         sys.exit(f"No PNGs under {root}")
     todo = []
@@ -179,6 +178,7 @@ def positive_int(s: str) -> int:
 def main(argv=None):
     """Parse `check PATH` or `set PATH DPI [--apply]` and run it."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    add_root_arg(ap)
     sub = ap.add_subparsers(dest="cmd", required=True)
     c = sub.add_parser("check", help="report DPI tags (read-only)")
     c.add_argument("path")
@@ -187,7 +187,10 @@ def main(argv=None):
     s.add_argument("dpi", type=positive_int)
     s.add_argument("--apply", action="store_true", help="write the files (default: report only)")
     args = ap.parse_args(argv)
-    root = Path(args.path).expanduser().resolve()
+    # Relative paths are taken from the project root, as in every script;
+    # an absolute one needs no project around it.
+    p = Path(args.path).expanduser()
+    root = p.resolve() if p.is_absolute() else resolve(args.path, root_from(args))
     if args.cmd == "check":
         cmd_check(root)
     else:

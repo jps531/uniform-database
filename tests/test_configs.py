@@ -1,5 +1,6 @@
 """Cross-config checks: every sport the configs name has the vocabulary its scripts load."""
 
+import common
 import compose
 import nest_elements
 import pytest
@@ -60,7 +61,7 @@ def vocabularies() -> list[str]:
 @pytest.mark.parametrize("name", vocabularies())
 def test_no_token_at_both_folder_and_file_scope(name):
     """No token string is both folder-level (design, finish) and file-level (patch, variation, form) in a resolved vocabulary."""
-    tokens, _ = nest_elements.read_vocab(REPO, name)
+    tokens = common.load_vocabulary(REPO, name).tokens
     folder, file = {}, {}
     for key, v in tokens.items():
         s = v.get("token") or v.get("label")

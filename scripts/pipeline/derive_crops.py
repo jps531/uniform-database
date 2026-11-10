@@ -40,21 +40,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 try:
-    import yaml
     from PIL import Image, ImageOps
 except ImportError:
     sys.exit("Missing dependencies: run `uv sync`")
 
-DPI = 300
-MARKER = ".generated"
-
-
-def find_root(start: Path) -> Path:
-    """The nearest directory at or above `start` holding configs/canvas_definitions.yaml; exits if none."""
-    for d in [start, *start.parents]:
-        if (d / "configs" / "canvas_definitions.yaml").is_file():
-            return d
-    sys.exit(f"No configs/canvas_definitions.yaml above {start}")
+from common import DPI, MARKER, add_root_arg, load_config, open_rgba, pngs, root_from, slot_dirs, sport_dir
 
 
 def jobs_for(cfg, sport_filter):
@@ -106,7 +96,7 @@ def authored_pngs(folder: Path) -> int:
     """
     if not folder.is_dir() or (folder / MARKER).exists():
         return 0
-    return sum(1 for p in folder.rglob("*.png") if not any(x.startswith(".") for x in p.relative_to(folder).parts))
+    return len(pngs(folder))
 
 
 def main():
@@ -117,14 +107,14 @@ def main():
     destination folder holds PNGs without a marker (authored artwork).
     """
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--root")
+    add_root_arg(ap)
     ap.add_argument("--sport")
     ap.add_argument("--apply", action="store_true")
     args = ap.parse_args()
 
-    root = Path(args.root).expanduser().resolve() if args.root else find_root(Path.cwd().resolve())
-    cfg = yaml.safe_load((root / "configs" / "canvas_definitions.yaml").open())
-    dir_for_slot = {v: k for k, v in cfg["directory_slots"].items()}
+    root = root_from(args)
+    cfg = load_config(root)
+    dir_for_slot = slot_dirs(cfg)
 
     rules = list(jobs_for(cfg, args.sport))
     errs = [r for r in rules if r[0] == "ERROR"]
@@ -143,11 +133,8 @@ def main():
             problems.append((f"{sport}/{slot}", "slot missing from directory_slots"))
             continue
         # Playing surfaces live under Venues/; uniforms under the sport root.
-        cand = [
-            root / "Venues" / sport.replace("_", " ").title(),
-            root / sport.replace("_", " ").title(),
-        ]
-        sport_dir = next((d for d in cand if d.is_dir()), cand[0])
+        # Matched by slug, so a sport directory need not be its title-cased slug.
+        tree = sport_dir(root / "Venues", sport) or sport_dir(root, sport)
         cw, ch = cdst["width"], cdst["height"]
         sw, sh = csrc["width"], csrc["height"]
         dst_name = cfg["assignments"][sport][slot][dst_vp]
@@ -162,8 +149,8 @@ def main():
         )
 
         found = []
-        if sport_dir.is_dir():
-            for team_dir in sorted(d for d in sport_dir.iterdir() if d.is_dir()):
+        if tree is not None:
+            for team_dir in sorted(d for d in tree.iterdir() if d.is_dir()):
                 src = team_dir / f"{sdir} {src_vp.title()}"
                 if not src.is_dir():
                     continue
@@ -179,9 +166,7 @@ def main():
                         )
                     )
                 written = 0
-                for f in sorted(src.rglob("*.png")):
-                    if f.name.startswith("."):
-                        continue
+                for f in pngs(src):
                     # Measure what will be cropped: an EXIF rotation swaps
                     # the axes, and a stored size alone would hide it.
                     with Image.open(f) as im:
@@ -215,7 +200,7 @@ def main():
 
     for s, d, (cx, cy, cw, ch) in total:
         d.parent.mkdir(parents=True, exist_ok=True)
-        with ImageOps.exif_transpose(Image.open(s)).convert("RGBA") as im:
+        with open_rgba(s) as im:
             im.crop((cx, cy, cx + cw, cy + ch)).save(d, dpi=(DPI, DPI))
     for dst, n, src, dst_name, src_name, (cx, cy), (cw, ch) in per_rule:
         dst.mkdir(parents=True, exist_ok=True)
