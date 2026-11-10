@@ -60,6 +60,7 @@ Uniform Database/
 ├── README.md                 orientation for people; this file is for agents
 ├── CONTRIBUTING.md           PR rules, tools, what must change together
 ├── CLAUDE.md
+├── LICENSE                   source-available; all rights reserved
 ├── pyproject.toml, uv.lock   dependencies and ruff config
 ├── docs/golden_suite.md
 ├── configs/
