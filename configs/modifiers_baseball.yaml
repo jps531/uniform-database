@@ -1,0 +1,106 @@
+# Token vocabulary — baseball and softball.
+#
+# Shared between the two sports: they use the same jersey and pants canvases
+# (diamond_jersey, diamond_pants — confirmed equal to the pixel), several of
+# the same designs, and the same patches. Softball has no hat slot.
+#
+# `token` is the exact string as it appears in FILENAMES; `label` is the
+# display name. Conflating them breaks nesting. `token` defaults to `label`.
+#
+# NOT TOKENS — these are ERAS, identified by content size rather than by a
+# filename token, because they are properties of the element:
+#   three-quarter sleeve   2112x1937   wool fauxbacks and anything pre-1941
+#   beltless pants          899x1934   elastic waistband, no belt loops
+# See canvas_definitions.yaml `profiles`.
+
+extends: shared
+
+tokens:
+
+  # kind: style — hat type, selects the canvas like `shell` does on helmets.
+  # Normally IMPLIED by the artwork: only 2 of 54 hat files carry a token,
+  # and those disambiguate the single design that spans both types.
+  # `default: true` makes Modern win when a design exists in both types and
+  # the caller did not ask for one. Only 1968 Maroon is ambiguous; everything
+  # else has a single hat type. Request the other with `--with Classic`.
+  hat_classic: { label: Classic, kind: style, era: classic }
+  hat_modern:  { label: Modern,  kind: style, era: modern, default: true }
+
+  # kind: cut — jersey body.
+  vest: { label: Vest, kind: cut }
+
+  # kind: sequence — bare disambiguators, no semantic meaning.
+  # --- scope: design — chest marks and lettering -------------------------
+  eighty_fives: { token: 85s,      label: "'85s",     scope: design, kind: modifier, theme: throwback }
+  m_state:      { token: M-State,  label: M-State,    scope: design, kind: modifier, theme: special }
+  bulldogs:     { label: Bulldogs,     scope: design, kind: modifier, theme: special }
+  banner:       { label: Banner,       scope: design, kind: modifier, theme: special }
+  hail_state:   { label: Hail State,   scope: design, kind: modifier, theme: special }
+  diamond_dawg: { label: Diamond Dawg, scope: design, kind: modifier, theme: special }
+
+  # --- scope: design — fabric and trim -----------------------------------
+  pinstripes:  { label: Pinstripes,  scope: design, kind: modifier, theme: special }
+  fauxback:    { label: Fauxback,    scope: design, kind: modifier, theme: throwback }
+  teal_trim:   { label: Teal Trim,   scope: design, kind: modifier, theme: special }
+  green_trim:  { label: Green Trim,  scope: design, kind: modifier, theme: special }
+  white_panel: { label: White Panel, scope: design, kind: modifier, theme: special }
+  wool:
+    label: Wool
+    scope: design
+    kind: modifier
+    theme: throwback
+    note: >
+      Faux-wool fauxback with three-quarter sleeves. The COLORWAY is Natural
+      (undyed flannel); Wool describes material and cut. Always lands on the
+      three-quarter jersey era.
+
+  # --- scope: design — commemorative alternates (NOT patches) -------------
+  st_pats:       { label: St Pats,       scope: design, kind: modifier, theme: commemorative }
+  mothers_day:   { label: Mothers Day,   scope: design, kind: modifier, theme: commemorative }
+  camp_shelby:   { label: Camp Shelby,   scope: design, kind: modifier, theme: commemorative }
+  boston_strong: { label: Boston Strong, scope: design, kind: modifier, theme: commemorative }
+  parrothead:    { label: Parrothead,    scope: design, kind: modifier, theme: special }
+  sunrise:       { label: Sunrise,       scope: design, kind: modifier, theme: special }
+
+  # --- scope: patch -------------------------------------------------------
+  cws:   { token: CWS,   label: College World Series,         scope: patch, kind: modifier, theme: postseason }
+  cws19: { token: CWS19, label: College World Series 2019,    scope: patch, kind: modifier, theme: postseason }
+  cws21: { token: CWS21, label: College World Series 2021,    scope: patch, kind: modifier, theme: postseason }
+  wcws:  { token: WCWS,  label: Women's College World Series, scope: patch, kind: modifier, theme: postseason }
+  cusa:  { token: CUSA,  label: Conference USA,               scope: patch, kind: modifier, theme: conference }
+  captain:
+    label: Captain
+    scope: patch
+    kind: modifier
+    theme: special
+    note: >
+      Was a bare "C", which collided with the sequence letters A/B/C already
+      in use ("34 A", "Pins 34 B"). Renamed so position is never ambiguous.
+
+  # --- scope: variation ---------------------------------------------------
+  teal_belt:  { label: Teal Belt,  scope: variation, kind: modifier }
+  green_belt: { label: Green Belt, scope: variation, kind: modifier }
+  black_belt: { label: Black Belt, scope: variation, kind: modifier }
+
+
+colorways: [maroon, white, black, gray, cream, natural, green, gold, camo,
+            teal, blue, pink]
+
+# --- A new axis: PLAYER SURNAME --------------------------------------------
+# Baseball has the same number on the same design worn by different players,
+# distinguished by surname: "2014 White 85s 18 Girodo" vs "... 18 Heck".
+#
+# Surname is a parsed FIELD, not a token. A vocabulary entry per player would
+# grow without bound and put roster data in a modifier file. After every known
+# token and the number are stripped, a single remaining capitalised word is
+# the surname.
+#
+# 14 so far: Girodo, Conner, Palmeiro, Brantley, Gillaspie, Heck, Lindgren,
+# Vickerson, Bradford, Gridley, Davis, Johnson, Jordan, Nixon.
+#
+# RISK: an unlisted token would read as a surname. Mitigation — print the
+# extracted surnames after any parse and eyeball them. Real surnames look like
+# surnames; "Fauxback" in that list would be obvious.
+#
+# Full discriminator set:
+#   (element, viewpoint, cut/style, sequence, number, player)

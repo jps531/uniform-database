@@ -1,0 +1,121 @@
+# Global vocabulary — shared by every creator.
+#
+# These keys are what make cross-creator, cross-sport search possible.
+# "Every black jersey in any sport" only works if `jersey` means the same
+# thing everywhere. Adding a key here should be a deliberate, reviewed act;
+# left open you end up with socks / hose / stirrups as three keys for one
+# concept, and queries silently return incomplete results.
+
+slots:
+  helmet:
+    label: Helmet
+    typical_sports: [football]
+  hat:
+    label: Hat
+    typical_sports: [baseball, softball]
+  jersey:
+    label: Jersey
+    typical_sports: [football, baseball, softball, basketball, soccer, volleyball]
+  pants:
+    label: Pants
+    typical_sports: [football, baseball, softball]
+  shorts:
+    label: Shorts
+    typical_sports: [basketball, soccer, volleyball]
+
+  # Not tracked by hailstateunis, defined for other creators.
+  socks:
+    label: Socks
+    typical_sports: [football, baseball, softball, soccer]
+
+# `typical_sports` is advisory — it drives suggestions in the admin UI,
+# not validation. Someone will eventually track something unexpected.
+
+viewpoints:
+  - front
+  - back
+  - left
+  - right
+  # `icon` is a RENDER TYPE, not a camera angle: a separately drawn,
+  # simplified 750x750 square used in database tables. It sits on the
+  # viewpoint axis because that is how the composer addresses alternate
+  # renders of an element, and adding it here needs no new machinery.
+  # Only helmet, jersey and pants have icons.
+  - icon
+  # Playing-surface renditions. `full` carries caption text, `cropped` is the
+  # field alone. Like `icon`, these are render types rather than camera
+  # angles — same axis, same reasoning.
+  - full
+  - cropped
+
+# Colorways are GLOBAL, not per-sport. Cross-sport and cross-TEAM colour
+# search ("every black jersey in any sport", "every navy helmet") only works
+# if these mean the same everywhere. Adding one should be deliberate — same
+# review bar as slot keys.
+#
+# Near-neighbours are kept DISTINCT on purpose. crimson, cardinal, garnet and
+# red are different team identities, not shades of one colour; collapsing them
+# would erase the distinction Alabama and Arkansas both care about. The cost
+# is that a naive "red" search misses crimson — a UI concern (offer related
+# colours), not a data-model one.
+colorways:
+
+  # --- core ---------------------------------------------------------------
+  maroon: { label: Maroon }
+  white:  { label: White }
+  black:  { label: Black }
+  gray:   { label: Gray }
+  dark_gray:  { token: Dark Gray,  label: Dark Gray }
+  light_gray: { token: Light Gray, label: Light Gray }
+
+  # --- reds, deliberately distinct ---------------------------------------
+  red:      { label: Red }
+  crimson:  { label: Crimson }
+  cardinal: { label: Cardinal }
+  garnet:   { label: Garnet }
+
+  # --- blues --------------------------------------------------------------
+  blue:   { label: Blue }
+  navy:   { label: Navy }
+  powder: { label: Powder Blue }
+
+  # --- other hues ---------------------------------------------------------
+  green:  { label: Green }
+  teal:   { label: Teal }
+  pink:   { label: Pink }
+  brown:
+    label: Brown
+    note: East Union. Added with the baseball hat marks.
+  natural:
+    label: Natural
+    note: >
+      Undyed flannel — the 1919-1941 baseball uniforms and the 2015 wool
+      fauxback that imitates them. Desaturated, warmer than gray and duller
+      than cream.
+  camo:
+    label: Camo
+    note: >
+      A pattern rather than a hue, but it occupies the colorway position in
+      filenames and nothing else fits. Football and baseball both use it.
+  orange: { label: Orange }
+  purple: { label: Purple }
+  yellow: { label: Yellow }
+  cream:  { label: Cream }
+  beige:  { label: Beige }
+
+  # --- metallics ----------------------------------------------------------
+  # These have no underlying hue — a chrome helmet is not chrome-finished
+  # something else. That is what separates them from `matte`, which is a
+  # FINISH modifying a colour that remains itself.
+  silver:   { label: Silver }
+  gold:       { label: Gold }
+  vegas_gold: { token: Vegas Gold, label: Vegas Gold }
+  chrome:   { label: Chrome }
+  gunmetal: { label: Gunmetal }
+  pewter:   { label: Pewter }
+  carbon:   { label: Carbon }
+
+# NOT colorways, though they look like candidates:
+#   whiteout — a white variant with a different treatment; modelled as a
+#              design modifier so it still matches a search for white.
+#   matte    — a finish. See configs/modifiers_football.yaml.

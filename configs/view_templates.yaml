@@ -1,0 +1,597 @@
+# View templates — how standardized elements are placed into a composed view.
+#
+# ANCHOR: every placement is top-CENTRE. `x` is the horizontal CENTRE of the
+# element, `y` is its top edge. The composer converts to a top-left paste
+# point as x - (scaled_width / 2).
+#
+# SCALE applies to the whole standardized canvas, not just the artwork.
+# Because artwork is centred within a padded canvas, scaling the canvas keeps
+# the artwork centred and proportional.
+#
+# REQUIREMENT — three distinct behaviours, deliberately not two:
+#   required     the placement must resolve, or composition fails loudly.
+#   explicit     only placed when the caller asks for it. Helmet left is
+#                drawn for every element but is only shown when the two
+#                sides differ meaningfully, which is a judgement the data
+#                records, not something the composer can infer.
+#   if_available placed when a file exists, silently skipped otherwise.
+#                Jersey left (the sleeve detail) only exists from 1989.
+#
+# The difference matters: `explicit` absent means "deliberately not shown",
+# `if_available` absent means "no artwork exists". Collapsing them would
+# either hide a real gap or force a flag onto every pre-1989 combination.
+
+templates:
+
+  - creator: hailstateunis
+    sport: football
+    view_kind: full
+    output: { width: 3764, height: 4121 }
+    background: transparent
+    placements:
+
+      # --- helmet row -----------------------------------------------------
+      - { slot: helmet, viewpoint: front, x: 960,  y: 79,   scale: 1.00, z: 10, requirement: required }
+      - { slot: helmet, viewpoint: right, x: 1882, y: 79,   scale: 1.00, z: 10, requirement: required }
+      - { slot: helmet, viewpoint: back,  x: 2804, y: 79,   scale: 1.00, z: 10, requirement: required }
+      - { slot: helmet, viewpoint: left,  x: 1882, y: 936,  scale: 0.36, z: 40, requirement: explicit }
+
+      # --- jersey row -----------------------------------------------------
+      - { slot: jersey, viewpoint: front, x: 960,  y: 936,  scale: 1.00, z: 20, requirement: required }
+      - { slot: jersey, viewpoint: back,  x: 2804, y: 936,  scale: 1.00, z: 20, requirement: required }
+      - { slot: jersey, viewpoint: left,  x: 1882, y: 1690, scale: 0.82, z: 20, requirement: if_available }
+
+      # --- pants, foreground ----------------------------------------------
+      - { slot: pants,  viewpoint: front, x: 1293, y: 2325, scale: 1.00, z: 30, requirement: required }
+      - { slot: pants,  viewpoint: left,  x: 3085, y: 2325, scale: 1.00, z: 30, requirement: required }
+
+  # A reduced view: one helmet, jersey front, pants side. The left-helmet
+  # inset is again `explicit` — shown only when the two sides differ.
+  - creator: hailstateunis
+    sport: football
+    view_kind: condensed
+    output: { width: 2343, height: 3404 }
+    background: transparent
+    placements:
+      - { slot: helmet, viewpoint: right, x: 942,  y: 78,     scale: 1.00, z: 10, requirement: required }
+      - { slot: jersey, viewpoint: front, x: 942,  y: 936,    scale: 1.00, z: 20, requirement: required }
+      - { slot: pants,  viewpoint: left,  x: 1859, y: 1717,   scale: 1.00, z: 30, rotation: 20,  requirement: required }
+      - { slot: helmet, viewpoint: left,  x: 1763, y: 278,  scale: 0.50, z: 40, requirement: explicit }
+
+  # --- Cropped subsets of `full` ----------------------------------------
+  # Coordinates are DERIVED from the full template by subtracting the crop
+  # origin, so these layouts match it exactly. If `full` moves — or if an
+  # ELEMENT CANVAS is resized — recompute these rather than nudging them
+  # independently. They were recomputed once already, when football_jersey
+  # was tightened from 2000x2300 to 1792x2044 and football_helmet_face from
+  # 750x900 to 678x808.
+
+  # Helmet row only, three views. Crop origin (621, 79) in full.
+  - creator: hailstateunis
+    sport: football
+    view_kind: helmets-3
+    output: { width: 2522, height: 854 }
+    background: transparent
+    placements:
+      - { slot: helmet, viewpoint: front, x: 339,  y: 0, scale: 1.00, z: 10, requirement: required }
+      - { slot: helmet, viewpoint: right, x: 1261, y: 0, scale: 1.00, z: 10, requirement: required }
+      - { slot: helmet, viewpoint: back,  x: 2183, y: 0, scale: 1.00, z: 10, requirement: required }
+
+  # As helmets-3 plus the left inset. REQUIRED here, not `explicit`: the only
+  # reason to choose this view over helmets-3 is to show the left side.
+  - creator: hailstateunis
+    sport: football
+    view_kind: helmets-4
+    output: { width: 2522, height: 1164 }
+    background: transparent
+    placements:
+      - { slot: helmet, viewpoint: front, x: 339,  y: 0,   scale: 1.00, z: 10, requirement: required }
+      - { slot: helmet, viewpoint: right, x: 1261, y: 0,   scale: 1.00, z: 10, requirement: required }
+      - { slot: helmet, viewpoint: back,  x: 2183, y: 0,   scale: 1.00, z: 10, requirement: required }
+      - { slot: helmet, viewpoint: left,  x: 1261, y: 857, scale: 0.36, z: 40, requirement: required }
+
+  # Jersey row only. Crop origin (64, 936) — POSITIVE now that the jersey
+  # canvas is tight. It was -40 when that canvas was 2000px wide and
+  # overhung the left edge of `full` by 40px of padding.
+  - creator: hailstateunis
+    sport: football
+    view_kind: jersey-full
+    output: { width: 3636, height: 2044 }
+    background: transparent
+    placements:
+      - { slot: jersey, viewpoint: front, x: 896,  y: 0,   scale: 1.00, z: 20, requirement: required }
+      - { slot: jersey, viewpoint: back,  x: 2740, y: 0,   scale: 1.00, z: 20, requirement: required }
+      - { slot: jersey, viewpoint: left,  x: 1818, y: 754, scale: 0.82, z: 20, requirement: if_available }
+
+  # Pants only. Crop origin (678, 2325).
+  - creator: hailstateunis
+    sport: football
+    view_kind: pants-full
+    output: { width: 2776, height: 1724 }
+    background: transparent
+    placements:
+      - { slot: pants, viewpoint: front, x: 615,  y: 0, scale: 1.00, z: 30, requirement: required }
+      - { slot: pants, viewpoint: left,  x: 2407, y: 0, scale: 1.00, z: 30, requirement: required }
+
+  # --- Icon strips -------------------------------------------------------
+  # Three 750x750 icons, 90px apart. Not derived from `full` — icons do not
+  # appear there.
+
+  - creator: hailstateunis
+    sport: football
+    view_kind: icons-horizontal
+    output: { width: 2430, height: 750 }
+    background: transparent
+    placements:
+      - { slot: helmet, viewpoint: icon, x: 375,  y: 0, scale: 1.00, z: 10, requirement: required }
+      - { slot: jersey, viewpoint: icon, x: 1215, y: 0, scale: 1.00, z: 10, requirement: required }
+      - { slot: pants,  viewpoint: icon, x: 2055, y: 0, scale: 1.00, z: 10, requirement: required }
+
+  - creator: hailstateunis
+    sport: football
+    view_kind: icons-vertical
+    output: { width: 750, height: 2430 }
+    background: transparent
+    placements:
+      - { slot: helmet, viewpoint: icon, x: 375, y: 0,    scale: 1.00, z: 10, requirement: required }
+      - { slot: jersey, viewpoint: icon, x: 375, y: 840,  scale: 1.00, z: 10, requirement: required }
+      - { slot: pants,  viewpoint: icon, x: 375, y: 1680, scale: 1.00, z: 10, requirement: required }
+
+  # ======================================================================
+  # BASEBALL / SOFTBALL
+  # ======================================================================
+  # Canvases are sized to the ARTWORK, not the padded element canvas, so a
+  # few px of transparent padding hangs past the edge on some placements.
+  # Harmless — compose.py clips it.
+  #
+  # `-tq` variants are for the three-quarter sleeve era, whose jersey canvas
+  # is 2140 wide against the standard 1800. They were MEASURED rather than
+  # derived: jerseys are not always centred in these layouts, so the
+  # arithmetic shortcut that worked for the cropped football views does not
+  # hold here.
+  #
+  # The hat composes at 19%. Its scale is deliberately NOT baked into the
+  # asset: baking would shrink the outline too, so the rendered stroke would
+  # be unchanged and resolution would be lost for nothing. Matching stroke
+  # weight is an ARTWORK change — see baseball_hat in canvas_definitions.
+
+  # --- Jersey only, front and back ---------------------------------------
+  - creator: hailstateunis
+    sport: baseball
+    view_kind: diamond-jersey
+    output: { width: 3600, height: 1960 }
+    background: transparent
+    placements:
+      - { slot: jersey, viewpoint: front, x: 900,  y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: jersey, viewpoint: back,  x: 2700, y: 0, scale: 1.00, z: 20, requirement: required }
+
+  - creator: hailstateunis
+    sport: baseball
+    view_kind: diamond-jersey-tq
+    output: { width: 4280, height: 1960 }
+    background: transparent
+    placements:
+      - { slot: jersey, viewpoint: front, x: 1069, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: jersey, viewpoint: back,  x: 3210, y: 0, scale: 1.00, z: 20, requirement: required }
+
+  # --- Pants only, left and right. Softball only — baseball has no right.
+  - creator: hailstateunis
+    sport: softball
+    view_kind: diamond-pants
+    output: { width: 3600, height: 1397 }
+    background: transparent
+    placements:
+      - { slot: pants, viewpoint: right, x: 900,  y: 0, scale: 0.72, z: 30, requirement: required }
+      - { slot: pants, viewpoint: left,  x: 2700, y: 0, scale: 0.72, z: 30, requirement: required }
+
+  # --- Baseball full ------------------------------------------------------
+  - creator: hailstateunis
+    sport: baseball
+    view_kind: baseball-full
+    output: { width: 3710, height: 2432 }
+    background: transparent
+    placements:
+      - { slot: hat,    viewpoint: front, x: 889,  y: 0,    scale: 0.19, z: 10, requirement: required }
+      - { slot: jersey, viewpoint: front, x: 889,  y: 494,  scale: 1.00, z: 30, requirement: required }
+      - { slot: jersey, viewpoint: back,  x: 2444, y: 124,  scale: 1.00, z: 20, requirement: required }
+      - { slot: pants,  viewpoint: left,  x: 3375, y: 1035, scale: 0.72, z: 10, requirement: required }
+
+  # z-order matters here: jersey front OVER jersey back OVER pants left.
+  - creator: hailstateunis
+    sport: baseball
+    view_kind: baseball-full-tq
+    output: { width: 3876, height: 2432 }
+    background: transparent
+    placements:
+      - { slot: hat,    viewpoint: front, x: 1055, y: 0,    scale: 0.19, z: 10, requirement: required }
+      - { slot: jersey, viewpoint: front, x: 1055, y: 495,  scale: 1.00, z: 30, requirement: required }
+      - { slot: jersey, viewpoint: back,  x: 2610, y: 124,  scale: 1.00, z: 20, requirement: required }
+      - { slot: pants,  viewpoint: left,  x: 3541, y: 1035, scale: 0.72, z: 10, requirement: required }
+
+  # --- Baseball condensed -------------------------------------------------
+  - creator: hailstateunis
+    sport: baseball
+    view_kind: baseball-condensed
+    output: { width: 2143, height: 2790 }
+    background: transparent
+    placements:
+      - { slot: hat,    viewpoint: front, x: 889,  y: 0,    scale: 0.19, z: 10, requirement: required }
+      - { slot: jersey, viewpoint: front, x: 889,  y: 495,  scale: 1.00, z: 20, requirement: required }
+      - { slot: pants,  viewpoint: left,  x: 1808, y: 1393, scale: 0.72, z: 10, requirement: required }
+
+  # z-order: jersey front OVER pants left.
+  - creator: hailstateunis
+    sport: baseball
+    view_kind: baseball-condensed-tq
+    output: { width: 2289, height: 2790 }
+    background: transparent
+    placements:
+      - { slot: hat,    viewpoint: front, x: 1055, y: 0,    scale: 0.19, z: 10, requirement: required }
+      - { slot: jersey, viewpoint: front, x: 1055, y: 495,  scale: 1.00, z: 20, requirement: required }
+      - { slot: pants,  viewpoint: left,  x: 1954, y: 1381, scale: 0.72, z: 10, requirement: required }
+
+  # --- Baseball tall — a single stacked column ----------------------------
+  - creator: hailstateunis
+    sport: baseball
+    view_kind: baseball-tall
+    output: { width: 1800, height: 3887 }
+    background: transparent
+    placements:
+      - { slot: hat,    viewpoint: front, x: 900, y: 0,    scale: 0.19, z: 10, requirement: required }
+      - { slot: jersey, viewpoint: front, x: 900, y: 494,  scale: 1.00, z: 20, requirement: required }
+      - { slot: pants,  viewpoint: left,  x: 900, y: 2490, scale: 0.72, z: 10, requirement: required }
+
+  # All three sit at x=1070, the centre of the WIDER tq canvas. An earlier
+  # draft left them at 900 (the centre of baseball-tall) and the jersey ran
+  # 156px off the left edge.
+  - creator: hailstateunis
+    sport: baseball
+    view_kind: baseball-tall-tq
+    output: { width: 2140, height: 3887 }
+    background: transparent
+    placements:
+      - { slot: hat,    viewpoint: front, x: 1070, y: 0,    scale: 0.19, z: 10, requirement: required }
+      - { slot: jersey, viewpoint: front, x: 1070, y: 494,  scale: 1.00, z: 20, requirement: required }
+      - { slot: pants,  viewpoint: left,  x: 1070, y: 2490, scale: 0.72, z: 10, requirement: required }
+
+  # --- Softball -----------------------------------------------------------
+  - creator: hailstateunis
+    sport: softball
+    view_kind: softball-full
+    output: { width: 4023, height: 2305 }
+    background: transparent
+    placements:
+      - { slot: jersey, viewpoint: front, x: 889,  y: 0,   scale: 1.00, z: 20, requirement: required }
+      - { slot: jersey, viewpoint: back,  x: 2757, y: 0,   scale: 1.00, z: 20, requirement: required }
+      - { slot: pants,  viewpoint: right, x: 1820, y: 903, scale: 0.72, z: 10, requirement: required }
+      - { slot: pants,  viewpoint: left,  x: 3688, y: 903, scale: 0.72, z: 10, requirement: required }
+
+  - creator: hailstateunis
+    sport: softball
+    view_kind: softball-condensed
+    output: { width: 2143, height: 2296 }
+    background: transparent
+    placements:
+      - { slot: jersey, viewpoint: front, x: 889,  y: 0,   scale: 1.00, z: 20, requirement: required }
+      - { slot: pants,  viewpoint: left,  x: 1808, y: 899, scale: 0.72, z: 10, requirement: required }
+
+  - creator: hailstateunis
+    sport: softball
+    view_kind: softball-tall
+    output: { width: 3600, height: 3425 }
+    background: transparent
+    placements:
+      - { slot: jersey, viewpoint: front, x: 900,  y: 0,    scale: 1.00, z: 20, requirement: required }
+      - { slot: jersey, viewpoint: back,  x: 2700, y: 0,    scale: 1.00, z: 20, requirement: required }
+      - { slot: pants,  viewpoint: right, x: 900,  y: 2028, scale: 0.72, z: 10, requirement: required }
+      - { slot: pants,  viewpoint: left,  x: 2700, y: 2028, scale: 0.72, z: 10, requirement: required }
+
+  # ======================================================================
+  # MEN'S AND WOMEN'S BASKETBALL, SOCCER, VOLLEYBALL
+  # ======================================================================
+  # COMBO views show TWO uniforms; placements with `uniform: 2` take their
+  # element from --jersey2 / --shorts2 / --number2. The second uniform is a
+  # deliberately SMALLER inset, not an equal partner — soccer at 0.77 or
+  # 0.69, volleyball at 0.55 or 0.70. In soccer it is always the KEEPER,
+  # which is why soccer has no long-sleeve uniform-1 combos: only keepers
+  # wear long sleeves.
+  #
+  # Canvas sizes include 1px of safety beyond the widest element measured by
+  # the golden suite (2px where the placement is rotated, since a rotated
+  # corner depends on each element's shape). Grown only on the RIGHT and
+  # BOTTOM, so no placement moved.
+  #
+  # z-order:
+  #   - shorts UNDER the jersey, except in CONDENSED views, where they go over
+  #   - shorts front always OVER shorts back
+  #   - the uniform-2 inset above all of uniform 1
+  # Men's basketball shorts are left/right, so the front/back rule never
+  # applies to them.
+
+  - creator: hailstateunis
+    sport: mens_basketball
+    view_kind: mbk-jersey
+    output: { width: 2800, height: 1931 }
+    background: transparent
+    placements:
+      - { slot: jersey, viewpoint: front, x: 629, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: jersey, viewpoint: back, x: 2171, y: 0, scale: 1.00, z: 20, requirement: required }
+
+  - creator: hailstateunis
+    sport: mens_basketball
+    view_kind: mbk-shorts
+    output: { width: 2291, height: 1447 }
+    background: transparent
+    placements:
+      - { slot: shorts, viewpoint: left, x: 1920, y: 0, scale: 0.82, z: 10, requirement: required }
+      - { slot: shorts, viewpoint: right, x: 370, y: 0, scale: 0.82, z: 10, requirement: required }
+
+  - creator: hailstateunis
+    sport: mens_basketball
+    view_kind: mbk-full
+    output: { width: 4138, height: 1933 }
+    background: transparent
+    placements:
+      - { slot: jersey, viewpoint: front, x: 629, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: jersey, viewpoint: back, x: 3509, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: shorts, viewpoint: left, x: 2457, y: 485, scale: 0.82, z: 10, requirement: required }
+      - { slot: shorts, viewpoint: right, x: 1681, y: 138, scale: 0.82, z: 10, requirement: required }
+
+  # Shorts rotated 20 deg clockwise about their top-centre, as in football's condensed view.
+  - creator: hailstateunis
+    sport: mens_basketball
+    view_kind: mbk-condensed
+    output: { width: 1762, height: 2566 }
+    background: transparent
+    placements:
+      - { slot: jersey, viewpoint: front, x: 629, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: shorts, viewpoint: left, x: 1458, y: 1093, scale: 0.82, rotation: 20, z: 30, requirement: required }
+
+  - creator: hailstateunis
+    sport: mens_basketball
+    view_kind: mbk-tall
+    output: { width: 2800, height: 3483 }
+    background: transparent
+    placements:
+      - { slot: jersey, viewpoint: front, x: 629, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: jersey, viewpoint: back, x: 2171, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: shorts, viewpoint: left, x: 2171, y: 2036, scale: 0.82, z: 10, requirement: required }
+      - { slot: shorts, viewpoint: right, x: 629, y: 2026, scale: 0.82, z: 10, requirement: required }
+
+  - creator: hailstateunis
+    sport: mens_basketball
+    view_kind: mbk-tall-condensed
+    output: { width: 1258, height: 3483 }
+    background: transparent
+    placements:
+      - { slot: jersey, viewpoint: front, x: 629, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: shorts, viewpoint: right, x: 629, y: 2026, scale: 0.82, z: 30, requirement: required }
+
+  - creator: hailstateunis
+    sport: womens_basketball
+    view_kind: wbk-jersey
+    output: { width: 2800, height: 1919 }
+    background: transparent
+    placements:
+      - { slot: jersey, viewpoint: front, x: 623, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: jersey, viewpoint: back, x: 2178, y: 0, scale: 1.00, z: 20, requirement: required }
+
+  - creator: hailstateunis
+    sport: womens_basketball
+    view_kind: wbk-shorts
+    output: { width: 2800, height: 1086 }
+    background: transparent
+    placements:
+      - { slot: shorts, viewpoint: front, x: 623, y: 0, scale: 1.44, z: 15, requirement: required }
+      - { slot: shorts, viewpoint: back, x: 2178, y: 0, scale: 1.44, z: 10, requirement: required }
+
+  - creator: hailstateunis
+    sport: womens_basketball
+    view_kind: wbk-full
+    output: { width: 4125, height: 1920 }
+    background: transparent
+    placements:
+      - { slot: jersey, viewpoint: front, x: 623, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: jersey, viewpoint: back, x: 3502, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: shorts, viewpoint: front, x: 1892, y: 90, scale: 1.44, z: 15, requirement: required }
+      - { slot: shorts, viewpoint: back, x: 2233, y: 743, scale: 1.44, z: 10, requirement: required }
+
+  - creator: hailstateunis
+    sport: womens_basketball
+    view_kind: wbk-condensed
+    output: { width: 1840, height: 2464 }
+    background: transparent
+    placements:
+      - { slot: jersey, viewpoint: front, x: 623, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: shorts, viewpoint: front, x: 1231, y: 1377, scale: 1.44, z: 35, requirement: required }
+
+  - creator: hailstateunis
+    sport: womens_basketball
+    view_kind: wbk-tall
+    output: { width: 2800, height: 3100 }
+    background: transparent
+    placements:
+      - { slot: jersey, viewpoint: front, x: 623, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: jersey, viewpoint: back, x: 2178, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: shorts, viewpoint: front, x: 623, y: 2014, scale: 1.44, z: 15, requirement: required }
+      - { slot: shorts, viewpoint: back, x: 2178, y: 2014, scale: 1.44, z: 10, requirement: required }
+
+  - creator: hailstateunis
+    sport: womens_basketball
+    view_kind: wbk-tall-condensed
+    output: { width: 1246, height: 3100 }
+    background: transparent
+    placements:
+      - { slot: jersey, viewpoint: front, x: 623, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: shorts, viewpoint: front, x: 623, y: 2014, scale: 1.44, z: 35, requirement: required }
+
+  - creator: hailstateunis
+    sport: soccer
+    view_kind: soccer-jersey
+    output: { width: 4652, height: 2852 }
+    background: transparent
+    placements:
+      - { slot: jersey, viewpoint: front, x: 1135, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: jersey, viewpoint: back, x: 3518, y: 0, scale: 1.00, z: 20, requirement: required }
+
+  - creator: hailstateunis
+    sport: soccer
+    view_kind: soccer-jersey-ls
+    output: { width: 5640, height: 2981 }
+    background: transparent
+    placements:
+      - { slot: jersey, viewpoint: front, x: 1389, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: jersey, viewpoint: back, x: 4251, y: 0, scale: 1.00, z: 20, requirement: required }
+
+  - creator: hailstateunis
+    sport: soccer
+    view_kind: soccer-shorts
+    output: { width: 4652, height: 1236 }
+    background: transparent
+    placements:
+      - { slot: shorts, viewpoint: front, x: 1135, y: 0, scale: 2.30, z: 15, requirement: required }
+      - { slot: shorts, viewpoint: back, x: 3518, y: 0, scale: 2.30, z: 10, requirement: required }
+
+  - creator: hailstateunis
+    sport: soccer
+    view_kind: soccer-full
+    output: { width: 4652, height: 4180 }
+    background: transparent
+    placements:
+      - { slot: jersey, viewpoint: front, x: 1135, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: jersey, viewpoint: back, x: 3518, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: shorts, viewpoint: front, x: 1135, y: 2945, scale: 2.30, z: 15, requirement: required }
+      - { slot: shorts, viewpoint: back, x: 3518, y: 2945, scale: 2.30, z: 10, requirement: required }
+
+  - creator: hailstateunis
+    sport: soccer
+    view_kind: soccer-full-ls
+    output: { width: 5640, height: 4182 }
+    background: transparent
+    placements:
+      - { slot: jersey, viewpoint: front, x: 1389, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: jersey, viewpoint: back, x: 4251, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: shorts, viewpoint: front, x: 1389, y: 2946, scale: 2.30, z: 15, requirement: required }
+      - { slot: shorts, viewpoint: back, x: 4251, y: 2946, scale: 2.30, z: 10, requirement: required }
+
+  - creator: hailstateunis
+    sport: soccer
+    view_kind: soccer-condensed
+    output: { width: 2735, height: 3326 }
+    background: transparent
+    placements:
+      - { slot: jersey, viewpoint: front, x: 1135, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: shorts, viewpoint: front, x: 1837, y: 2090, scale: 2.30, z: 35, requirement: required }
+
+  - creator: hailstateunis
+    sport: soccer
+    view_kind: soccer-condensed-ls
+    output: { width: 2989, height: 3326 }
+    background: transparent
+    placements:
+      - { slot: jersey, viewpoint: front, x: 1389, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: shorts, viewpoint: front, x: 2091, y: 2090, scale: 2.30, z: 35, requirement: required }
+
+  - creator: hailstateunis
+    sport: soccer
+    view_kind: soccer-combo
+    output: { width: 8353, height: 4180 }
+    background: transparent
+    placements:
+      - { slot: jersey, viewpoint: front, x: 1135, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: jersey, viewpoint: back, x: 3518, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: shorts, viewpoint: front, x: 1135, y: 2945, scale: 2.30, z: 15, requirement: required }
+      - { slot: shorts, viewpoint: back, x: 3518, y: 2945, scale: 2.30, z: 10, requirement: required }
+      - { slot: jersey, viewpoint: front, x: 5621, y: 468, scale: 0.77, z: 120, requirement: required, uniform: 2 }
+      - { slot: jersey, viewpoint: back, x: 7472, y: 468, scale: 0.77, z: 120, requirement: required, uniform: 2 }
+      - { slot: shorts, viewpoint: front, x: 5621, y: 2755, scale: 1.78, z: 115, requirement: required, uniform: 2 }
+      - { slot: shorts, viewpoint: back, x: 7472, y: 2755, scale: 1.78, z: 110, requirement: required, uniform: 2 }
+
+  # Covers short- and long-sleeve keepers alike; the measurements were
+  # identical. Uniform 2 (the keeper) is a deliberately smaller inset.
+  - creator: hailstateunis
+    sport: soccer
+    view_kind: soccer-condensed-combo
+    output: { width: 4614, height: 3326 }
+    background: transparent
+    placements:
+      - { slot: jersey, viewpoint: front, x: 1135, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: shorts, viewpoint: front, x: 1837, y: 2090, scale: 2.30, z: 35, requirement: required }
+      - { slot: jersey, viewpoint: front, x: 3507, y: 508, scale: 0.69, z: 120, requirement: required, uniform: 2 }
+      - { slot: shorts, viewpoint: front, x: 3993, y: 1953, scale: 1.59, z: 135, requirement: required, uniform: 2 }
+
+  - creator: hailstateunis
+    sport: soccer
+    view_kind: soccer-combo-ls
+    output: { width: 9121, height: 4180 }
+    background: transparent
+    placements:
+      - { slot: jersey, viewpoint: front, x: 1135, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: jersey, viewpoint: back, x: 3518, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: shorts, viewpoint: front, x: 1135, y: 2945, scale: 2.30, z: 15, requirement: required }
+      - { slot: shorts, viewpoint: back, x: 3518, y: 2945, scale: 2.30, z: 10, requirement: required }
+      - { slot: jersey, viewpoint: front, x: 5819, y: 468, scale: 0.77, z: 120, requirement: required, uniform: 2 }
+      - { slot: jersey, viewpoint: back, x: 8042, y: 468, scale: 0.77, z: 120, requirement: required, uniform: 2 }
+      - { slot: shorts, viewpoint: front, x: 5819, y: 2755, scale: 1.78, z: 115, requirement: required, uniform: 2 }
+      - { slot: shorts, viewpoint: back, x: 8042, y: 2755, scale: 1.78, z: 110, requirement: required, uniform: 2 }
+
+  # One template for both cuts: the element's own canvas (2266 short sleeve,
+  # 2787 long sleeve) sets its footprint, and placement is by centre, so a
+  # short-sleeve jersey simply sits narrower inside the same layout.
+  - creator: hailstateunis
+    sport: volleyball
+    view_kind: volleyball-jersey
+    output: { width: 5660, height: 2984 }
+    background: transparent
+    placements:
+      - { slot: jersey, viewpoint: front, x: 1393, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: jersey, viewpoint: back, x: 4267, y: 0, scale: 1.00, z: 20, requirement: required }
+
+  # One template for every cut pairing — the cut comes from each element, not
+  # from the view. Uniform 2 is a deliberately SMALLER inset (0.55).
+  - creator: hailstateunis
+    sport: volleyball
+    view_kind: volleyball-combo
+    output: { width: 5660, height: 4725 }
+    background: transparent
+    placements:
+      - { slot: jersey, viewpoint: front, x: 1393, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: jersey, viewpoint: back, x: 4267, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: jersey, viewpoint: front, x: 2040, y: 3083, scale: 0.55, z: 120, requirement: required, uniform: 2 }
+      - { slot: jersey, viewpoint: back, x: 3622, y: 3083, scale: 0.55, z: 120, requirement: required, uniform: 2 }
+
+  - creator: hailstateunis
+    sport: volleyball
+    view_kind: volleyball-condensed-combo-ss-ss
+    output: { width: 3969, height: 2984 }
+    background: transparent
+    placements:
+      - { slot: jersey, viewpoint: front, x: 1132, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: jersey, viewpoint: front, x: 3175, y: 448, scale: 0.70, z: 120, requirement: required, uniform: 2 }
+
+  - creator: hailstateunis
+    sport: volleyball
+    view_kind: volleyball-condensed-combo-ss-ls
+    output: { width: 4282, height: 2984 }
+    background: transparent
+    placements:
+      - { slot: jersey, viewpoint: front, x: 1132, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: jersey, viewpoint: front, x: 3307, y: 448, scale: 0.70, z: 120, requirement: required, uniform: 2 }
+
+  - creator: hailstateunis
+    sport: volleyball
+    view_kind: volleyball-condensed-combo-ls-ss
+    output: { width: 4494, height: 2984 }
+    background: transparent
+    placements:
+      - { slot: jersey, viewpoint: front, x: 1393, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: jersey, viewpoint: front, x: 3700, y: 448, scale: 0.70, z: 120, requirement: required, uniform: 2 }
+
+  - creator: hailstateunis
+    sport: volleyball
+    view_kind: volleyball-condensed-combo-ls-ls
+    output: { width: 4779, height: 2984 }
+    background: transparent
+    placements:
+      - { slot: jersey, viewpoint: front, x: 1393, y: 0, scale: 1.00, z: 20, requirement: required }
+      - { slot: jersey, viewpoint: front, x: 3804, y: 448, scale: 0.70, z: 120, requirement: required, uniform: 2 }

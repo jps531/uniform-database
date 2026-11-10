@@ -1,0 +1,9 @@
+*.png
+*.psd
+*.icloud
+.DS_Store
+__pycache__/
+temp/
+out/
+golden/run/
+golden/inventory.json

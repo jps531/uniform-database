@@ -1,0 +1,650 @@
+# Canvas definitions and standardization profiles.
+#
+# THREE SECTIONS
+#   canvases    — named output canvases, declared once, referenced by many
+#                 (sport, slot, viewpoint) combinations
+#   profiles    — per (slot, viewpoint) era tables telling standardize.py how
+#                 to correct each source size. Keyed `{slot}-{viewpoint}`.
+#   assignments — which canvas each (sport, slot, viewpoint) uses
+#
+# Profiles are separate from canvases because jersey fronts and backs SHARE a
+# canvas but have DIFFERENT source dimensions (19px apart in eras B and C).
+
+# Directory name -> slot key. Explicit because naive de-pluralization fails
+# ("Pants" -> "pant").
+directory_slots:
+  Jerseys: jersey
+  Pants: pants
+  Helmets: helmet
+  Hats: hat
+  Shorts: shorts
+  # `field` is NOT a garment and never appears in a combination. It is here
+  # only so standardize.py can parse the path; it is deliberately absent from
+  # slots_hailstateunis.yaml, which is what combinations pick from. The two
+  # files do different jobs.
+  Fields: field
+  Courts: court
+
+# px tolerance when matching a content size to an era entry. Deliberately
+# small: it absorbs export rounding, not design differences. Eras are declared
+# EXPLICITLY so a genuinely new silhouette surfaces as unmatched rather than
+# being folded into a neighbour.
+#
+# Ceiling is 8. The closest distinct pair in any profile is jersey-back era D
+# (1414) against era E (1406). Anything above 7 would merge them.
+tolerance: 5
+
+canvases:
+
+  # --- Football ---------------------------------------------------------
+  football_jersey:
+    width: 1792
+    height: 2044
+    fills: pad
+    note: >
+      CONFIRMED. Serves jersey front AND back across five eras.
+
+  football_jersey_sleeve:
+    width: 749
+    height: 486
+    fills: fill
+    note: Uniform across all eras — no standardization run needed.
+
+  football_pants_front:
+    width: 1230
+    height: 1724
+    fills: fill
+    note: >
+      Uniform across all eras. Pants geometry never changed, unlike jerseys.
+      Height within 1px of pants_side, so both share a waistband anchor.
+
+  football_field_full:
+    width: 3648
+    height: 2171
+    fills: fill
+    note: >
+      Playing-surface graphic with caption text above and below the field.
+      AUTHORED — this is the source. Mississippi State only so far.
+  football_field_cropped:
+    width: 3432
+    height: 1597
+    fills: fill
+    derived_from:
+      canvas: football_field_full
+      crop_at: [108, 287]
+    note: >
+      GENERATED from football_field_full by scripts/derive_crops.py. The crop
+      is exactly centred — 108px each side, 287px top and bottom — removing
+      the caption text above and below the field.
+
+      `derived_from` is what makes this automatic: the script finds every
+      canvas carrying it, resolves the source viewpoint from `assignments`,
+      and crops. Adding basketball_court_cropped or baseball_field_cropped
+      is a config change, not a code change.
+
+  football_icon:
+    width: 750
+    height: 750
+    fills: fill
+    note: >
+      Separately drawn 750x750 squares for at-a-glance combination display in
+      database tables. NOT derived from the element views — simplified,
+      differently framed, not mechanically reproducible. One canvas serves
+      helmet, jersey and pants icons.
+
+      `icon` sits on the viewpoint axis because that is how the composer
+      addresses alternate renders, but it is a RENDER TYPE, not a camera
+      angle.
+
+      Icon resolution drops SHELL, NUMBER and BOWL PATCH when falling back,
+      and KEEPS design modifiers — "2012 White Egg Bowl" is a different
+      element from "2012 White", not a variant of it. An icon exists for
+      every element; extra icons exist only where a number or a bowl patch
+      is actually visible at this size.
+
+  football_pants_side:
+    width: 739
+    height: 1723
+    fills: fill
+    note: Uniform across all eras. One leg vs two.
+
+  football_helmet_face:
+    width: 678
+    height: 808
+    fills: pad
+    note: >
+      CONFIRMED. Serves helmet front AND back. Content must fit 676 x 808
+      (width from the speed back, height from the speed front), so this
+      carries ~10% headroom.
+
+      Headroom is deliberate here, UNLIKE football_helmet_profile which is
+      sized to exact content. Face views are top-CENTRE anchored, so growing
+      the canvas later shifts every element relative to its placement point.
+      The profile canvas is corner-anchored and can grow freely. Same reason
+      football_jersey carries headroom and the profile does not.
+
+      Only the leather era needs scaling (716/935). Every other era renders
+      at its native height, so scale 1.0 — a much flatter picture than the
+      profile views, where all six eras differed.
+
+  football_helmet_profile:
+    width: 940
+    height: 854
+    fills: pad
+    note: >
+      CONFIRMED. Serves helmet left AND right across six eras. Sized to the
+      exact maximum rendered content — 940 wide from era F (speedflex),
+      854 tall from era D (classic). No single era fills both dimensions.
+
+      Anchored top-CENTRE, like the face and jersey canvases.
+
+      An earlier version corner-anchored these (top-left for right-facing,
+      top-right for left-facing) on the reasoning that the back of the shell
+      is the anatomical constant and the facemask projects forward into
+      reserved space. That does keep shells aligned when eras are overlaid —
+      but no consumer overlays eras. What consumers see is a single helmet in
+      a combination graphic, a matchup, or standalone, and there a
+      facemask-less leather helmet showed 265px of visible emptiness to one
+      side. Content balance beats shell alignment.
+
+      Consequence: because this is now centre-anchored, growing the canvas
+      later WOULD shift every element relative to its placement point. It is
+      sized tight, so treat the dimensions as fixed.
+
+      Every era scales DOWN to reach this canvas; nothing is interpolated up.
+      The rendered range (675-940 wide) is correct and preserved: a leather
+      cap really is smaller than a Speedflex, and the spread tracks facemask
+      projection.
+
+  # --- Baseball + Softball (shared) -------------------------------------
+  # CONFIRMED equal to the pixel across both sports — the first proof that a
+  # canvas transfers across SPORTS, not just across teams.
+  diamond_jersey:
+    width: 1780
+    height: 1937
+    fills: pad
+    note: >
+      Serves baseball AND softball, front and back — the STANDARD body only.
+      Front content is 1777x1937, back 1778x1937 (the same 1px split football
+      had).
+
+      The three-quarter sleeve era does NOT share this canvas. It is 2112
+      wide, and sizing this canvas to fit it would have padded 1,000+ standard
+      jerseys with 423px of empty space to accommodate 14 files. See
+      diamond_jersey_tq and the per-era `canvas` override in `profiles`.
+
+  diamond_jersey_tq:
+    width: 2114
+    height: 1937
+    fills: pad
+    note: >
+      Three-quarter sleeve jerseys: wool fauxbacks and anything pre-1941.
+      Content is 2112x1937 — 335px wider than the standard body at the SAME
+      height, so this is a genuinely wider garment, not a different
+      resolution. No scale correction is needed anywhere in baseball.
+
+      Height deliberately matches diamond_jersey, so a view swapping one for
+      the other adjusts horizontally only.
+
+      Both canvases are sized TIGHT — about 11px of margin — rather than the
+      ~7% headroom football carries. Football kept gaining jersey eras (five
+      across three manufacturers), so reserving space paid off there. Baseball
+      has two measured eras and no manufacturer variation, and a genuinely new
+      era would need its own canvas anyway, exactly as three-quarter just did.
+      Tight is safe here only because content is CENTRED, so the ±1-3px export
+      drift distributes evenly. A file materially larger would be refused
+      rather than clipped.
+  diamond_pants:
+    width: 928
+    height: 1940
+    fills: pad
+    note: >
+      Serves baseball AND softball, left and right. Standard 926x1940;
+      the BELTLESS era (elastic waistband, no belt loops) is 899x1934.
+      Sized tight — 12px of margin — for the same reason as diamond_jersey.
+  basketball_court_full:
+    width: 8792
+    height: 5042
+    fills: fill
+    note: >
+      Humphrey Coliseum court designs. Lives under Venues/Basketball — NOT
+      Men's or Women's — because the two programs share the venue. Some
+      designs are program-specific (2018 NIT is men's, 2024 WBIT is women's);
+      that is a token on the element, not a reason to split the tree.
+
+  basketball_court_cropped:
+    width: 8792
+    height: 4471
+    fills: fill
+    derived_from:
+      canvas: basketball_court_full
+      crop_at: [0, 0]
+    note: >
+      GENERATED from basketball_court_full by scripts/derive_crops.py: full
+      width from the top, trimming 571px of caption from the bottom. Same
+      shape as the baseball field crop, and unlike football's, which is
+      centred because its caption sits above AND below.
+
+  baseball_field_full:
+    width: 2308
+    height: 2462
+    fills: fill
+    note: >
+      Playing-surface graphic with caption text BELOW the field only.
+      AUTHORED — this is the source. Mississippi State only so far.
+
+  baseball_field_cropped:
+    width: 2308
+    height: 2082
+    fills: fill
+    derived_from:
+      canvas: baseball_field_full
+      crop_at: [0, 0]
+    note: >
+      GENERATED from baseball_field_full by scripts/derive_crops.py.
+
+      Unlike football, this crop is NOT centred: it takes the full width from
+      the top and trims 380px from the bottom, because baseball's caption text
+      sits entirely below the field. Football's caption is split above and
+      below, so its crop is centred at 108/108 and 287/287. Each sport's
+      geometry has to be measured; none of it transfers.
+
+  baseball_hat:
+    width: 2972
+    height: 2416
+    fills: pad
+    note: >
+      Baseball only — softball has no hat slot. Two eras: classic 2970x2357
+      and modern 2970x2416, same width, 59px apart in height.
+
+      Those sizes CHANGED when the hat outlines were thickened: modern was
+      3000x2434 and classic 3000x2376. Thickening alters the content bounding
+      box, so any profile entry for a slot whose artwork is restyled has to be
+      re-measured. Worth remembering for the other slots if their strokes are
+      ever adjusted.
+
+      NOT scale-baked, unlike football helmets. Baking a composition scale
+      shrinks the outline along with everything else, so the RENDERED stroke
+      is identical either way — it only costs resolution. Master scale (so
+      sizes are comparable) and stroke weight (a visual constant) are separate
+      problems, and fixing the first does nothing for the second.
+
+      The hat composes at 19%, so for its outline to render at the same weight
+      as a jersey's, the SOURCE stroke must be ~5.26x the jersey's. That is an
+      artwork change, not a pipeline one.
+      1968 Maroon exists in BOTH, which is why the Classic/Modern tokens
+      exist at all; every other hat is unambiguous from its size.
+
+  # --- Basketball -------------------------------------------------------
+  mbk_jersey:
+    width: 1260
+    height: 1931
+    fills: pad
+    note: >
+      Canvas is the LARGEST POST-SCALE content plus 1px each side. Padding
+      exists to put
+      every era at one placement and to absorb drift, not to reserve room —
+      headroom was trimmed from these once the eras were measured.
+
+      Men's basketball jersey, front and back — identical content sizes in
+      both viewpoints, unlike every other jersey in the archive, which split
+      by 1px. Three eras, all 1931 TALL: only the width changes
+      (1180 -> 1241 -> 1258), so these are cut changes rather than new
+      mockups.
+
+  mbk_shorts:
+    width: 904
+    height: 1765
+    fills: pad
+    note: >
+      Men's basketball shorts — a SIDE view (left/right), unlike women's and
+      soccer, which are front/back. Three eras all 902 WIDE, with the height
+      telling the story of the garment: 1160 (1957-1990), 1447 (1991), then
+      1765 (1994-). Shorts got longer.
+
+  wbk_jersey:
+    width: 1246
+    height: 1919
+    fills: pad
+    note: >
+      Women's basketball jersey, 1244x1919 across all 59 elements and both
+      viewpoints — a single era, the simplest jersey profile in the archive.
+      Distinct from mbk_jersey (1258x1931): 14px and 12px apart, which is
+      what justified separate canvases for the two programs.
+
+  wbk_shorts:
+    width: 846
+    height: 754
+    fills: pad
+    note: >
+      Women's basketball shorts, front and back. Three eras all 754 TALL:
+      844, 825 and 800 wide. These are PARALLEL, not chronological — 844
+      spans 1998-2025 and 800 spans 2013-2025 — so match on size and never
+      on year. The lone 826x754 file falls inside tolerance of the 825 era.
+
+  # --- Soccer / Volleyball ----------------------------------------------
+  soccer_jersey:
+    width: 2270
+    height: 2852
+    fills: pad
+    note: >
+      SHORT-SLEEVE soccer jersey, front and back, 2268x2852. Deliberately
+      NOT shared with volleyball_jersey_ls, whose long sleeve lands 7px away
+      at 2785x2984: different garments, different manufacturers, different
+      schedules. Sharing on a 7px coincidence would couple them, and the
+      first template change on either side would unpick it.
+
+  soccer_jersey_ls:
+    width: 2780
+    height: 2981
+    fills: pad
+    note: >
+      LONG-SLEEVE soccer jersey, 2778x2981. Three elements so far, all
+      KEEPER kits — 2018 Green Long Sleeve Keeper, 2019 Blue Keeper,
+      2022 Green Keeper. Keeper alone does NOT predict the cut: 2017 Green
+      Keeper and 2026 Pink Keeper are short-sleeved.
+
+      Only ONE of the three carries a `Long Sleeve` token, which is correct:
+      the cut is identified by content size, and the token is a human
+      DISAMBIGUATOR used only where a name would otherwise be ambiguous.
+      2018 Green was worn interchangeably with the short-sleeved 2017 Green
+      Keeper, so sleeve length is the only thing telling them apart; the
+      other two have no counterpart. Same pattern as the baseball hat
+      Classic/Modern tokens, which appear on 2 of 54 files.
+
+  soccer_shorts:
+    width: 780
+    height: 537
+    fills: pad
+    note: >
+      Front and back, 778x537 across all 28 elements — no eras at all, the
+      simplest profile in the archive.
+  volleyball_jersey:
+    width: 2266
+    height: 2743
+    fills: pad
+    note: >
+      SHORT-SLEEVE volleyball jersey, front and back. Content 2263x2743 front
+      and 2264x2743 back — the usual 1px split.
+
+      Sleeve length is NOT a filename token: like baseball's three-quarter
+      cut it is identified by CONTENT SIZE alone. Long sleeve has its own
+      canvas rather than widening this one, which would have padded every
+      short-sleeve jersey by 522x241.
+
+  volleyball_jersey_ls:
+    width: 2787
+    height: 2984
+    fills: pad
+    note: >
+      LONG-SLEEVE volleyball jersey, 2785x2984 front and back. The more
+      common of the two (39 files against 19), but the short sleeve holds the
+      unqualified name because it is the conventional garment.
+
+      Heights deliberately DIFFER from volleyball_jersey, unlike baseball's
+      two jersey canvases: a long-sleeve jersey is genuinely taller as well
+      as wider, so matching them would be artificial padding.
+
+
+# PROFILE KEYS ARE `{sport}-{slot}-{viewpoint}`.
+#
+# The sport is REQUIRED. Without it, baseball jerseys (1777x1937) were matched
+# against football's jersey-front profile (1414-1790px) and every size came
+# back UNMATCHED. Keys were `{slot}-{viewpoint}` while football was the only
+# sport; adding a second sport exposed the collision.
+#
+# PROFILES ARE SHARED ACROSS TEAMS.
+#
+# Matching keys on CONTENT SIZE, never on year. Era is a property of the
+# element — which mockup template it was drawn from — so a Southern Miss 1975
+# jersey drawn at 1570x1887 resolves to era C whatever years era C spans for
+# Mississippi State.
+#
+# The `years:` labels below are MISSISSIPPI STATE's spans, recorded as
+# documentation only. They are NOT used for matching and will not hold for
+# other teams. Do not add per-team year ranges here; if you need them, they
+# belong on the element record in the database.
+
+profiles:
+
+  football-jersey-front:
+    - { era: A, years: "1935-1959", size: [1790, 2078], scale: 0.8958333 }
+    - { era: B, years: "1960-1988", size: [1790, 1887] }
+    - { era: C, years: "1989-2011", size: [1570, 1887] }
+    - { era: D, years: "2012-2023", size: [1414, 2039] }
+    - { era: E, years: "2024-",     size: [1405, 2039] }
+    # Nike templates. Mississippi State never used these — they appear on
+    # Ole Miss and the junior colleges, which were Nike schools while MSU
+    # was Adidas. Era letters A-E are the ADIDAS sequence; N1/N2 are a
+    # parallel manufacturer track, NOT a continuation of it.
+    - { era: N1, label: nike early, years: "~2011-2015", size: [1414, 2031] }
+    - { era: N2, label: nike late,  years: "~2016-2020", size: [1388, 2044] }
+    - { era: N3,  label: nike alt,      years: "~2015-2018", size: [1381, 2029] }
+    - { era: UA1, label: under armour,  years: "~2017",      size: [1380, 2005] }
+    # era A scale = 21.5/24. The source art was drawn at the wrong master
+    # scale; every other era composes at 24%.
+
+  football-jersey-back:
+    - { era: A, years: "1935-1959", size: [1790, 2078], scale: 0.8958333 }
+    - { era: B, years: "1960-1988", size: [1789, 1868] }
+    - { era: C, years: "1989-2011", size: [1570, 1868] }
+    - { era: D, years: "2012-2023", size: [1414, 2039] }
+    - { era: E, years: "2024-",     size: [1406, 2039] }
+    - { era: N2, label: nike late,  years: "~2016-2020", size: [1388, 2044] }
+    - { era: N3,  label: nike alt,      years: "~2015-2018", size: [1383, 2029] }
+    - { era: UA1, label: under armour,  years: "~2017",      size: [1381, 2007] }
+    # NOTE: there is deliberately NO N1 entry here. Nike-early BACKS measure
+    # 1414x2042, only 3px from Adidas era D (1414x2039) — inside the
+    # tolerance, so an N1 entry would collide and matching would become
+    # order-dependent. Nike-early backs therefore resolve to era D.
+    #
+    # Harmless in practice: both carry scale 1.0 with no offset, so the
+    # composed output is identical. But the era LABEL on those ~17 files is
+    # wrong, and size alone cannot fix it. If jerseys ever need manufacturer
+    # recorded, it belongs in the filename as a token (as `shell` is for
+    # helmets) or on the element record — not inferred from dimensions.
+
+  football-jersey-left:
+    - { era: all, size: [749, 486] }        # uniform; no correction needed
+
+  football-pants-front:
+    - { era: all, size: [1230, 1724] }
+
+  football-pants-left:
+    - { era: all, size: [739, 1723] }
+
+  # --- Baseball + Softball ------------------------------------------------
+  # Far simpler than football: two eras per slot, no scale corrections.
+  # `canvas:` on an era OVERRIDES the slot canvas from `assignments`. Without
+  # it, one canvas must be wide enough for every era, which here would mean
+  # padding 1,000+ standard jerseys to fit 14 three-quarter ones.
+  baseball-jersey-front:
+    - { era: std, label: standard,      size: [1777, 1937] }
+    - { era: tq,  label: three-quarter, size: [2112, 1937], canvas: diamond_jersey_tq }
+  baseball-jersey-back:
+    - { era: std, label: standard,      size: [1778, 1937] }
+    - { era: tq,  label: three-quarter, size: [2112, 1937], canvas: diamond_jersey_tq }
+  baseball-pants-left:
+    - { era: std, label: standard,       size: [926, 1940] }
+    - { era: blt, label: beltless,       size: [899, 1934] }
+  baseball-hat-front:
+    - { era: modern,  label: modern,  size: [2970, 2416] }
+    - { era: classic, label: classic, size: [2970, 2357] }
+
+  # Softball reuses the baseball profiles via `softball` assignments below —
+  # same canvases, same eras, confirmed to the pixel.
+  softball-jersey-front:
+    - { era: std, label: standard,       size: [1777, 1937] }
+  softball-jersey-back:
+    - { era: std, label: standard,       size: [1778, 1937] }
+  softball-pants-left:
+    - { era: std, label: standard,       size: [926, 1940] }
+    - { era: blt, label: beltless,       size: [899, 1934] }
+  softball-pants-right:
+    - { era: std, label: standard,       size: [926, 1940] }
+    - { era: blt, label: beltless,       size: [899, 1934] }
+
+  # --- Volleyball ---------------------------------------------------------
+  # Two cuts, identified by content size. `canvas:` overrides the slot canvas
+  # for the long sleeve — see diamond_jersey for the same mechanism.
+  volleyball-jersey-front:
+    - { era: ss, label: short sleeve, size: [2263, 2743] }
+    - { era: ls, label: long sleeve,  size: [2785, 2984], canvas: volleyball_jersey_ls }
+  volleyball-jersey-back:
+    - { era: ss, label: short sleeve, size: [2264, 2743] }
+    - { era: ls, label: long sleeve,  size: [2785, 2984], canvas: volleyball_jersey_ls }
+
+  # --- Soccer -------------------------------------------------------------
+  soccer-jersey-front:
+    - { era: ss, label: short sleeve, size: [2268, 2852] }
+    - { era: ls, label: long sleeve,  size: [2778, 2981], canvas: soccer_jersey_ls }
+  soccer-jersey-back:
+    - { era: ss, label: short sleeve, size: [2268, 2852] }
+    - { era: ls, label: long sleeve,  size: [2778, 2981], canvas: soccer_jersey_ls }
+  soccer-shorts-front:
+    - { era: all, size: [778, 537] }
+  soccer-shorts-back:
+    - { era: all, size: [778, 537] }
+
+  # --- Basketball ---------------------------------------------------------
+  # Men's: three eras per slot. Women's: one jersey era, three shorts eras.
+  mens_basketball-jersey-front:
+    - { era: a, label: 1957-1971, size: [1180, 1931] }
+    - { era: b, label: 1985,      size: [1241, 1931] }
+    - { era: c, label: 1975-,     size: [1258, 1931] }
+  mens_basketball-jersey-back:
+    - { era: a, label: 1957-1971, size: [1180, 1931] }
+    - { era: b, label: 1985,      size: [1241, 1931] }
+    - { era: c, label: 1975-,     size: [1258, 1931] }
+  mens_basketball-shorts-left:
+    - { era: a, label: short,  size: [902, 1160] }
+    - { era: b, label: mid,    size: [902, 1447] }
+    - { era: c, label: long,   size: [902, 1765] }
+  mens_basketball-shorts-right:
+    - { era: a, label: short,  size: [902, 1160] }
+    - { era: b, label: mid,    size: [902, 1447] }
+    - { era: c, label: long,   size: [902, 1765] }
+
+  womens_basketball-jersey-front:
+    - { era: all, size: [1244, 1919] }
+  womens_basketball-jersey-back:
+    - { era: all, size: [1244, 1919] }
+  womens_basketball-shorts-front:
+    - { era: a, label: wide,   size: [844, 754] }
+    - { era: b, label: mid,    size: [825, 754] }
+    - { era: c, label: narrow, size: [800, 754] }
+  womens_basketball-shorts-back:
+    - { era: a, label: wide,   size: [844, 754] }
+    - { era: b, label: mid,    size: [825, 754] }
+    - { era: c, label: narrow, size: [800, 754] }
+
+  # Icons are drawn directly at final size — no era structure, no correction.
+  football-field-full:
+    - { era: all, size: [3648, 2171] }
+  football-field-cropped:
+    - { era: all, size: [3432, 1597] }
+  baseball-field-full:
+    - { era: all, size: [2308, 2462] }
+  baseball-field-cropped:
+    - { era: all, size: [2308, 2082] }
+  basketball-court-full:
+    - { era: all, size: [8792, 5042] }
+  basketball-court-cropped:
+    - { era: all, size: [8792, 4471] }
+
+  football-helmet-icon:
+    - { era: all, size: [750, 750] }
+  football-jersey-icon:
+    - { era: all, size: [750, 750] }
+  football-pants-icon:
+    - { era: all, size: [750, 750] }
+
+  # Helmet profiles. `scale` bakes in the composition scale so every era
+  # renders at 100% afterwards. All six scale DOWN — nothing upscales.
+  # Top-centre anchored (the script default), same as the face views.
+
+  football-helmet-right:
+    - { era: A, label: leather,      size: [854, 965],   scale: 0.79 }
+    - { era: B, label: plastic,      size: [1036, 1034], scale: 0.69 }
+    - { era: C, label: double bar,   size: [1241, 1124], scale: 0.69 }
+    - { era: D, label: classic,      size: [886, 909],   scale: 0.94 }
+    - { era: E, label: speed,        size: [2250, 2014], scale: 0.405 }
+    - { era: F, label: speedflex,    size: [2238, 1904], scale: 0.42 }
+
+  football-helmet-left:
+    - { era: A, label: leather,      size: [854, 965],   scale: 0.79 }
+    - { era: B, label: plastic,      size: [1036, 1034], scale: 0.69 }
+    - { era: C, label: double bar,   size: [1241, 1124], scale: 0.69 }
+    - { era: D, label: classic,      size: [886, 909],   scale: 0.94 }
+    - { era: E, label: speed,        size: [2250, 2014], scale: 0.405 }
+    - { era: F, label: speedflex,    size: [2238, 1904], scale: 0.42 }
+
+  # Face profiles. Top-centre anchored (the script default), so no `anchor`
+  # key is needed. Only leather is scaled; everything else is native.
+  #
+  # Note the BACK has FOUR entries to the front's six: plastic, double bar
+  # and classic are indistinguishable from behind and share 611 x 716. So
+  # size does NOT map one-to-one onto shell here, and the shell token in the
+  # filename is the finer-grained signal. That is expected, not an error.
+
+  football-helmet-front:
+    - { era: A, label: leather,     size: [830, 935], scale: 0.765775 }
+    - { era: B, label: plastic,     size: [596, 644] }
+    - { era: C, label: double bar,  size: [598, 731] }
+    - { era: D, label: classic,     size: [636, 790] }
+    - { era: E, label: speed,       size: [641, 808] }
+    - { era: F, label: speedflex,   size: [663, 775] }
+
+  football-helmet-back:
+    - { era: A,   label: leather,                     size: [830, 935], scale: 0.765775 }
+    - { era: BCD, label: plastic/double bar/classic,  size: [611, 716] }
+    # Speed backs come in TWO sizes. 667x774 is the norm (80 elements across
+    # eight teams). 674x774 is three: MSU 2011 Maroon and its Egg Bowl
+    # alternate, and EMCC 2018 Chrome. This entry used to read 676x775,
+    # describing only the three, so every other Speed back reported NO ERA
+    # MATCH until the golden suite traced them to era E by their front view.
+    - { era: E,  label: speed,      size: [667, 774] }
+    - { era: E2, label: speed wide, size: [674, 774] }
+    - { era: F,   label: speedflex,                   size: [643, 775] }
+
+
+assignments:
+
+  football:
+    jersey: { front: football_jersey, back: football_jersey,
+              left: football_jersey_sleeve, icon: football_icon }
+    pants:  { front: football_pants_front, left: football_pants_side,
+              icon: football_icon }
+    helmet: { front: football_helmet_face, back: football_helmet_face,
+              left: football_helmet_profile, right: football_helmet_profile,
+              icon: football_icon }
+    field:  { full: football_field_full, cropped: football_field_cropped }
+
+  baseball:
+    jersey: { front: diamond_jersey, back: diamond_jersey }
+    pants:  { left: diamond_pants }
+    hat:    { front: baseball_hat }
+    field:  { full: baseball_field_full, cropped: baseball_field_cropped }
+
+  softball:
+    jersey: { front: diamond_jersey, back: diamond_jersey }
+    pants:  { left: diamond_pants, right: diamond_pants }
+
+  # Ungendered: courts only, shared by the men's and women's programs.
+  basketball:
+    court: { full: basketball_court_full, cropped: basketball_court_cropped }
+
+  mens_basketball:
+    jersey: { front: mbk_jersey, back: mbk_jersey }
+    shorts: { left: mbk_shorts, right: mbk_shorts }
+
+  womens_basketball:
+    jersey: { front: wbk_jersey, back: wbk_jersey }
+    shorts: { back: wbk_shorts, front: wbk_shorts }
+
+  soccer:
+    jersey: { front: soccer_jersey, back: soccer_jersey }
+    shorts: { back: soccer_shorts, front: soccer_shorts }
+
+  volleyball:
+    jersey: { front: volleyball_jersey, back: volleyball_jersey }

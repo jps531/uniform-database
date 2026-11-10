@@ -1,0 +1,234 @@
+# Token vocabulary — football, all slots, all ten teams.
+#
+# Derived from 3,242 files. Every token below appears in at least one
+# filename; `teams` records where.
+#
+# `token` vs `label`: TOKEN is the exact string as it appears in filenames;
+# LABEL is the display name. They differ often enough that conflating them
+# breaks nesting — the file says `SBC`, the label reads `Sun Belt Conference`.
+# `token` defaults to `label` when omitted.
+#
+# TWO INDEPENDENT AXES
+#
+# `scope` — structural, and VERIFIABLE rather than editorial:
+#     design     heads its own element FOLDER; a distinct uniform
+#     patch      appears in FILENAMES; applied to an existing design
+#     variation  same design, minor difference; appears in filenames
+#   Folder-level tokens are `design`; file-level ones are `patch` or
+#   `variation`. A parser derives scope from position and flags anything
+#   that contradicts it.
+#
+# `kind` — which FIELD the token populates:
+#     modifier · finish · shell · sequence
+#
+# PARSE ORDER MATTERS. Match this vocabulary by LONGEST MATCH *before*
+# stripping shell, sequence letter or number. Two designs end in a single
+# capital — `Flying M` and `M over S` — and a naive sequence-letter strip
+# turns them into `Flying` + seq M and `M over` + seq S. `DWS100` has the
+# same hazard against a numeric rule.
+
+extends: shared
+
+tokens:
+
+  # ======================================================================
+  # kind: shell — helmet model. Determines the era/canvas profile.
+  # ======================================================================
+  # `default: true` on speedflex makes it win when a design exists in more
+  # than one shell and the caller did not ask for one — e.g. 2015 Maroon A
+  # exists in both Speed and Speedflex. Request the other with
+  # `--with Speed`.
+  leather:    { label: Leather,    kind: shell, era: A }
+  plastic:    { label: Plastic,    kind: shell, era: B }
+  double_bar: { label: Double Bar, kind: shell, era: C }
+  classic:    { label: Classic,    kind: shell, era: D }
+  speed:      { label: Speed,      kind: shell, era: E }
+  speedflex:  { label: Speedflex,  kind: shell, era: F, default: true }
+
+  # ======================================================================
+  # kind: finish — surface. Gloss is the default; only departures appear.
+  # ======================================================================
+  matte:
+    label: Matte
+    kind: finish
+    teams: [Mississippi State, Southern Miss]
+    note: Combines with sequence — "2011 Maroon Matte A" is finish + seq.
+
+  # ======================================================================
+  # kind: sequence — bare disambiguators, NO semantic meaning.
+  # ======================================================================
+  # Appear BOTH as design-level (EMCC "2014 White A" vs "B" are different
+  # helmets) and file-level (MSU "Speedflex A" vs "B" are back decal
+  # variants). Position decides which.
+  seq_d: { label: D, kind: sequence }
+  seq_e: { label: E, kind: sequence }
+  seq_f: { label: F, kind: sequence }
+  seq_n: { label: N, kind: sequence, teams: [Ole Miss] }
+  seq_r: { label: R, kind: sequence, teams: [Ole Miss] }
+
+  # ======================================================================
+  # scope: design — alternate uniforms (folder-level)
+  # ======================================================================
+
+  # --- Mississippi State
+  egg_bowl:     { label: Egg Bowl,          scope: design, kind: modifier, theme: rivalry,       teams: [Mississippi State] }
+  snow_bowl:    { label: Snow Bowl,         scope: design, kind: modifier, theme: special,       teams: [Mississippi State] }
+  dws100:       { token: DWS100, label: Davis Wade 100,    scope: design, kind: modifier, theme: commemorative, teams: [Mississippi State] }
+  patriots:     { label: Patriots,          scope: design, kind: modifier, theme: commemorative, teams: [Mississippi State] }
+  veterans:     { label: Veterans,          scope: design, kind: modifier, theme: commemorative, teams: [Mississippi State] }
+  statesman:    { label: Statesman,         scope: design, kind: modifier, theme: commemorative, teams: [Mississippi State] }
+  dowsing_bell: { token: Dowsing Bell, label: Dowsing & Bell,    scope: design, kind: modifier, theme: commemorative, teams: [Mississippi State] }
+  leach:        { label: Leach,             scope: design, kind: modifier, theme: memorial,      teams: [Mississippi State] }
+  bulldog:      { label: Bulldog,           scope: design, kind: modifier, theme: special,       teams: [Mississippi State] }
+  ms:           { label: MS,                scope: design, kind: modifier, theme: special,       teams: [Mississippi State] }
+  interlocking: { token: Interlocking, label: "'90s Throwback",  scope: design, kind: modifier, theme: throwback,     teams: [Mississippi State] }
+  whiteout:     { label: Whiteout,          scope: design, kind: modifier, theme: special, colorway: white, teams: [Mississippi State] }
+  flying_m:
+    label: Flying M
+    scope: design
+    kind: modifier
+    theme: throwback
+    teams: [Mississippi State]
+    note: Ends in a single capital — must match BEFORE the sequence strip.
+
+  # --- Southern Miss
+  blackout:     { label: Blackout,     scope: design, kind: modifier, theme: special,   teams: [Southern Miss] }
+  monotone:     { label: Monotone,     scope: design, kind: modifier, theme: special,   teams: [Southern Miss] }
+  single:       { label: Single,       scope: design, kind: modifier, theme: special,   teams: [Southern Miss] }
+  ghost_single: { label: Ghost Single, scope: design, kind: modifier, theme: special,   teams: [Southern Miss] }
+  usm:          { label: USM,          scope: design, kind: modifier, theme: special,   teams: [Southern Miss] }
+  eagle_design: { label: Eagle,        scope: design, kind: modifier, theme: special,   teams: [Southern Miss] }
+  eaglenumber:  { label: EagleNumber,  scope: design, kind: modifier, theme: special,   teams: [Southern Miss] }
+  numbereagle:  { label: NumberEagle,  scope: design, kind: modifier, theme: special,   teams: [Southern Miss] }
+  camo_design:  { label: Camo,         scope: design, kind: modifier, theme: special,   teams: [Southern Miss] }
+
+  # --- shared / other
+  realtree:    { label: Realtree,    scope: design, kind: modifier, theme: special,       teams: [Ole Miss] }
+  scooba_tech: { label: Scooba Tech, scope: design, kind: modifier, theme: throwback,     teams: [EMCC] }
+
+  # ======================================================================
+  # scope: patch — applied to an existing design (file-level)
+  # ======================================================================
+  # Bowl sponsor renames are DIFFERENT artwork, so each stays its own key.
+  # Add new bowls here as teams are added — a patch missing from this list
+  # silently becomes its own element folder when nesting icons.
+
+  hall_of_fame_bowl:   { label: Hall of Fame Bowl,   scope: patch, kind: modifier, theme: bowl, teams: [Mississippi State] }
+  liberty_bowl:        { label: Liberty Bowl,        scope: patch, kind: modifier, theme: bowl, teams: [Mississippi State, Southern Miss] }
+  peach_bowl:          { label: Peach Bowl,          scope: patch, kind: modifier, theme: bowl, teams: [Mississippi State] }
+  cotton_bowl:         { label: Cotton Bowl,         scope: patch, kind: modifier, theme: bowl, teams: [Mississippi State] }
+  independence_bowl:   { label: Independence Bowl,   scope: patch, kind: modifier, theme: bowl, teams: [Mississippi State, Southern Miss] }
+  music_city_bowl:     { label: Music City Bowl,     scope: patch, kind: modifier, theme: bowl, teams: [Mississippi State] }
+  gator_bowl:          { label: Gator Bowl,          scope: patch, kind: modifier, theme: bowl, teams: [Mississippi State] }
+  taxslayer_bowl:      { label: TaxSlayer Bowl,      scope: patch, kind: modifier, theme: bowl, teams: [Mississippi State] }
+  belk_bowl:           { label: Belk Bowl,           scope: patch, kind: modifier, theme: bowl, teams: [Mississippi State] }
+  st_petersburg_bowl:  { label: St Petersburg Bowl,  scope: patch, kind: modifier, theme: bowl, teams: [Mississippi State] }
+  outback_bowl:        { label: Outback Bowl,        scope: patch, kind: modifier, theme: bowl, teams: [Mississippi State] }
+  reliaquest_bowl:     { label: ReliaQuest Bowl,     scope: patch, kind: modifier, theme: bowl, teams: [Mississippi State] }
+  armed_forces_bowl:   { label: Armed Forces Bowl,   scope: patch, kind: modifier, theme: bowl, teams: [Mississippi State, Southern Miss] }
+  mayo_bowl:           { label: Mayo Bowl,           scope: patch, kind: modifier, theme: bowl, teams: [Mississippi State] }
+  new_orleans_bowl:    { label: New Orleans Bowl,    scope: patch, kind: modifier, theme: bowl, teams: [Southern Miss] }
+  mobile_alabama_bowl: { label: Mobile Alabama Bowl, scope: patch, kind: modifier, theme: bowl, teams: [Southern Miss] }
+  humanitarian_bowl:   { label: Humanitarian Bowl,   scope: patch, kind: modifier, theme: bowl, teams: [Southern Miss] }
+  houston_bowl:        { label: Houston Bowl,        scope: patch, kind: modifier, theme: bowl, teams: [Southern Miss] }
+  gmac_bowl:           { label: GMAC Bowl,           scope: patch, kind: modifier, theme: bowl, teams: [Southern Miss] }
+  papa_johns_bowl:     { label: Papa Johns Bowl,     scope: patch, kind: modifier, theme: bowl, teams: [Southern Miss] }
+  hawaii_bowl:         { label: Hawaii Bowl,         scope: patch, kind: modifier, theme: bowl, teams: [Southern Miss] }
+  beef_o_bradys_bowl:  { label: Beef O Bradys Bowl,  scope: patch, kind: modifier, theme: bowl, teams: [Southern Miss] }
+  heart_of_dallas_bowl: { label: Heart of Dallas Bowl, scope: patch, kind: modifier, theme: bowl, teams: [Southern Miss] }
+  all_american_bowl:   { label: All American Bowl,   scope: patch, kind: modifier, theme: bowl, teams: [Southern Miss] }
+  lendingtree_bowl:    { label: LendingTree Bowl,    scope: patch, kind: modifier, theme: bowl, teams: [Southern Miss] }
+
+  # --- memorial and commemorative patches
+  nick_bell: { label: Nick Bell,                 scope: patch, kind: modifier, theme: memorial,      teams: [Mississippi State] }
+  keffer:    { label: Keffer,                    scope: patch, kind: modifier, theme: memorial,      teams: [Mississippi State] }
+  cfb150:    { token: CFB150, label: CFB 150,                   scope: patch, kind: modifier, theme: commemorative, teams: [Ole Miss, Southern Miss] }
+  usm100:
+    token: USM100
+    label: USM 100
+    scope: patch
+    kind: modifier
+    theme: commemorative
+    teams: [Southern Miss]
+    note: University centennial. DISTINCT from usmfb100.
+  usmfb100:
+    token: USMFB100
+    label: USM Football 100
+    scope: patch
+    kind: modifier
+    theme: commemorative
+    teams: [Southern Miss]
+    note: Football program centennial. DISTINCT from usm100.
+  brothers:  { label: Brothers,                  scope: patch, kind: modifier, theme: commemorative, teams: [Southern Miss] }
+  for_life:  { label: For Life,                  scope: patch, kind: modifier, theme: commemorative, teams: [Southern Miss] }
+  aie:       { label: AIE,                       scope: patch, kind: modifier, theme: commemorative, teams: [Southern Miss] }
+  area_code: { label: Area Code,                 scope: patch, kind: modifier, theme: special,       teams: [Southern Miss] }
+  # --- conference marks, Ole Miss SEC treatments
+  sec_round:    { label: Round SEC,    scope: patch, kind: modifier, theme: conference, teams: [Ole Miss] }
+  sec_mono:     { label: Mono SEC,     scope: patch, kind: modifier, theme: conference, teams: [Ole Miss] }
+  sec_contrast: { label: Contrast SEC, scope: patch, kind: modifier, theme: conference, teams: [Ole Miss] }
+
+  # ======================================================================
+  # scope: variation — same design, minor difference (file-level)
+  # ======================================================================
+
+  # --- helmet FRONT bumper marks. One attribute, so named rather than
+  #     lettered — unlike back decals, which vary by combination.
+  bumper_banner:  { token: Banner, label: Banner bumper,  scope: variation, kind: modifier, teams: [Mississippi State] }
+  bumper_dawgs:   { token: Dawgs, label: Dawgs bumper,   scope: variation, kind: modifier, teams: [Mississippi State] }
+  bumper_state:   { token: State, label: State bumper,   scope: variation, kind: modifier, teams: [Mississippi State] }
+  bumper_mstate:  { token: MState, label: MState bumper,  scope: variation, kind: modifier, teams: [Mississippi State] }
+  bumper_stacked: { token: Stacked, label: Stacked bumper, scope: variation, kind: modifier, teams: [Mississippi State] }
+  bumper_cats:    { token: Cats, label: Cats bumper,    scope: variation, kind: modifier, teams: [Jones] }
+  bumper_jc:      { token: JC, label: JC bumper,      scope: variation, kind: modifier, teams: [Jones] }
+  bumper_attack:  { token: Attack, label: Attack bumper,  scope: variation, kind: modifier, teams: [Southern Miss] }
+  bumper_eagles:  { token: Eagles, label: Eagles bumper,  scope: variation, kind: modifier, teams: [Southern Miss] }
+  bumper_eagle:
+    token: Eagle
+    label: Eagle bumper
+    scope: variation
+    kind: modifier
+    teams: [Southern Miss]
+    note: Distinct from bumper_eagles — confirmed.
+  bumper_rebs:
+    token: Rebs
+    label: Rebs bumper
+    scope: variation
+    kind: modifier
+    teams: [Ole Miss]
+    note: Combines with sequence — Rebs A, Rebs B, Rebs C.
+  bumper_finish:  { token: Finish, label: Finish bumper,  scope: variation, kind: modifier, teams: [Southern Miss] }
+  # --- jersey / helmet-back variations
+  empty_shoulders:
+    label: Empty Shoulders
+    scope: variation
+    kind: modifier
+    teams: [Mississippi State]
+    note: Shoulder numbers not sewn on.
+  noname:
+    token: NoName
+    label: No Name
+    scope: variation
+    kind: modifier
+    teams: [EMCC, Ole Miss]
+    note: No nameplate on the back.
+  name:
+    token: Name
+    label: Name
+    scope: variation
+    kind: modifier
+    teams: [EMCC]
+    note: >
+      Nameplate present — the inverse of noname. Having BOTH conventions in
+      one archive is redundant; pick one.
+  blank:           { label: Blank,           scope: variation, kind: modifier, teams: [Southern Miss] }
+
+
+colorways: [maroon, white, black, gray, dark gray, light gray, red, crimson,
+            cardinal, garnet, navy, powder, blue, green, orange, purple,
+            yellow, cream, beige, silver, gold, vegas gold, chrome, gunmetal,
+            pewter, carbon, camo]
+
+# --- Counts ----------------------------------------------------------------
+#   3,242 files · 10 teams · 12 viewpoints
+#   16 colorways in use · 38 design tokens · 64 file-level tokens

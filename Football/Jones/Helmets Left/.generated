@@ -1,0 +1,11 @@
+{
+  "generated_by": "scripts/standardize.py",
+  "generated_at": "2026-09-11T04:10:17+00:00",
+  "source": "/Users/paulsullivan/Library/Mobile Documents/com~apple~CloudDocs/HailStateUnis/Uniform Database/Marks/Football/Jones/Helmets Left",
+  "canvas": "940x854",
+  "profile": "football/helmet/left  canvas=football_helmet_profile profile=helmet-left",
+  "anchor": "top-center",
+  "dpi": 300,
+  "files_written": 15,
+  "note": "Generated output. Do not edit by hand \u2014 the next run overwrites this directory. Edit the source instead."
+}

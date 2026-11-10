@@ -1,0 +1,9 @@
+# Volleyball.
+#
+# NO ROLE AXIS. `roles: [standard, libero]` was declared in
+# slots_hailstateunis.yaml and removed: the libero wears one of the team's
+# existing jerseys, so there is no separate asset at all. Which player wore
+# which jersey is a fact about an appearance, not about an element.
+
+extends: shared
+tokens:

@@ -1,0 +1,12 @@
+# Humphrey Coliseum court designs, under Venues/Basketball.
+#
+# Ungendered: the men's and women's programs share the venue. Some designs
+# are program-specific (2018 NIT is men's, 2024 WBIT is women's) — that is a
+# token on the element, not a reason to split the tree.
+#
+# Postseason tokens are file-level PATCHES: "2018", "2018 NCAA" and
+# "2018 NIT" are one element with two patched variants.
+
+extends: shared
+tokens:
+  nit: { token: NIT, label: NIT, scope: patch, kind: modifier, theme: postseason }

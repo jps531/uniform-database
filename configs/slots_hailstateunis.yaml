@@ -1,0 +1,107 @@
+# Hail State Unis — creator slot declarations (Part A).
+#
+# Declares which slots this creator tracks, per sport, with the viewpoints
+# drawn and default z-order. Slot and viewpoint keys must exist in
+# spec/slots.yaml.
+#
+# Notes on conventions used here:
+#   - `viewpoints` is the set that is POSSIBLE for the slot, not required of
+#     every element. Softball pants list [left, right] because some have a
+#     right-hip logo; plain pairs only ever need `left`. Per-element
+#     availability rides on the element's `symmetric` flag.
+#   - `z` is a DEFAULT for natural stacking; view templates override it.
+#     It only does work where elements actually overlap.
+#   - `z` may be a scalar or a per-viewpoint map.
+#   - A slot omitted from a sport means NOT TRACKED, which is distinct from
+#     "unknown" (see volleyball shorts below).
+#   - There is NO `roles` axis. It was declared for soccer (field/keeper) and
+#     volleyball (standard/libero) and removed once the files were audited:
+#     a soccer keeper kit is always its own DESIGN, and a volleyball libero
+#     wears one of the team's existing jerseys. See the per-sport notes.
+#   - This file declares what a COMBINATION picks from. It is deliberately
+#     separate from `directory_slots` in canvas_definitions.yaml, which only
+#     maps directory names for path parsing. `field` and `court` appear there
+#     and NOT here, which is what keeps playing surfaces out of combinations.
+
+creator: hailstateunis
+label: Hail State Unis
+
+sports:
+  football:
+    slots:
+      - key: pants
+        viewpoints: [front, left]
+        z: 1
+      - key: jersey
+        # `left` is the sleeve detail view
+        viewpoints: [front, back, left]
+        z: 2
+      - key: helmet
+        viewpoints: [front, back, left, right]
+        z: 3
+
+  # Baseball and softball share diamond_jersey and diamond_pants — confirmed
+  # identical to the pixel. Softball has no hat slot.
+  baseball:
+    slots:
+      - key: pants
+        viewpoints: [left]
+        z: 1
+      - key: jersey
+        viewpoints: [front, back]
+        z: 2
+      - key: hat
+        viewpoints: [front]
+        z: 3
+
+  mens_basketball:
+    slots:
+      - key: shorts
+        viewpoints: [left, right]
+        z: 1
+      - key: jersey
+        viewpoints: [front, back]
+        z: 2
+
+  womens_basketball:
+    slots:
+      # Only the shorts overlap; jersey z is inert but kept for ordering.
+      - key: shorts
+        viewpoints: [back, front]
+        z: { back: 1, front: 2 }
+      - key: jersey
+        viewpoints: [front, back]
+        z: 3
+
+  softball:
+    slots:
+      # [left, right] because some pants carry a right-hip logo worth showing.
+      - key: pants
+        viewpoints: [left, right]
+        z: 1
+      - key: jersey
+        viewpoints: [front, back]
+        z: 2
+
+  soccer:
+    # No `roles`. A keeper kit is always a separate DESIGN — no keeper jersey
+    # is worn in the field and vice versa — so the distinction is an attribute
+    # of the element, carried by the `Keeper` token in
+    # configs/modifiers_soccer.yaml, not a dimension of the slot.
+    slots:
+      - key: shorts
+        viewpoints: [back, front]
+        z: { back: 1, front: 2 }
+      - key: jersey
+        viewpoints: [front, back]
+        z: 3
+
+  volleyball:
+    # No `roles`. The libero wears one of the team's existing jerseys, so
+    # there is no separate asset at all. Which player wore which jersey is a
+    # fact about an APPEARANCE, not about an element.
+    slots:
+      - key: jersey
+        viewpoints: [front, back]
+        z: 1
+      # shorts: genuinely not tracked (not "unknown")

@@ -1,0 +1,14 @@
+# Uniforms known to be worn together, where the filenames can't say so.
+#
+# The planner normally matches elements by identical name, then colourway,
+# then nearest year. A pairing here beats all of that. Add one whenever the
+# plan pairs something you know is wrong.
+#
+# Survives re-planning — unlike an edit to manifest.yaml, which
+# golden_plan.py overwrites.
+
+baseball:
+  Mississippi State:
+    - jersey: 2015 Natural Wool
+      hat: 2015 Maroon Fauxback
+      pants: 2015 Natural Wool

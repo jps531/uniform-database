@@ -1,0 +1,30 @@
+# Soccer.
+#
+# NO ROLE AXIS. `roles: [field, keeper]` was declared in
+# slots_hailstateunis.yaml and removed: a keeper jersey is always its own
+# DESIGN — no keeper jersey is worn in the field and vice versa — so the
+# distinction is an attribute of the element, not a dimension of the slot.
+
+extends: shared
+tokens:
+  keeper:
+    label: Keeper
+    scope: design
+    kind: modifier
+    theme: special
+    note: >
+      Goalkeeper kit. Stacks with patches ("Keeper NCAA") and with other
+      design tokens ("Long Sleeve Keeper").
+  long_sleeve:
+    label: Long Sleeve
+    scope: design
+    kind: modifier
+    theme: special
+    note: >
+      A human DISAMBIGUATOR, not a cut declaration. Sleeve length is already
+      identified by content size (see soccer_jersey_ls), so this appears only
+      where a name would otherwise be ambiguous: 2018 Green Long Sleeve
+      Keeper was worn interchangeably with the short-sleeved 2017 Green
+      Keeper. 2019 Blue Keeper and 2022 Green Keeper are also long-sleeved
+      and correctly carry NO token, having no counterpart to distinguish
+      them from. Same pattern as the baseball hat Classic/Modern tokens.

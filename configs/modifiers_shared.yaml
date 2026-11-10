@@ -1,0 +1,58 @@
+# Shared token vocabulary — every sport extends this.
+#
+# Holds only tokens used by MORE THAN ONE sport. Anything used by exactly one
+# belongs in that sport's own file. Each sport file carries
+# `extends: shared`, and a token redefined there WINS, so a sport can
+# override a shared definition without copying the rest.
+#
+# These are shared because they are INSTITUTIONAL — conference and
+# postseason marks, commemorative campaigns, the university's own wordmarks —
+# not because the sports resemble each other. An earlier version of this file
+# was called `court_shared`, which was wrong twice over: soccer is played
+# outdoors on a pitch, and the grouping was never about the playing surface.
+#
+# `token` is the exact string in FILENAMES; `label` is the display name.
+# `token` defaults to `label`.
+
+tokens:
+
+  # kind: sequence — bare disambiguators, no semantic meaning.
+  # Position decides scope: a letter after the colorway is part of the DESIGN
+  # (EMCC's "2014 White A" and "2014 White B" are different helmets), while a
+  # letter after a number or a patch is a VARIANT.
+  seq_a: { label: A, kind: sequence }
+  seq_b: { label: B, kind: sequence }
+  seq_c: { label: C, kind: sequence }
+
+  # --- scope: design — university wordmarks and campaigns -----------------
+  state_caps: { token: STATE, label: STATE, scope: design, kind: modifier, theme: special }
+  script:     { label: Script,              scope: design, kind: modifier, theme: special }
+  m_over_s:   { token: M over S, label: M over S, scope: design, kind: modifier, theme: special,
+                note: "Ends in a single capital — must match BEFORE the sequence strip." }
+  throwback:  { label: Throwback,           scope: design, kind: modifier, theme: throwback }
+  harlem:     { label: Harlem,              scope: design, kind: modifier, theme: special }
+  america:    { label: America,             scope: design, kind: modifier, theme: commemorative }
+  bca:        { token: BCA, label: Breast Cancer Awareness, scope: design, kind: modifier, theme: commemorative }
+  march_madness: { label: March Madness,    scope: design, kind: modifier, theme: postseason }
+  pink_accent:
+    token: Pink
+    label: Pink accent
+    scope: design
+    kind: modifier
+    theme: commemorative
+    note: >
+      A pink-ACCENTED uniform in another colorway — "2016 White Pink" is a
+      white uniform with pink trim, not a pink one. Same shape as baseball's
+      Teal Trim. Distinct from the `pink` COLORWAY, which is a uniform that
+      really is pink. Both exist; the colorway is matched first, in position
+      two, and this only ever appears after it.
+
+  # --- scope: patch — conference and postseason ---------------------------
+  ncaa:  { token: NCAA, label: NCAA Tournament,        scope: patch, kind: modifier, theme: postseason }
+  wbit:  { token: WBIT, label: WBIT,                   scope: patch, kind: modifier, theme: postseason }
+  sec:   { token: SEC, label: SEC,                     scope: patch, kind: modifier, theme: conference }
+  sec75: { token: SEC75, label: SEC 75th Anniversary,  scope: patch, kind: modifier, theme: commemorative }
+  sbc:   { token: SBC, label: Sun Belt Conference,     scope: patch, kind: modifier, theme: conference }
+  grad:  { label: Grad,                                scope: patch, kind: modifier, theme: special }
+
+colorways: [maroon, white, black, gray, cream, blue, green, purple, pink]

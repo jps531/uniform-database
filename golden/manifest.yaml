@@ -1,0 +1,2510 @@
+# Golden example suite. Set `approved: false` on any example to skip
+# it, edit elements or numbers freely, or add your own entries.
+# Then: python3 scripts/golden_run.py
+
+- id: baseball--diamond-jersey--01
+  approved: true
+  sport: baseball
+  view: diamond-jersey
+  team: Mississippi State
+  uniform1:
+    jersey: 2026 Black
+  number: '18'
+  expect_eras:
+    1/jersey/front: std
+    1/jersey/back: std
+  covers:
+  - '#1 jersey/back std'
+  - '#1 jersey/front std'
+- id: baseball--diamond-jersey-tq--01
+  approved: true
+  sport: baseball
+  view: diamond-jersey-tq
+  team: Mississippi State
+  uniform1:
+    jersey: 2015 Natural Wool
+  number: '48'
+  expect_eras:
+    1/jersey/front: tq
+    1/jersey/back: tq
+  covers:
+  - '#1 jersey/back tq'
+  - '#1 jersey/front tq'
+- id: baseball--baseball-full--01
+  approved: true
+  sport: baseball
+  view: baseball-full
+  team: Mississippi State
+  uniform1:
+    jersey: 1959 White
+    hat: 1959 White
+    pants: 1959 White
+  number: '59'
+  expect_eras:
+    1/jersey/front: std
+    1/jersey/back: std
+    1/hat/front: classic
+    1/pants/left: std
+  covers:
+  - '#1 hat/front classic'
+  - '#1 jersey/back std'
+  - '#1 jersey/front std'
+  - '#1 pants/left std'
+- id: baseball--baseball-full--02
+  approved: true
+  sport: baseball
+  view: baseball-full
+  team: Mississippi State
+  uniform1:
+    jersey: 2026 Gray
+    hat: 2026 Gray
+    pants: 2026 Gray
+  number: '7'
+  expect_eras:
+    1/jersey/front: std
+    1/jersey/back: std
+    1/hat/front: modern
+    1/pants/left: std
+  covers:
+  - '#1 hat/front modern'
+  - '#1 jersey/back std'
+  - '#1 jersey/front std'
+  - '#1 pants/left std'
+- id: baseball--baseball-full--03
+  approved: true
+  sport: baseball
+  view: baseball-full
+  team: Mississippi State
+  uniform1:
+    jersey: 1975 White
+    hat: 1976 Maroon
+    pants: 1975 White
+  number: '1'
+  expect_eras:
+    1/jersey/front: std
+    1/jersey/back: std
+    1/hat/front: classic
+    1/pants/left: blt
+  covers:
+  - '#1 hat/front classic'
+  - '#1 jersey/back std'
+  - '#1 jersey/front std'
+  - '#1 pants/left blt'
+- id: baseball--baseball-full-tq--01
+  approved: true
+  sport: baseball
+  view: baseball-full-tq
+  team: Mississippi State
+  uniform1:
+    jersey: 1923 Natural
+    hat: 1923 Natural
+    pants: 1923 Natural
+  number: '23'
+  expect_eras:
+    1/jersey/front: tq
+    1/jersey/back: tq
+    1/hat/front: classic
+    1/pants/left: std
+  covers:
+  - '#1 hat/front classic'
+  - '#1 jersey/back tq'
+  - '#1 jersey/front tq'
+  - '#1 pants/left std'
+- id: baseball--baseball-full-tq--02
+  approved: true
+  sport: baseball
+  view: baseball-full-tq
+  team: Mississippi State
+  uniform1:
+    jersey: 2015 Natural Wool
+    hat: 2015 Maroon Fauxback
+    pants: 2015 Natural Wool
+  number: '48'
+  expect_eras:
+    1/jersey/front: tq
+    1/jersey/back: tq
+    1/hat/front: modern
+    1/pants/left: std
+  covers:
+  - '#1 hat/front modern'
+  - '#1 jersey/back tq'
+  - '#1 jersey/front tq'
+  - '#1 pants/left std'
+- id: baseball--baseball-full-tq--03
+  approved: true
+  sport: baseball
+  view: baseball-full-tq
+  team: Mississippi State
+  uniform1:
+    jersey: 2015 Natural Wool
+    hat: 2015 Maroon Fauxback
+    pants: 1977 Gray
+  number: '48'
+  expect_eras:
+    1/jersey/front: tq
+    1/jersey/back: tq
+    1/hat/front: modern
+    1/pants/left: blt
+  covers:
+  - '#1 hat/front modern'
+  - '#1 jersey/back tq'
+  - '#1 jersey/front tq'
+  - '#1 pants/left blt'
+- id: baseball--baseball-condensed--01
+  approved: true
+  sport: baseball
+  view: baseball-condensed
+  team: Mississippi State
+  uniform1:
+    jersey: 1959 White
+    hat: 1959 White
+    pants: 1959 White
+  number: '59'
+  expect_eras:
+    1/jersey/front: std
+    1/hat/front: classic
+    1/pants/left: std
+  covers:
+  - '#1 hat/front classic'
+  - '#1 jersey/front std'
+  - '#1 pants/left std'
+- id: baseball--baseball-condensed--02
+  approved: true
+  sport: baseball
+  view: baseball-condensed
+  team: Mississippi State
+  uniform1:
+    jersey: 2026 Gray
+    hat: 2026 Gray
+    pants: 2026 Gray
+  number: '7'
+  expect_eras:
+    1/jersey/front: std
+    1/hat/front: modern
+    1/pants/left: std
+  covers:
+  - '#1 hat/front modern'
+  - '#1 jersey/front std'
+  - '#1 pants/left std'
+- id: baseball--baseball-condensed--03
+  approved: true
+  sport: baseball
+  view: baseball-condensed
+  team: Mississippi State
+  uniform1:
+    jersey: 1975 White
+    hat: 1976 Maroon
+    pants: 1975 White
+  number: '1'
+  expect_eras:
+    1/jersey/front: std
+    1/hat/front: classic
+    1/pants/left: blt
+  covers:
+  - '#1 hat/front classic'
+  - '#1 jersey/front std'
+  - '#1 pants/left blt'
+- id: baseball--baseball-condensed-tq--01
+  approved: true
+  sport: baseball
+  view: baseball-condensed-tq
+  team: Mississippi State
+  uniform1:
+    jersey: 1923 Natural
+    hat: 1923 Natural
+    pants: 1923 Natural
+  number: '23'
+  expect_eras:
+    1/jersey/front: tq
+    1/hat/front: classic
+    1/pants/left: std
+  covers:
+  - '#1 hat/front classic'
+  - '#1 jersey/front tq'
+  - '#1 pants/left std'
+- id: baseball--baseball-condensed-tq--02
+  approved: true
+  sport: baseball
+  view: baseball-condensed-tq
+  team: Mississippi State
+  uniform1:
+    jersey: 2015 Natural Wool
+    hat: 2015 Maroon Fauxback
+    pants: 2015 Natural Wool
+  number: '48'
+  expect_eras:
+    1/jersey/front: tq
+    1/hat/front: modern
+    1/pants/left: std
+  covers:
+  - '#1 hat/front modern'
+  - '#1 jersey/front tq'
+  - '#1 pants/left std'
+- id: baseball--baseball-condensed-tq--03
+  approved: true
+  sport: baseball
+  view: baseball-condensed-tq
+  team: Mississippi State
+  uniform1:
+    jersey: 2015 Natural Wool
+    hat: 2015 Maroon Fauxback
+    pants: 1977 Gray
+  number: '48'
+  expect_eras:
+    1/jersey/front: tq
+    1/hat/front: modern
+    1/pants/left: blt
+  covers:
+  - '#1 hat/front modern'
+  - '#1 jersey/front tq'
+  - '#1 pants/left blt'
+- id: baseball--baseball-tall--01
+  approved: true
+  sport: baseball
+  view: baseball-tall
+  team: Mississippi State
+  uniform1:
+    jersey: 1959 White
+    hat: 1959 White
+    pants: 1959 White
+  number: '59'
+  expect_eras:
+    1/jersey/front: std
+    1/hat/front: classic
+    1/pants/left: std
+  covers:
+  - '#1 hat/front classic'
+  - '#1 jersey/front std'
+  - '#1 pants/left std'
+- id: baseball--baseball-tall--02
+  approved: true
+  sport: baseball
+  view: baseball-tall
+  team: Mississippi State
+  uniform1:
+    jersey: 2026 Gray
+    hat: 2026 Gray
+    pants: 2026 Gray
+  number: '7'
+  expect_eras:
+    1/jersey/front: std
+    1/hat/front: modern
+    1/pants/left: std
+  covers:
+  - '#1 hat/front modern'
+  - '#1 jersey/front std'
+  - '#1 pants/left std'
+- id: baseball--baseball-tall--03
+  approved: true
+  sport: baseball
+  view: baseball-tall
+  team: Mississippi State
+  uniform1:
+    jersey: 1975 White
+    hat: 1976 Maroon
+    pants: 1975 White
+  number: '1'
+  expect_eras:
+    1/jersey/front: std
+    1/hat/front: classic
+    1/pants/left: blt
+  covers:
+  - '#1 hat/front classic'
+  - '#1 jersey/front std'
+  - '#1 pants/left blt'
+- id: baseball--baseball-tall-tq--01
+  approved: true
+  sport: baseball
+  view: baseball-tall-tq
+  team: Mississippi State
+  uniform1:
+    jersey: 1923 Natural
+    hat: 1923 Natural
+    pants: 1923 Natural
+  number: '23'
+  expect_eras:
+    1/jersey/front: tq
+    1/hat/front: classic
+    1/pants/left: std
+  covers:
+  - '#1 hat/front classic'
+  - '#1 jersey/front tq'
+  - '#1 pants/left std'
+- id: baseball--baseball-tall-tq--02
+  approved: true
+  sport: baseball
+  view: baseball-tall-tq
+  team: Mississippi State
+  uniform1:
+    jersey: 2015 Natural Wool
+    hat: 2015 Maroon Fauxback
+    pants: 2015 Natural Wool
+  number: '48'
+  expect_eras:
+    1/jersey/front: tq
+    1/hat/front: modern
+    1/pants/left: std
+  covers:
+  - '#1 hat/front modern'
+  - '#1 jersey/front tq'
+  - '#1 pants/left std'
+- id: baseball--baseball-tall-tq--03
+  approved: true
+  sport: baseball
+  view: baseball-tall-tq
+  team: Mississippi State
+  uniform1:
+    jersey: 2015 Natural Wool
+    hat: 2015 Maroon Fauxback
+    pants: 1977 Gray
+  number: '48'
+  expect_eras:
+    1/jersey/front: tq
+    1/hat/front: modern
+    1/pants/left: blt
+  covers:
+  - '#1 hat/front modern'
+  - '#1 jersey/front tq'
+  - '#1 pants/left blt'
+- id: football--full--01
+  approved: true
+  sport: football
+  view: full
+  team: Mississippi State
+  uniform1:
+    jersey: 1939 Maroon
+    helmet: 1939 Maroon
+    pants: 1939 Maroon
+  number: '4'
+  expect_eras:
+    1/jersey/front: A
+    1/jersey/back: A
+    1/helmet/front: A
+    1/helmet/right: A
+    1/helmet/back: A
+    1/helmet/left: A
+    1/pants/front: all
+    1/pants/left: all
+  covers:
+  - '#1 helmet/back A'
+  - '#1 helmet/front A'
+  - '#1 helmet/right A'
+  - '#1 jersey/back A'
+  - '#1 jersey/front A'
+  - '#1 pants/front all'
+  - '#1 pants/left all'
+- id: football--full--02
+  approved: true
+  sport: football
+  view: full
+  team: Mississippi State
+  uniform1:
+    jersey: 2004 White
+    helmet: 2004 White
+    pants: 2004 White
+  number: '12'
+  expect_eras:
+    1/jersey/front: C
+    1/jersey/back: C
+    1/jersey/left: all
+    1/helmet/front: D
+    1/helmet/right: D
+    1/helmet/back: BCD
+    1/helmet/left: D
+    1/pants/front: all
+    1/pants/left: all
+  covers:
+  - '#1 helmet/back BCD'
+  - '#1 helmet/front D'
+  - '#1 helmet/right D'
+  - '#1 jersey/back C'
+  - '#1 jersey/front C'
+  - '#1 jersey/left all'
+  - '#1 pants/front all'
+  - '#1 pants/left all'
+- id: football--full--03
+  approved: true
+  sport: football
+  view: full
+  team: Mississippi State
+  uniform1:
+    jersey: 2012 Maroon
+    helmet: 2012 Maroon
+    pants: 2012 Maroon
+  number: '15'
+  expect_eras:
+    1/jersey/front: D
+    1/jersey/back: D
+    1/jersey/left: all
+    1/helmet/front: E
+    1/helmet/right: E
+    1/helmet/back: E
+    1/helmet/left: E
+    1/pants/front: all
+    1/pants/left: all
+  covers:
+  - '#1 helmet/back E'
+  - '#1 helmet/front E'
+  - '#1 helmet/right E'
+  - '#1 jersey/back D'
+  - '#1 jersey/front D'
+  - '#1 jersey/left all'
+  - '#1 pants/front all'
+  - '#1 pants/left all'
+- id: football--full--04
+  approved: true
+  sport: football
+  view: full
+  team: Mississippi State
+  uniform1:
+    jersey: 2011 Maroon Egg Bowl
+    helmet: 2011 Maroon Egg Bowl
+    pants: 2011 Maroon Egg Bowl
+  number: '14'
+  expect_eras:
+    1/jersey/front: D
+    1/jersey/back: D
+    1/jersey/left: all
+    1/helmet/front: E
+    1/helmet/right: E
+    1/helmet/back: E2
+    1/helmet/left: E
+    1/pants/front: all
+    1/pants/left: all
+  covers:
+  - '#1 helmet/back E2'
+  - '#1 helmet/front E'
+  - '#1 helmet/right E'
+  - '#1 jersey/back D'
+  - '#1 jersey/front D'
+  - '#1 jersey/left all'
+  - '#1 pants/front all'
+  - '#1 pants/left all'
+- id: football--full--05
+  approved: true
+  sport: football
+  view: full
+  team: Mississippi State
+  uniform1:
+    jersey: 2025 Black
+    helmet: 2025 Black
+    pants: 2025 Black
+  number: '0'
+  expect_eras:
+    1/jersey/front: E
+    1/jersey/back: E
+    1/jersey/left: all
+    1/helmet/front: F
+    1/helmet/right: F
+    1/helmet/back: F
+    1/helmet/left: F
+    1/pants/front: all
+    1/pants/left: all
+  covers:
+  - '#1 helmet/back F'
+  - '#1 helmet/front F'
+  - '#1 helmet/right F'
+  - '#1 jersey/back E'
+  - '#1 jersey/front E'
+  - '#1 jersey/left all'
+  - '#1 pants/front all'
+  - '#1 pants/left all'
+- id: football--full--06
+  approved: true
+  sport: football
+  view: full
+  team: Mississippi State
+  uniform1:
+    jersey: 1949 White
+    helmet: 1949 White
+    pants: 1949 White
+  number: '12'
+  expect_eras:
+    1/jersey/front: A
+    1/jersey/back: A
+    1/helmet/front: B
+    1/helmet/right: B
+    1/helmet/back: BCD
+    1/helmet/left: B
+    1/pants/front: all
+    1/pants/left: all
+  covers:
+  - '#1 helmet/back BCD'
+  - '#1 helmet/front B'
+  - '#1 helmet/right B'
+  - '#1 jersey/back A'
+  - '#1 jersey/front A'
+  - '#1 pants/front all'
+  - '#1 pants/left all'
+- id: football--full--07
+  approved: true
+  sport: football
+  view: full
+  team: Mississippi State
+  uniform1:
+    jersey: 1958 White
+    helmet: 1958 White
+    pants: 1953 Maroon
+  number: '12'
+  expect_eras:
+    1/jersey/front: A
+    1/jersey/back: A
+    1/helmet/front: C
+    1/helmet/right: C
+    1/helmet/back: BCD
+    1/helmet/left: C
+    1/pants/front: all
+    1/pants/left: all
+  covers:
+  - '#1 helmet/back BCD'
+  - '#1 helmet/front C'
+  - '#1 helmet/right C'
+  - '#1 jersey/back A'
+  - '#1 jersey/front A'
+  - '#1 pants/front all'
+  - '#1 pants/left all'
+- id: football--full--08
+  approved: true
+  sport: football
+  view: full
+  team: Raleigh
+  uniform1:
+    jersey: 1995 Maroon
+    helmet: 1995 Maroon
+    pants: 1995 Maroon
+  number: '4'
+  expect_eras:
+    1/jersey/front: B
+    1/jersey/back: B
+    1/helmet/front: D
+    1/helmet/right: D
+    1/helmet/back: BCD
+    1/helmet/left: D
+    1/pants/front: all
+    1/pants/left: all
+  covers:
+  - '#1 helmet/back BCD'
+  - '#1 helmet/front D'
+  - '#1 helmet/right D'
+  - '#1 jersey/back B'
+  - '#1 jersey/front B'
+  - '#1 pants/front all'
+  - '#1 pants/left all'
+- id: football--full--09
+  approved: true
+  sport: football
+  view: full
+  team: MGCCC
+  uniform1:
+    jersey: 2025 White
+    helmet: 2025 White
+    pants: 2025 White
+  number: '1'
+  expect_eras:
+    1/jersey/front: N2
+    1/jersey/back: N2
+    1/jersey/left: all
+    1/helmet/front: F
+    1/helmet/right: F
+    1/helmet/back: F
+    1/helmet/left: F
+    1/pants/front: all
+    1/pants/left: all
+  covers:
+  - '#1 helmet/back F'
+  - '#1 helmet/front F'
+  - '#1 helmet/right F'
+  - '#1 jersey/back N2'
+  - '#1 jersey/front N2'
+  - '#1 jersey/left all'
+  - '#1 pants/front all'
+  - '#1 pants/left all'
+- id: football--full--10
+  approved: true
+  sport: football
+  view: full
+  team: Northwest
+  uniform1:
+    jersey: 2015 Gray
+    helmet: 2015 Navy
+    pants: 2016 Gray
+  number: '1'
+  expect_eras:
+    1/jersey/front: N3
+    1/jersey/back: N3
+    1/jersey/left: all
+    1/helmet/front: E
+    1/helmet/right: E
+    1/helmet/back: E
+    1/helmet/left: E
+    1/pants/front: all
+    1/pants/left: all
+  covers:
+  - '#1 helmet/back E'
+  - '#1 helmet/front E'
+  - '#1 helmet/right E'
+  - '#1 jersey/back N3'
+  - '#1 jersey/front N3'
+  - '#1 jersey/left all'
+  - '#1 pants/front all'
+  - '#1 pants/left all'
+- id: football--full--11
+  approved: true
+  sport: football
+  view: full
+  team: Jones
+  uniform1:
+    jersey: 2017 Cardinal
+    helmet: 2017 Cardinal
+    pants: 2017 Gold
+  number: '1'
+  expect_eras:
+    1/jersey/front: UA1
+    1/jersey/back: UA1
+    1/jersey/left: all
+    1/helmet/front: E
+    1/helmet/right: E
+    1/helmet/back: E
+    1/helmet/left: E
+    1/pants/front: all
+    1/pants/left: all
+  covers:
+  - '#1 helmet/back E'
+  - '#1 helmet/front E'
+  - '#1 helmet/right E'
+  - '#1 jersey/back UA1'
+  - '#1 jersey/front UA1'
+  - '#1 jersey/left all'
+  - '#1 pants/front all'
+  - '#1 pants/left all'
+- id: football--full--12
+  approved: true
+  sport: football
+  view: full
+  team: MGCCC
+  uniform1:
+    jersey: 2015 White
+    helmet: 2015 White
+    pants: 2015 White
+  number: '1'
+  expect_eras:
+    1/jersey/front: N1
+    1/jersey/back: D
+    1/jersey/left: all
+    1/helmet/front: E
+    1/helmet/right: E
+    1/helmet/back: E
+    1/helmet/left: E
+    1/pants/front: all
+    1/pants/left: all
+  covers:
+  - '#1 helmet/back E'
+  - '#1 helmet/front E'
+  - '#1 helmet/right E'
+  - '#1 jersey/back D'
+  - '#1 jersey/front N1'
+  - '#1 jersey/left all'
+  - '#1 pants/front all'
+  - '#1 pants/left all'
+- id: football--full--13
+  approved: true
+  sport: football
+  view: full
+  team: Mississippi State
+  uniform1:
+    jersey: 1939 Maroon
+    helmet: 1939 Maroon
+    pants: 1939 Maroon
+  number: '4'
+  expect_eras:
+    1/jersey/front: A
+    1/jersey/back: A
+    1/helmet/front: A
+    1/helmet/right: A
+    1/helmet/back: A
+    1/helmet/left: A
+    1/pants/front: all
+    1/pants/left: all
+  helmet_left: true
+  note: exercises the explicit helmet/left placement
+- id: football--condensed--01
+  approved: true
+  sport: football
+  view: condensed
+  team: Mississippi State
+  uniform1:
+    jersey: 1939 Maroon
+    helmet: 1939 Maroon
+    pants: 1939 Maroon
+  number: '4'
+  expect_eras:
+    1/jersey/front: A
+    1/helmet/right: A
+    1/helmet/left: A
+    1/pants/left: all
+  covers:
+  - '#1 helmet/right A'
+  - '#1 jersey/front A'
+  - '#1 pants/left all'
+- id: football--condensed--02
+  approved: true
+  sport: football
+  view: condensed
+  team: Mississippi State
+  uniform1:
+    jersey: 1949 White
+    helmet: 1949 White
+    pants: 1949 White
+  number: '12'
+  expect_eras:
+    1/jersey/front: A
+    1/helmet/right: B
+    1/helmet/left: B
+    1/pants/left: all
+  covers:
+  - '#1 helmet/right B'
+  - '#1 jersey/front A'
+  - '#1 pants/left all'
+- id: football--condensed--03
+  approved: true
+  sport: football
+  view: condensed
+  team: Mississippi State
+  uniform1:
+    jersey: 1958 White
+    helmet: 1958 White
+    pants: 1953 Maroon
+  number: '12'
+  expect_eras:
+    1/jersey/front: A
+    1/helmet/right: C
+    1/helmet/left: C
+    1/pants/left: all
+  covers:
+  - '#1 helmet/right C'
+  - '#1 jersey/front A'
+  - '#1 pants/left all'
+- id: football--condensed--04
+  approved: true
+  sport: football
+  view: condensed
+  team: Mississippi State
+  uniform1:
+    jersey: 2004 White
+    helmet: 2004 White
+    pants: 2004 White
+  number: '12'
+  expect_eras:
+    1/jersey/front: C
+    1/helmet/right: D
+    1/helmet/left: D
+    1/pants/left: all
+  covers:
+  - '#1 helmet/right D'
+  - '#1 jersey/front C'
+  - '#1 pants/left all'
+- id: football--condensed--05
+  approved: true
+  sport: football
+  view: condensed
+  team: Mississippi State
+  uniform1:
+    jersey: 2012 Maroon
+    helmet: 2012 Maroon
+    pants: 2012 Maroon
+  number: '15'
+  expect_eras:
+    1/jersey/front: D
+    1/helmet/right: E
+    1/helmet/left: E
+    1/pants/left: all
+  covers:
+  - '#1 helmet/right E'
+  - '#1 jersey/front D'
+  - '#1 pants/left all'
+- id: football--condensed--06
+  approved: true
+  sport: football
+  view: condensed
+  team: Mississippi State
+  uniform1:
+    jersey: 2025 Black
+    helmet: 2025 Black
+    pants: 2025 Black
+  number: '0'
+  expect_eras:
+    1/jersey/front: E
+    1/helmet/right: F
+    1/helmet/left: F
+    1/pants/left: all
+  covers:
+  - '#1 helmet/right F'
+  - '#1 jersey/front E'
+  - '#1 pants/left all'
+- id: football--condensed--07
+  approved: true
+  sport: football
+  view: condensed
+  team: Raleigh
+  uniform1:
+    jersey: 1995 Maroon
+    helmet: 1995 Maroon
+    pants: 1995 Maroon
+  number: '4'
+  expect_eras:
+    1/jersey/front: B
+    1/helmet/right: D
+    1/helmet/left: D
+    1/pants/left: all
+  covers:
+  - '#1 helmet/right D'
+  - '#1 jersey/front B'
+  - '#1 pants/left all'
+- id: football--condensed--08
+  approved: true
+  sport: football
+  view: condensed
+  team: MGCCC
+  uniform1:
+    jersey: 2015 White
+    helmet: 2015 White
+    pants: 2015 White
+  number: '1'
+  expect_eras:
+    1/jersey/front: N1
+    1/helmet/right: E
+    1/helmet/left: E
+    1/pants/left: all
+  covers:
+  - '#1 helmet/right E'
+  - '#1 jersey/front N1'
+  - '#1 pants/left all'
+- id: football--condensed--09
+  approved: true
+  sport: football
+  view: condensed
+  team: MGCCC
+  uniform1:
+    jersey: 2025 White
+    helmet: 2025 White
+    pants: 2025 White
+  number: '1'
+  expect_eras:
+    1/jersey/front: N2
+    1/helmet/right: F
+    1/helmet/left: F
+    1/pants/left: all
+  covers:
+  - '#1 helmet/right F'
+  - '#1 jersey/front N2'
+  - '#1 pants/left all'
+- id: football--condensed--10
+  approved: true
+  sport: football
+  view: condensed
+  team: Northwest
+  uniform1:
+    jersey: 2015 Gray
+    helmet: 2015 Navy
+    pants: 2016 Gray
+  number: '1'
+  expect_eras:
+    1/jersey/front: N3
+    1/helmet/right: E
+    1/helmet/left: E
+    1/pants/left: all
+  covers:
+  - '#1 helmet/right E'
+  - '#1 jersey/front N3'
+  - '#1 pants/left all'
+- id: football--condensed--11
+  approved: true
+  sport: football
+  view: condensed
+  team: Jones
+  uniform1:
+    jersey: 2017 Cardinal
+    helmet: 2017 Cardinal
+    pants: 2017 Gold
+  number: '1'
+  expect_eras:
+    1/jersey/front: UA1
+    1/helmet/right: E
+    1/helmet/left: E
+    1/pants/left: all
+  covers:
+  - '#1 helmet/right E'
+  - '#1 jersey/front UA1'
+  - '#1 pants/left all'
+- id: football--condensed--12
+  approved: true
+  sport: football
+  view: condensed
+  team: Mississippi State
+  uniform1:
+    jersey: 1939 Maroon
+    helmet: 1939 Maroon
+    pants: 1939 Maroon
+  number: '4'
+  expect_eras:
+    1/jersey/front: A
+    1/helmet/right: A
+    1/helmet/left: A
+    1/pants/left: all
+  helmet_left: true
+  note: exercises the explicit helmet/left placement
+- id: football--helmets-3--01
+  approved: true
+  sport: football
+  view: helmets-3
+  team: Mississippi State
+  uniform1:
+    helmet: 1939 Maroon
+  number: null
+  expect_eras:
+    1/helmet/front: A
+    1/helmet/right: A
+    1/helmet/back: A
+  covers:
+  - '#1 helmet/back A'
+  - '#1 helmet/front A'
+  - '#1 helmet/right A'
+- id: football--helmets-3--02
+  approved: true
+  sport: football
+  view: helmets-3
+  team: Mississippi State
+  uniform1:
+    helmet: 2008 White BCA
+  number: null
+  expect_eras:
+    1/helmet/front: D
+    1/helmet/right: D
+    1/helmet/back: BCD
+  covers:
+  - '#1 helmet/back BCD'
+  - '#1 helmet/front D'
+  - '#1 helmet/right D'
+- id: football--helmets-3--03
+  approved: true
+  sport: football
+  view: helmets-3
+  team: Mississippi State
+  uniform1:
+    helmet: 2014 Maroon DWS100
+  number: null
+  expect_eras:
+    1/helmet/front: E
+    1/helmet/right: E
+    1/helmet/back: E
+  covers:
+  - '#1 helmet/back E'
+  - '#1 helmet/front E'
+  - '#1 helmet/right E'
+- id: football--helmets-3--04
+  approved: true
+  sport: football
+  view: helmets-3
+  team: Mississippi State
+  uniform1:
+    helmet: 2011 Maroon
+  number: null
+  expect_eras:
+    1/helmet/front: E
+    1/helmet/right: E
+    1/helmet/back: E2
+  covers:
+  - '#1 helmet/back E2'
+  - '#1 helmet/front E'
+  - '#1 helmet/right E'
+- id: football--helmets-3--05
+  approved: true
+  sport: football
+  view: helmets-3
+  team: Mississippi State
+  uniform1:
+    helmet: 2025 Black
+  number: null
+  expect_eras:
+    1/helmet/front: F
+    1/helmet/right: F
+    1/helmet/back: F
+  covers:
+  - '#1 helmet/back F'
+  - '#1 helmet/front F'
+  - '#1 helmet/right F'
+- id: football--helmets-3--06
+  approved: true
+  sport: football
+  view: helmets-3
+  team: Mississippi State
+  uniform1:
+    helmet: 1949 White
+  number: null
+  expect_eras:
+    1/helmet/front: B
+    1/helmet/right: B
+    1/helmet/back: BCD
+  covers:
+  - '#1 helmet/back BCD'
+  - '#1 helmet/front B'
+  - '#1 helmet/right B'
+- id: football--helmets-3--07
+  approved: true
+  sport: football
+  view: helmets-3
+  team: Mississippi State
+  uniform1:
+    helmet: 1972 White
+  number: null
+  expect_eras:
+    1/helmet/front: C
+    1/helmet/right: C
+    1/helmet/back: BCD
+  covers:
+  - '#1 helmet/back BCD'
+  - '#1 helmet/front C'
+  - '#1 helmet/right C'
+- id: football--helmets-4--01
+  approved: true
+  sport: football
+  view: helmets-4
+  team: Mississippi State
+  uniform1:
+    helmet: 1939 Maroon
+  number: null
+  expect_eras:
+    1/helmet/front: A
+    1/helmet/right: A
+    1/helmet/back: A
+    1/helmet/left: A
+  covers:
+  - '#1 helmet/back A'
+  - '#1 helmet/front A'
+  - '#1 helmet/left A'
+  - '#1 helmet/right A'
+- id: football--helmets-4--02
+  approved: true
+  sport: football
+  view: helmets-4
+  team: Mississippi State
+  uniform1:
+    helmet: 2008 White BCA
+  number: null
+  expect_eras:
+    1/helmet/front: D
+    1/helmet/right: D
+    1/helmet/back: BCD
+    1/helmet/left: D
+  covers:
+  - '#1 helmet/back BCD'
+  - '#1 helmet/front D'
+  - '#1 helmet/left D'
+  - '#1 helmet/right D'
+- id: football--helmets-4--03
+  approved: true
+  sport: football
+  view: helmets-4
+  team: Mississippi State
+  uniform1:
+    helmet: 2014 Maroon DWS100
+  number: null
+  expect_eras:
+    1/helmet/front: E
+    1/helmet/right: E
+    1/helmet/back: E
+    1/helmet/left: E
+  covers:
+  - '#1 helmet/back E'
+  - '#1 helmet/front E'
+  - '#1 helmet/left E'
+  - '#1 helmet/right E'
+- id: football--helmets-4--04
+  approved: true
+  sport: football
+  view: helmets-4
+  team: Mississippi State
+  uniform1:
+    helmet: 2011 Maroon
+  number: null
+  expect_eras:
+    1/helmet/front: E
+    1/helmet/right: E
+    1/helmet/back: E2
+    1/helmet/left: E
+  covers:
+  - '#1 helmet/back E2'
+  - '#1 helmet/front E'
+  - '#1 helmet/left E'
+  - '#1 helmet/right E'
+- id: football--helmets-4--05
+  approved: true
+  sport: football
+  view: helmets-4
+  team: Mississippi State
+  uniform1:
+    helmet: 2025 Black
+  number: null
+  expect_eras:
+    1/helmet/front: F
+    1/helmet/right: F
+    1/helmet/back: F
+    1/helmet/left: F
+  covers:
+  - '#1 helmet/back F'
+  - '#1 helmet/front F'
+  - '#1 helmet/left F'
+  - '#1 helmet/right F'
+- id: football--helmets-4--06
+  approved: true
+  sport: football
+  view: helmets-4
+  team: Mississippi State
+  uniform1:
+    helmet: 1949 White
+  number: null
+  expect_eras:
+    1/helmet/front: B
+    1/helmet/right: B
+    1/helmet/back: BCD
+    1/helmet/left: B
+  covers:
+  - '#1 helmet/back BCD'
+  - '#1 helmet/front B'
+  - '#1 helmet/left B'
+  - '#1 helmet/right B'
+- id: football--helmets-4--07
+  approved: true
+  sport: football
+  view: helmets-4
+  team: Mississippi State
+  uniform1:
+    helmet: 1972 White
+  number: null
+  expect_eras:
+    1/helmet/front: C
+    1/helmet/right: C
+    1/helmet/back: BCD
+    1/helmet/left: C
+  covers:
+  - '#1 helmet/back BCD'
+  - '#1 helmet/front C'
+  - '#1 helmet/left C'
+  - '#1 helmet/right C'
+- id: football--jersey-full--01
+  approved: true
+  sport: football
+  view: jersey-full
+  team: Mississippi State
+  uniform1:
+    jersey: 1958 Maroon
+  number: '12'
+  expect_eras:
+    1/jersey/front: A
+    1/jersey/back: A
+  covers:
+  - '#1 jersey/back A'
+  - '#1 jersey/front A'
+- id: football--jersey-full--02
+  approved: true
+  sport: football
+  view: jersey-full
+  team: Mississippi State
+  uniform1:
+    jersey: 1986 Maroon
+  number: '15'
+  expect_eras:
+    1/jersey/front: B
+    1/jersey/back: B
+  covers:
+  - '#1 jersey/back B'
+  - '#1 jersey/front B'
+- id: football--jersey-full--03
+  approved: true
+  sport: football
+  view: jersey-full
+  team: Mississippi State
+  uniform1:
+    jersey: 2009 Black
+  number: '14'
+  expect_eras:
+    1/jersey/front: C
+    1/jersey/back: C
+    1/jersey/left: all
+  covers:
+  - '#1 jersey/back C'
+  - '#1 jersey/front C'
+  - '#1 jersey/left all'
+- id: football--jersey-full--04
+  approved: true
+  sport: football
+  view: jersey-full
+  team: Mississippi State
+  uniform1:
+    jersey: 2023 Maroon
+  number: '1'
+  expect_eras:
+    1/jersey/front: D
+    1/jersey/back: D
+    1/jersey/left: all
+  covers:
+  - '#1 jersey/back D'
+  - '#1 jersey/front D'
+  - '#1 jersey/left all'
+- id: football--jersey-full--05
+  approved: true
+  sport: football
+  view: jersey-full
+  team: Mississippi State
+  uniform1:
+    jersey: 2025 Black
+  number: '0'
+  expect_eras:
+    1/jersey/front: E
+    1/jersey/back: E
+    1/jersey/left: all
+  covers:
+  - '#1 jersey/back E'
+  - '#1 jersey/front E'
+  - '#1 jersey/left all'
+- id: football--jersey-full--06
+  approved: true
+  sport: football
+  view: jersey-full
+  team: MGCCC
+  uniform1:
+    jersey: 2025 Navy
+  number: '1'
+  expect_eras:
+    1/jersey/front: N2
+    1/jersey/back: N2
+    1/jersey/left: all
+  covers:
+  - '#1 jersey/back N2'
+  - '#1 jersey/front N2'
+  - '#1 jersey/left all'
+- id: football--jersey-full--07
+  approved: true
+  sport: football
+  view: jersey-full
+  team: MGCCC
+  uniform1:
+    jersey: 2018 Navy
+  number: '1'
+  expect_eras:
+    1/jersey/front: N3
+    1/jersey/back: N3
+    1/jersey/left: all
+  covers:
+  - '#1 jersey/back N3'
+  - '#1 jersey/front N3'
+  - '#1 jersey/left all'
+- id: football--jersey-full--08
+  approved: true
+  sport: football
+  view: jersey-full
+  team: Jones
+  uniform1:
+    jersey: 2017 Cardinal
+  number: '1'
+  expect_eras:
+    1/jersey/front: UA1
+    1/jersey/back: UA1
+    1/jersey/left: all
+  covers:
+  - '#1 jersey/back UA1'
+  - '#1 jersey/front UA1'
+  - '#1 jersey/left all'
+- id: football--jersey-full--09
+  approved: true
+  sport: football
+  view: jersey-full
+  team: Jones
+  uniform1:
+    jersey: 2015 Gray
+  number: '1'
+  expect_eras:
+    1/jersey/front: N1
+    1/jersey/back: D
+    1/jersey/left: all
+  covers:
+  - '#1 jersey/back D'
+  - '#1 jersey/front N1'
+  - '#1 jersey/left all'
+- id: football--pants-full--01
+  approved: true
+  sport: football
+  view: pants-full
+  team: Mississippi State
+  uniform1:
+    pants: 2025 Black
+  number: null
+  expect_eras:
+    1/pants/front: all
+    1/pants/left: all
+  covers:
+  - '#1 pants/front all'
+  - '#1 pants/left all'
+- id: football--icons-horizontal--01
+  approved: true
+  sport: football
+  view: icons-horizontal
+  team: Mississippi State
+  uniform1:
+    jersey: 2025 Black
+    helmet: 2025 Black
+    pants: 2025 Black
+  number: '0'
+  expect_eras:
+    1/jersey/icon: all
+    1/helmet/icon: all
+    1/pants/icon: all
+  covers:
+  - '#1 helmet/icon all'
+  - '#1 jersey/icon all'
+  - '#1 pants/icon all'
+- id: football--icons-vertical--01
+  approved: true
+  sport: football
+  view: icons-vertical
+  team: Mississippi State
+  uniform1:
+    jersey: 2025 Black
+    helmet: 2025 Black
+    pants: 2025 Black
+  number: '0'
+  expect_eras:
+    1/jersey/icon: all
+    1/helmet/icon: all
+    1/pants/icon: all
+  covers:
+  - '#1 helmet/icon all'
+  - '#1 jersey/icon all'
+  - '#1 pants/icon all'
+- id: mens_basketball--mbk-jersey--01
+  approved: true
+  sport: mens_basketball
+  view: mbk-jersey
+  team: Mississippi State
+  uniform1:
+    jersey: 1971 Maroon
+  number: '45'
+  expect_eras:
+    1/jersey/front: a
+    1/jersey/back: a
+  covers:
+  - '#1 jersey/back a'
+  - '#1 jersey/front a'
+- id: mens_basketball--mbk-jersey--02
+  approved: true
+  sport: mens_basketball
+  view: mbk-jersey
+  team: Mississippi State
+  uniform1:
+    jersey: 1985 Maroon
+  number: '5'
+  expect_eras:
+    1/jersey/front: b
+    1/jersey/back: b
+  covers:
+  - '#1 jersey/back b'
+  - '#1 jersey/front b'
+- id: mens_basketball--mbk-jersey--03
+  approved: true
+  sport: mens_basketball
+  view: mbk-jersey
+  team: Mississippi State
+  uniform1:
+    jersey: 2027 Maroon
+  number: '1'
+  expect_eras:
+    1/jersey/front: c
+    1/jersey/back: c
+  covers:
+  - '#1 jersey/back c'
+  - '#1 jersey/front c'
+- id: mens_basketball--mbk-shorts--01
+  approved: true
+  sport: mens_basketball
+  view: mbk-shorts
+  team: Mississippi State
+  uniform1:
+    shorts: 1990 White
+  number: null
+  expect_eras:
+    1/shorts/left: a
+    1/shorts/right: a
+  covers:
+  - '#1 shorts/left a'
+  - '#1 shorts/right a'
+- id: mens_basketball--mbk-shorts--02
+  approved: true
+  sport: mens_basketball
+  view: mbk-shorts
+  team: Mississippi State
+  uniform1:
+    shorts: 1991 Maroon
+  number: null
+  expect_eras:
+    1/shorts/left: b
+    1/shorts/right: b
+  covers:
+  - '#1 shorts/left b'
+  - '#1 shorts/right b'
+- id: mens_basketball--mbk-shorts--03
+  approved: true
+  sport: mens_basketball
+  view: mbk-shorts
+  team: Mississippi State
+  uniform1:
+    shorts: 2027 Maroon
+  number: null
+  expect_eras:
+    1/shorts/left: c
+    1/shorts/right: c
+  covers:
+  - '#1 shorts/left c'
+  - '#1 shorts/right c'
+- id: mens_basketball--mbk-full--01
+  approved: true
+  sport: mens_basketball
+  view: mbk-full
+  team: Mississippi State
+  uniform1:
+    jersey: 1971 Maroon
+    shorts: 1971 Maroon
+  number: '45'
+  expect_eras:
+    1/jersey/front: a
+    1/jersey/back: a
+    1/shorts/left: a
+    1/shorts/right: a
+  covers:
+  - '#1 jersey/back a'
+  - '#1 jersey/front a'
+  - '#1 shorts/left a'
+  - '#1 shorts/right a'
+- id: mens_basketball--mbk-full--02
+  approved: true
+  sport: mens_basketball
+  view: mbk-full
+  team: Mississippi State
+  uniform1:
+    jersey: 1985 Maroon
+    shorts: 1985 Maroon
+  number: '5'
+  expect_eras:
+    1/jersey/front: b
+    1/jersey/back: b
+    1/shorts/left: a
+    1/shorts/right: a
+  covers:
+  - '#1 jersey/back b'
+  - '#1 jersey/front b'
+  - '#1 shorts/left a'
+  - '#1 shorts/right a'
+- id: mens_basketball--mbk-full--03
+  approved: true
+  sport: mens_basketball
+  view: mbk-full
+  team: Mississippi State
+  uniform1:
+    jersey: 2027 Maroon
+    shorts: 2027 Maroon
+  number: '1'
+  expect_eras:
+    1/jersey/front: c
+    1/jersey/back: c
+    1/shorts/left: c
+    1/shorts/right: c
+  covers:
+  - '#1 jersey/back c'
+  - '#1 jersey/front c'
+  - '#1 shorts/left c'
+  - '#1 shorts/right c'
+- id: mens_basketball--mbk-full--04
+  approved: true
+  sport: mens_basketball
+  view: mbk-full
+  team: Mississippi State
+  uniform1:
+    jersey: 1991 Maroon
+    shorts: 1991 Maroon
+  number: '21'
+  expect_eras:
+    1/jersey/front: c
+    1/jersey/back: c
+    1/shorts/left: b
+    1/shorts/right: b
+  covers:
+  - '#1 jersey/back c'
+  - '#1 jersey/front c'
+  - '#1 shorts/left b'
+  - '#1 shorts/right b'
+- id: mens_basketball--mbk-condensed--01
+  approved: true
+  sport: mens_basketball
+  view: mbk-condensed
+  team: Mississippi State
+  uniform1:
+    jersey: 1971 Maroon
+    shorts: 1971 Maroon
+  number: '45'
+  expect_eras:
+    1/jersey/front: a
+    1/shorts/left: a
+  covers:
+  - '#1 jersey/front a'
+  - '#1 shorts/left a'
+- id: mens_basketball--mbk-condensed--02
+  approved: true
+  sport: mens_basketball
+  view: mbk-condensed
+  team: Mississippi State
+  uniform1:
+    jersey: 1985 Maroon
+    shorts: 1985 Maroon
+  number: '5'
+  expect_eras:
+    1/jersey/front: b
+    1/shorts/left: a
+  covers:
+  - '#1 jersey/front b'
+  - '#1 shorts/left a'
+- id: mens_basketball--mbk-condensed--03
+  approved: true
+  sport: mens_basketball
+  view: mbk-condensed
+  team: Mississippi State
+  uniform1:
+    jersey: 2027 Maroon
+    shorts: 2027 Maroon
+  number: '1'
+  expect_eras:
+    1/jersey/front: c
+    1/shorts/left: c
+  covers:
+  - '#1 jersey/front c'
+  - '#1 shorts/left c'
+- id: mens_basketball--mbk-condensed--04
+  approved: true
+  sport: mens_basketball
+  view: mbk-condensed
+  team: Mississippi State
+  uniform1:
+    jersey: 1991 Maroon
+    shorts: 1991 Maroon
+  number: '21'
+  expect_eras:
+    1/jersey/front: c
+    1/shorts/left: b
+  covers:
+  - '#1 jersey/front c'
+  - '#1 shorts/left b'
+- id: mens_basketball--mbk-tall--01
+  approved: true
+  sport: mens_basketball
+  view: mbk-tall
+  team: Mississippi State
+  uniform1:
+    jersey: 1971 Maroon
+    shorts: 1971 Maroon
+  number: '45'
+  expect_eras:
+    1/jersey/front: a
+    1/jersey/back: a
+    1/shorts/left: a
+    1/shorts/right: a
+  covers:
+  - '#1 jersey/back a'
+  - '#1 jersey/front a'
+  - '#1 shorts/left a'
+  - '#1 shorts/right a'
+- id: mens_basketball--mbk-tall--02
+  approved: true
+  sport: mens_basketball
+  view: mbk-tall
+  team: Mississippi State
+  uniform1:
+    jersey: 1985 Maroon
+    shorts: 1985 Maroon
+  number: '5'
+  expect_eras:
+    1/jersey/front: b
+    1/jersey/back: b
+    1/shorts/left: a
+    1/shorts/right: a
+  covers:
+  - '#1 jersey/back b'
+  - '#1 jersey/front b'
+  - '#1 shorts/left a'
+  - '#1 shorts/right a'
+- id: mens_basketball--mbk-tall--03
+  approved: true
+  sport: mens_basketball
+  view: mbk-tall
+  team: Mississippi State
+  uniform1:
+    jersey: 2027 Maroon
+    shorts: 2027 Maroon
+  number: '1'
+  expect_eras:
+    1/jersey/front: c
+    1/jersey/back: c
+    1/shorts/left: c
+    1/shorts/right: c
+  covers:
+  - '#1 jersey/back c'
+  - '#1 jersey/front c'
+  - '#1 shorts/left c'
+  - '#1 shorts/right c'
+- id: mens_basketball--mbk-tall--04
+  approved: true
+  sport: mens_basketball
+  view: mbk-tall
+  team: Mississippi State
+  uniform1:
+    jersey: 1991 Maroon
+    shorts: 1991 Maroon
+  number: '21'
+  expect_eras:
+    1/jersey/front: c
+    1/jersey/back: c
+    1/shorts/left: b
+    1/shorts/right: b
+  covers:
+  - '#1 jersey/back c'
+  - '#1 jersey/front c'
+  - '#1 shorts/left b'
+  - '#1 shorts/right b'
+- id: mens_basketball--mbk-tall-condensed--01
+  approved: true
+  sport: mens_basketball
+  view: mbk-tall-condensed
+  team: Mississippi State
+  uniform1:
+    jersey: 1971 Maroon
+    shorts: 1971 Maroon
+  number: '45'
+  expect_eras:
+    1/jersey/front: a
+    1/shorts/right: a
+  covers:
+  - '#1 jersey/front a'
+  - '#1 shorts/right a'
+- id: mens_basketball--mbk-tall-condensed--02
+  approved: true
+  sport: mens_basketball
+  view: mbk-tall-condensed
+  team: Mississippi State
+  uniform1:
+    jersey: 1985 Maroon
+    shorts: 1985 Maroon
+  number: '5'
+  expect_eras:
+    1/jersey/front: b
+    1/shorts/right: a
+  covers:
+  - '#1 jersey/front b'
+  - '#1 shorts/right a'
+- id: mens_basketball--mbk-tall-condensed--03
+  approved: true
+  sport: mens_basketball
+  view: mbk-tall-condensed
+  team: Mississippi State
+  uniform1:
+    jersey: 2027 Maroon
+    shorts: 2027 Maroon
+  number: '1'
+  expect_eras:
+    1/jersey/front: c
+    1/shorts/right: c
+  covers:
+  - '#1 jersey/front c'
+  - '#1 shorts/right c'
+- id: mens_basketball--mbk-tall-condensed--04
+  approved: true
+  sport: mens_basketball
+  view: mbk-tall-condensed
+  team: Mississippi State
+  uniform1:
+    jersey: 1991 Maroon
+    shorts: 1991 Maroon
+  number: '21'
+  expect_eras:
+    1/jersey/front: c
+    1/shorts/right: b
+  covers:
+  - '#1 jersey/front c'
+  - '#1 shorts/right b'
+- id: soccer--soccer-jersey--01
+  approved: true
+  sport: soccer
+  view: soccer-jersey
+  team: Mississippi State
+  uniform1:
+    jersey: 2026 Blue Keeper
+  number: '0'
+  expect_eras:
+    1/jersey/front: ss
+    1/jersey/back: ss
+  covers:
+  - '#1 jersey/back ss'
+  - '#1 jersey/front ss'
+- id: soccer--soccer-jersey-ls--01
+  approved: true
+  sport: soccer
+  view: soccer-jersey-ls
+  team: Mississippi State
+  uniform1:
+    jersey: 2022 Green Keeper
+  number: '1'
+  expect_eras:
+    1/jersey/front: ls
+    1/jersey/back: ls
+  covers:
+  - '#1 jersey/back ls'
+  - '#1 jersey/front ls'
+- id: soccer--soccer-shorts--01
+  approved: true
+  sport: soccer
+  view: soccer-shorts
+  team: Mississippi State
+  uniform1:
+    shorts: 2026 Blue
+  number: null
+  expect_eras:
+    1/shorts/front: all
+    1/shorts/back: all
+  covers:
+  - '#1 shorts/back all'
+  - '#1 shorts/front all'
+- id: soccer--soccer-full--01
+  approved: true
+  sport: soccer
+  view: soccer-full
+  team: Mississippi State
+  uniform1:
+    jersey: 2026 White
+    shorts: 2026 White
+  number: '4'
+  expect_eras:
+    1/jersey/front: ss
+    1/jersey/back: ss
+    1/shorts/front: all
+    1/shorts/back: all
+  covers:
+  - '#1 jersey/back ss'
+  - '#1 jersey/front ss'
+  - '#1 shorts/back all'
+  - '#1 shorts/front all'
+- id: soccer--soccer-full-ls--01
+  approved: true
+  sport: soccer
+  view: soccer-full-ls
+  team: Mississippi State
+  uniform1:
+    jersey: 2018 Green Long Sleeve Keeper
+    shorts: 2018 Green
+  number: '0'
+  expect_eras:
+    1/jersey/front: ls
+    1/jersey/back: ls
+    1/shorts/front: all
+    1/shorts/back: all
+  covers:
+  - '#1 jersey/back ls'
+  - '#1 jersey/front ls'
+  - '#1 shorts/back all'
+  - '#1 shorts/front all'
+- id: soccer--soccer-condensed--01
+  approved: true
+  sport: soccer
+  view: soccer-condensed
+  team: Mississippi State
+  uniform1:
+    jersey: 2026 White
+    shorts: 2026 White
+  number: '4'
+  expect_eras:
+    1/jersey/front: ss
+    1/shorts/front: all
+  covers:
+  - '#1 jersey/front ss'
+  - '#1 shorts/front all'
+- id: soccer--soccer-condensed-ls--01
+  approved: true
+  sport: soccer
+  view: soccer-condensed-ls
+  team: Mississippi State
+  uniform1:
+    jersey: 2018 Green Long Sleeve Keeper
+    shorts: 2018 Green
+  number: '0'
+  expect_eras:
+    1/jersey/front: ls
+    1/shorts/front: all
+  covers:
+  - '#1 jersey/front ls'
+  - '#1 shorts/front all'
+- id: soccer--soccer-combo--01
+  approved: true
+  sport: soccer
+  view: soccer-combo
+  team: Mississippi State
+  uniform1:
+    jersey: 2026 White
+    shorts: 2026 White
+  number: '4'
+  expect_eras:
+    1/jersey/front: ss
+    1/jersey/back: ss
+    1/shorts/front: all
+    1/shorts/back: all
+    2/jersey/front: ss
+    2/jersey/back: ss
+    2/shorts/front: all
+    2/shorts/back: all
+  uniform2:
+    jersey: 2026 Blue Keeper
+    shorts: 2026 Blue
+  number2: '0'
+  covers:
+  - '#1 jersey/back ss'
+  - '#1 jersey/front ss'
+  - '#1 shorts/back all'
+  - '#1 shorts/front all'
+  - '#2 jersey/back ss'
+  - '#2 jersey/front ss'
+  - '#2 shorts/back all'
+  - '#2 shorts/front all'
+- id: soccer--soccer-condensed-combo--01
+  approved: true
+  sport: soccer
+  view: soccer-condensed-combo
+  team: Mississippi State
+  uniform1:
+    jersey: 2026 White
+    shorts: 2026 White
+  number: '4'
+  expect_eras:
+    1/jersey/front: ss
+    1/shorts/front: all
+    2/jersey/front: ss
+    2/shorts/front: all
+  uniform2:
+    jersey: 2026 Blue Keeper
+    shorts: 2026 Blue
+  number2: '0'
+  covers:
+  - '#1 jersey/front ss'
+  - '#1 shorts/front all'
+  - '#2 jersey/front ss'
+  - '#2 shorts/front all'
+- id: soccer--soccer-condensed-combo--02
+  approved: true
+  sport: soccer
+  view: soccer-condensed-combo
+  team: Mississippi State
+  uniform1:
+    jersey: 2018 Maroon
+    shorts: 2018 Maroon
+  number: '20'
+  expect_eras:
+    1/jersey/front: ss
+    1/shorts/front: all
+    2/jersey/front: ls
+    2/shorts/front: all
+  uniform2:
+    jersey: 2018 Green Long Sleeve Keeper
+    shorts: 2018 Green
+  number2: '0'
+  covers:
+  - '#1 jersey/front ss'
+  - '#1 shorts/front all'
+  - '#2 jersey/front ls'
+  - '#2 shorts/front all'
+- id: soccer--soccer-combo-ls--01
+  approved: true
+  sport: soccer
+  view: soccer-combo-ls
+  team: Mississippi State
+  uniform1:
+    jersey: 2018 Maroon
+    shorts: 2018 Maroon
+  number: '20'
+  expect_eras:
+    1/jersey/front: ss
+    1/jersey/back: ss
+    1/shorts/front: all
+    1/shorts/back: all
+    2/jersey/front: ls
+    2/jersey/back: ls
+    2/shorts/front: all
+    2/shorts/back: all
+  uniform2:
+    jersey: 2018 Green Long Sleeve Keeper
+    shorts: 2018 Green
+  number2: '0'
+  covers:
+  - '#1 jersey/back ss'
+  - '#1 jersey/front ss'
+  - '#1 shorts/back all'
+  - '#1 shorts/front all'
+  - '#2 jersey/back ls'
+  - '#2 jersey/front ls'
+  - '#2 shorts/back all'
+  - '#2 shorts/front all'
+- id: softball--diamond-pants--01
+  approved: true
+  sport: softball
+  view: diamond-pants
+  team: Mississippi State
+  uniform1:
+    pants: 2023 Black
+  number: null
+  expect_eras:
+    1/pants/right: blt
+    1/pants/left: blt
+  covers:
+  - '#1 pants/left blt'
+  - '#1 pants/right blt'
+- id: softball--diamond-pants--02
+  approved: true
+  sport: softball
+  view: diamond-pants
+  team: Mississippi State
+  uniform1:
+    pants: 2026 Black
+  number: null
+  expect_eras:
+    1/pants/right: std
+    1/pants/left: std
+  covers:
+  - '#1 pants/left std'
+  - '#1 pants/right std'
+- id: softball--softball-full--01
+  approved: true
+  sport: softball
+  view: softball-full
+  team: Mississippi State
+  uniform1:
+    jersey: 2026 Gray
+    pants: 2026 Gray
+  number: '4'
+  expect_eras:
+    1/jersey/front: std
+    1/jersey/back: std
+    1/pants/right: std
+    1/pants/left: std
+  covers:
+  - '#1 jersey/back std'
+  - '#1 jersey/front std'
+  - '#1 pants/left std'
+  - '#1 pants/right std'
+- id: softball--softball-full--02
+  approved: true
+  sport: softball
+  view: softball-full
+  team: Mississippi State
+  uniform1:
+    jersey: 2023 White Teal Trim
+    pants: 2023 White
+  number: '7'
+  expect_eras:
+    1/jersey/front: std
+    1/jersey/back: std
+    1/pants/right: blt
+    1/pants/left: blt
+  covers:
+  - '#1 jersey/back std'
+  - '#1 jersey/front std'
+  - '#1 pants/left blt'
+  - '#1 pants/right blt'
+- id: softball--softball-condensed--01
+  approved: true
+  sport: softball
+  view: softball-condensed
+  team: Mississippi State
+  uniform1:
+    jersey: 2026 Gray
+    pants: 2026 Gray
+  number: '4'
+  expect_eras:
+    1/jersey/front: std
+    1/pants/left: std
+  covers:
+  - '#1 jersey/front std'
+  - '#1 pants/left std'
+- id: softball--softball-condensed--02
+  approved: true
+  sport: softball
+  view: softball-condensed
+  team: Mississippi State
+  uniform1:
+    jersey: 2023 White Teal Trim
+    pants: 2023 White
+  number: '7'
+  expect_eras:
+    1/jersey/front: std
+    1/pants/left: blt
+  covers:
+  - '#1 jersey/front std'
+  - '#1 pants/left blt'
+- id: softball--softball-tall--01
+  approved: true
+  sport: softball
+  view: softball-tall
+  team: Mississippi State
+  uniform1:
+    jersey: 2026 Gray
+    pants: 2026 Gray
+  number: '4'
+  expect_eras:
+    1/jersey/front: std
+    1/jersey/back: std
+    1/pants/right: std
+    1/pants/left: std
+  covers:
+  - '#1 jersey/back std'
+  - '#1 jersey/front std'
+  - '#1 pants/left std'
+  - '#1 pants/right std'
+- id: softball--softball-tall--02
+  approved: true
+  sport: softball
+  view: softball-tall
+  team: Mississippi State
+  uniform1:
+    jersey: 2023 White Teal Trim
+    pants: 2023 White
+  number: '7'
+  expect_eras:
+    1/jersey/front: std
+    1/jersey/back: std
+    1/pants/right: blt
+    1/pants/left: blt
+  covers:
+  - '#1 jersey/back std'
+  - '#1 jersey/front std'
+  - '#1 pants/left blt'
+  - '#1 pants/right blt'
+- id: volleyball--volleyball-jersey--01
+  approved: true
+  sport: volleyball
+  view: volleyball-jersey
+  team: Mississippi State
+  uniform1:
+    jersey: 2024 Pink
+  number: '3'
+  expect_eras:
+    1/jersey/front: ls
+    1/jersey/back: ls
+  covers:
+  - '#1 jersey/back ls'
+  - '#1 jersey/front ls'
+- id: volleyball--volleyball-jersey--02
+  approved: true
+  sport: volleyball
+  view: volleyball-jersey
+  team: Mississippi State
+  uniform1:
+    jersey: 2026 Maroon
+  number: '1'
+  expect_eras:
+    1/jersey/front: ss
+    1/jersey/back: ss
+  covers:
+  - '#1 jersey/back ss'
+  - '#1 jersey/front ss'
+- id: volleyball--volleyball-combo--01
+  approved: true
+  sport: volleyball
+  view: volleyball-combo
+  team: Mississippi State
+  uniform1:
+    jersey: 2023 Black
+  number: '3'
+  expect_eras:
+    1/jersey/front: ls
+    1/jersey/back: ls
+    2/jersey/front: ls
+    2/jersey/back: ls
+  uniform2:
+    jersey: 2023 Gray
+  number2: '2'
+  covers:
+  - '#1 jersey/back ls'
+  - '#1 jersey/front ls'
+  - '#2 jersey/back ls'
+  - '#2 jersey/front ls'
+- id: volleyball--volleyball-combo--02
+  approved: true
+  sport: volleyball
+  view: volleyball-combo
+  team: Mississippi State
+  uniform1:
+    jersey: 2023 Maroon
+  number: '1'
+  expect_eras:
+    1/jersey/front: ss
+    1/jersey/back: ss
+    2/jersey/front: ls
+    2/jersey/back: ls
+  uniform2:
+    jersey: 2023 Black
+  number2: '3'
+  covers:
+  - '#1 jersey/back ss'
+  - '#1 jersey/front ss'
+  - '#2 jersey/back ls'
+  - '#2 jersey/front ls'
+- id: volleyball--volleyball-combo--03
+  approved: true
+  sport: volleyball
+  view: volleyball-combo
+  team: Mississippi State
+  uniform1:
+    jersey: 2026 Maroon
+  number: '1'
+  expect_eras:
+    1/jersey/front: ss
+    1/jersey/back: ss
+    2/jersey/front: ss
+    2/jersey/back: ss
+  uniform2:
+    jersey: 2026 Maroon
+  number2: '1'
+  covers:
+  - '#1 jersey/back ss'
+  - '#1 jersey/front ss'
+  - '#2 jersey/back ss'
+  - '#2 jersey/front ss'
+- id: volleyball--volleyball-condensed-combo-ss-ss--01
+  approved: true
+  sport: volleyball
+  view: volleyball-condensed-combo-ss-ss
+  team: Mississippi State
+  uniform1:
+    jersey: 2026 Maroon
+  number: '1'
+  expect_eras:
+    1/jersey/front: ss
+    2/jersey/front: ss
+  uniform2:
+    jersey: 2025 White
+  number2: '4'
+  covers:
+  - '#1 jersey/front ss'
+  - '#2 jersey/front ss'
+- id: volleyball--volleyball-condensed-combo-ss-ls--01
+  approved: true
+  sport: volleyball
+  view: volleyball-condensed-combo-ss-ls
+  team: Mississippi State
+  uniform1:
+    jersey: 2023 Maroon
+  number: '1'
+  expect_eras:
+    1/jersey/front: ss
+    2/jersey/front: ls
+  uniform2:
+    jersey: 2023 Black
+  number2: '3'
+  covers:
+  - '#1 jersey/front ss'
+  - '#2 jersey/front ls'
+- id: volleyball--volleyball-condensed-combo-ls-ss--01
+  approved: true
+  sport: volleyball
+  view: volleyball-condensed-combo-ls-ss
+  team: Mississippi State
+  uniform1:
+    jersey: 2023 Black
+  number: '3'
+  expect_eras:
+    1/jersey/front: ls
+    2/jersey/front: ss
+  uniform2:
+    jersey: 2023 Maroon
+  number2: '1'
+  covers:
+  - '#1 jersey/front ls'
+  - '#2 jersey/front ss'
+- id: volleyball--volleyball-condensed-combo-ls-ls--01
+  approved: true
+  sport: volleyball
+  view: volleyball-condensed-combo-ls-ls
+  team: Mississippi State
+  uniform1:
+    jersey: 2023 Black
+  number: '3'
+  expect_eras:
+    1/jersey/front: ls
+    2/jersey/front: ls
+  uniform2:
+    jersey: 2023 Gray
+  number2: '2'
+  covers:
+  - '#1 jersey/front ls'
+  - '#2 jersey/front ls'
+- id: womens_basketball--wbk-jersey--01
+  approved: true
+  sport: womens_basketball
+  view: wbk-jersey
+  team: Mississippi State
+  uniform1:
+    jersey: 2025 Black
+  number: '15'
+  expect_eras:
+    1/jersey/front: all
+    1/jersey/back: all
+  covers:
+  - '#1 jersey/back all'
+  - '#1 jersey/front all'
+- id: womens_basketball--wbk-shorts--01
+  approved: true
+  sport: womens_basketball
+  view: wbk-shorts
+  team: Mississippi State
+  uniform1:
+    shorts: 2025 Maroon
+  number: null
+  expect_eras:
+    1/shorts/front: a
+    1/shorts/back: a
+  covers:
+  - '#1 shorts/back a'
+  - '#1 shorts/front a'
+- id: womens_basketball--wbk-shorts--02
+  approved: true
+  sport: womens_basketball
+  view: wbk-shorts
+  team: Mississippi State
+  uniform1:
+    shorts: 2025 White Pink
+  number: null
+  expect_eras:
+    1/shorts/front: b
+    1/shorts/back: b
+  covers:
+  - '#1 shorts/back b'
+  - '#1 shorts/front b'
+- id: womens_basketball--wbk-shorts--03
+  approved: true
+  sport: womens_basketball
+  view: wbk-shorts
+  team: Mississippi State
+  uniform1:
+    shorts: 2025 Black
+  number: null
+  expect_eras:
+    1/shorts/front: c
+    1/shorts/back: c
+  covers:
+  - '#1 shorts/back c'
+  - '#1 shorts/front c'
+- id: womens_basketball--wbk-full--01
+  approved: true
+  sport: womens_basketball
+  view: wbk-full
+  team: Mississippi State
+  uniform1:
+    jersey: 2025 Black
+    shorts: 2025 Black
+  number: '15'
+  expect_eras:
+    1/jersey/front: all
+    1/jersey/back: all
+    1/shorts/front: c
+    1/shorts/back: c
+  covers:
+  - '#1 jersey/back all'
+  - '#1 jersey/front all'
+  - '#1 shorts/back c'
+  - '#1 shorts/front c'
+- id: womens_basketball--wbk-full--02
+  approved: true
+  sport: womens_basketball
+  view: wbk-full
+  team: Mississippi State
+  uniform1:
+    jersey: 2025 Maroon
+    shorts: 2025 Maroon
+  number: '2'
+  expect_eras:
+    1/jersey/front: all
+    1/jersey/back: all
+    1/shorts/front: a
+    1/shorts/back: a
+  covers:
+  - '#1 jersey/back all'
+  - '#1 jersey/front all'
+  - '#1 shorts/back a'
+  - '#1 shorts/front a'
+- id: womens_basketball--wbk-full--03
+  approved: true
+  sport: womens_basketball
+  view: wbk-full
+  team: Mississippi State
+  uniform1:
+    jersey: 2025 White Pink
+    shorts: 2025 White Pink
+  number: '21'
+  expect_eras:
+    1/jersey/front: all
+    1/jersey/back: all
+    1/shorts/front: b
+    1/shorts/back: b
+  covers:
+  - '#1 jersey/back all'
+  - '#1 jersey/front all'
+  - '#1 shorts/back b'
+  - '#1 shorts/front b'
+- id: womens_basketball--wbk-condensed--01
+  approved: true
+  sport: womens_basketball
+  view: wbk-condensed
+  team: Mississippi State
+  uniform1:
+    jersey: 2025 Black
+    shorts: 2025 Black
+  number: '15'
+  expect_eras:
+    1/jersey/front: all
+    1/shorts/front: c
+  covers:
+  - '#1 jersey/front all'
+  - '#1 shorts/front c'
+- id: womens_basketball--wbk-condensed--02
+  approved: true
+  sport: womens_basketball
+  view: wbk-condensed
+  team: Mississippi State
+  uniform1:
+    jersey: 2025 Maroon
+    shorts: 2025 Maroon
+  number: '2'
+  expect_eras:
+    1/jersey/front: all
+    1/shorts/front: a
+  covers:
+  - '#1 jersey/front all'
+  - '#1 shorts/front a'
+- id: womens_basketball--wbk-condensed--03
+  approved: true
+  sport: womens_basketball
+  view: wbk-condensed
+  team: Mississippi State
+  uniform1:
+    jersey: 2025 White Pink
+    shorts: 2025 White Pink
+  number: '21'
+  expect_eras:
+    1/jersey/front: all
+    1/shorts/front: b
+  covers:
+  - '#1 jersey/front all'
+  - '#1 shorts/front b'
+- id: womens_basketball--wbk-tall--01
+  approved: true
+  sport: womens_basketball
+  view: wbk-tall
+  team: Mississippi State
+  uniform1:
+    jersey: 2025 Black
+    shorts: 2025 Black
+  number: '15'
+  expect_eras:
+    1/jersey/front: all
+    1/jersey/back: all
+    1/shorts/front: c
+    1/shorts/back: c
+  covers:
+  - '#1 jersey/back all'
+  - '#1 jersey/front all'
+  - '#1 shorts/back c'
+  - '#1 shorts/front c'
+- id: womens_basketball--wbk-tall--02
+  approved: true
+  sport: womens_basketball
+  view: wbk-tall
+  team: Mississippi State
+  uniform1:
+    jersey: 2025 Maroon
+    shorts: 2025 Maroon
+  number: '2'
+  expect_eras:
+    1/jersey/front: all
+    1/jersey/back: all
+    1/shorts/front: a
+    1/shorts/back: a
+  covers:
+  - '#1 jersey/back all'
+  - '#1 jersey/front all'
+  - '#1 shorts/back a'
+  - '#1 shorts/front a'
+- id: womens_basketball--wbk-tall--03
+  approved: true
+  sport: womens_basketball
+  view: wbk-tall
+  team: Mississippi State
+  uniform1:
+    jersey: 2025 White Pink
+    shorts: 2025 White Pink
+  number: '21'
+  expect_eras:
+    1/jersey/front: all
+    1/jersey/back: all
+    1/shorts/front: b
+    1/shorts/back: b
+  covers:
+  - '#1 jersey/back all'
+  - '#1 jersey/front all'
+  - '#1 shorts/back b'
+  - '#1 shorts/front b'
+- id: womens_basketball--wbk-tall-condensed--01
+  approved: true
+  sport: womens_basketball
+  view: wbk-tall-condensed
+  team: Mississippi State
+  uniform1:
+    jersey: 2025 Black
+    shorts: 2025 Black
+  number: '15'
+  expect_eras:
+    1/jersey/front: all
+    1/shorts/front: c
+  covers:
+  - '#1 jersey/front all'
+  - '#1 shorts/front c'
+- id: womens_basketball--wbk-tall-condensed--02
+  approved: true
+  sport: womens_basketball
+  view: wbk-tall-condensed
+  team: Mississippi State
+  uniform1:
+    jersey: 2025 Maroon
+    shorts: 2025 Maroon
+  number: '2'
+  expect_eras:
+    1/jersey/front: all
+    1/shorts/front: a
+  covers:
+  - '#1 jersey/front all'
+  - '#1 shorts/front a'
+- id: womens_basketball--wbk-tall-condensed--03
+  approved: true
+  sport: womens_basketball
+  view: wbk-tall-condensed
+  team: Mississippi State
+  uniform1:
+    jersey: 2025 White Pink
+    shorts: 2025 White Pink
+  number: '21'
+  expect_eras:
+    1/jersey/front: all
+    1/shorts/front: b
+  covers:
+  - '#1 jersey/front all'
+  - '#1 shorts/front b'

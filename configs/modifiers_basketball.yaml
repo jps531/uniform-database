@@ -1,0 +1,14 @@
+# Basketball — men's and women's. Pass `--sport basketball` for either;
+# the paths distinguish them, and they share every token.
+#
+# Canvases are NOT shared: mbk_jersey is 1258x1931 against wbk_jersey's
+# 1244x1919, and men's shorts are a side view (902x1765) where women's are
+# front/back (844x754).
+
+extends: shared
+tokens:
+  ice:              { label: Ice,              scope: design, kind: modifier, theme: special }
+  usa:              { token: USA, label: USA,  scope: design, kind: modifier, theme: commemorative }
+  black_excellence: { label: Black Excellence, scope: design, kind: modifier, theme: commemorative }
+  final_four:       { label: Final Four,       scope: patch,  kind: modifier, theme: postseason }
+  american_flag:    { label: American Flag,    scope: patch,  kind: modifier, theme: commemorative }
