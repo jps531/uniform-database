@@ -151,7 +151,7 @@ def test_check_wrong_era(tmp_path, cfg):
 
 
 def test_check_number(tmp_path):
-    """NUMBER fires only when the requested number's file exists and another was placed."""
+    """NUMBER fires on another number placed, or on an unnumbered file placed while the requested number exists."""
     d = tmp_path / "2020 Maroon"
     plain = opaque_png(d / "2020 Maroon.png")
     ex = {"sport": "football"}
@@ -166,7 +166,14 @@ def test_check_number(tmp_path):
         [],
     )
     res = {"placements": [placed(d / "2020 Maroon 17.png", number_requested="7", number_found="17")]}
-    assert gr.check(ex, res, None, {}, [])[0] == ["NUMBER jersey/icon: asked for 7, a file exists, placed 17"]
+    assert gr.check(ex, res, None, {}, [])[0] == [
+        "NUMBER jersey/icon: asked for 7, placed 17: another number is never used"
+    ]
+    (d / "2020 Maroon 7 Grad.png").unlink()  # even with no file numbered 7 at all
+    assert gr.check(ex, res, None, {}, [])[0] == [
+        "NUMBER jersey/icon: asked for 7, placed 17: another number is never used"
+    ]
+    opaque_png(d / "2020 Maroon 7 Grad.png")
     res = {"placements": [placed(d / "2020 Maroon 7 Grad.png", number_requested="7", number_found="7")]}
     assert gr.check(ex, res, None, {}, []) == ([], [])
 
@@ -339,7 +346,7 @@ def test_end_to_end_failed_placement(project, cfg, monkeypatch, capsys):
     manifest(project, [entry("football--icons-horizontal--01", uniform1=els)])
     with pytest.raises(SystemExit) as e:
         run_main(monkeypatch, "--strict")
-    assert str(e.value) == "STRICT: 1 with defects, 0 with notes"
+    assert str(e.value) == "STRICT: 1 with defects, 0 with notes (of 1 rendered this run)"
     out = capsys.readouterr().out
     assert "DEFECT football--icons-horizontal--01" in out
     assert "- FAILED jersey/icon: no file under Jerseys Icon/1999 Nothing" in out
@@ -404,7 +411,7 @@ def test_every_outcome_reported(project, monkeypatch, tmp_path, capsys):
     fake = suite(project, monkeypatch, tmp_path)
     with pytest.raises(SystemExit) as e:
         run_main(monkeypatch, "--strict")
-    assert str(e.value) == "STRICT: 6 with defects, 1 with notes"
+    assert str(e.value) == "STRICT: 6 with defects, 1 with notes (of 9 rendered this run)"
     out = capsys.readouterr().out
     assert "9 examples to render (1 not approved, skipped)" in out
     assert "[  1/9] ok     fb--a--01" in out
@@ -454,7 +461,7 @@ def test_strict_counts_a_note_alone(project, monkeypatch, tmp_path, capsys):
     suite(project, monkeypatch, tmp_path)
     with pytest.raises(SystemExit) as e:
         run_main(monkeypatch, "--strict", "--only", "fb--a--02")
-    assert str(e.value) == "STRICT: 0 with defects, 1 with notes"
+    assert str(e.value) == "STRICT: 0 with defects, 1 with notes (of 1 rendered this run)"
     assert "1 examples to render" in capsys.readouterr().out
 
 
@@ -465,11 +472,11 @@ def test_only_refreshes_one_and_reports_all(project, monkeypatch, tmp_path, caps
     capsys.readouterr()
     fake.calls.clear()
     fake.behaviours["fb--a--03"] = fake.behaviours["fb--a--01"]
-    with pytest.raises(SystemExit) as e:
-        run_main(monkeypatch, "--only", "fb--a--03", "--strict")
-    # --strict judges every result on disk, not only this run's
-    assert str(e.value) == "STRICT: 2 with defects, 1 with notes"
+    # --strict judges only what this run rendered; older results on disk (2
+    # defects, 1 note) are reported but not judged
+    run_main(monkeypatch, "--only", "fb--a--03", "--strict")
     out = capsys.readouterr().out
+    assert "STRICT: every example is ok (1 rendered this run)" in out
     assert len(fake.calls) == 1
     assert "fb--a--03.png" in fake.calls[0][fake.calls[0].index("--out") + 1]
     assert "1 rendered this run; report covers 6, 2 with defects" in out
@@ -487,6 +494,28 @@ def test_only_strict_ok(project, monkeypatch, tmp_path, capsys):
     assert len(fake.calls) == 1
     assert "STRICT: every example is ok" in out
     assert "| soccer | `c` | 1 |" in report(project)
+
+
+def test_strict_with_sport_ignores_earlier_results_on_disk(project, monkeypatch, tmp_path, capsys):
+    """--strict --sport passes on a clean sport even when another sport's earlier results on disk have defects."""
+    suite(project, monkeypatch, tmp_path)
+    with pytest.raises(SystemExit):
+        run_main(monkeypatch, "--sport", "football", "--strict")
+    capsys.readouterr()
+    run_main(monkeypatch, "--sport", "soccer", "--strict")
+    out = capsys.readouterr().out
+    assert "report covers 6, 3 with defects" in out
+    assert "STRICT: every example is ok (1 rendered this run)" in out
+
+
+def test_strict_judges_this_runs_defect_not_an_older_clean_result(project, monkeypatch, tmp_path, capsys):
+    """A defect rendered in this run fails --strict even if earlier results of other examples are clean."""
+    fake = suite(project, monkeypatch, tmp_path)
+    run_main(monkeypatch, "--only", "fb--a--01")
+    fake.behaviours["sc--c--01"] = fake.behaviours["fb--a--03"]
+    with pytest.raises(SystemExit) as e:
+        run_main(monkeypatch, "--sport", "soccer", "--strict")
+    assert str(e.value) == "STRICT: 1 with defects, 0 with notes (of 1 rendered this run)"
 
 
 def test_sport_filter_and_report_from_disk(project, monkeypatch, tmp_path, capsys):

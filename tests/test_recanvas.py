@@ -1,5 +1,6 @@
 """Tests for scripts/migration/recanvas.py: moving standardized files to a new canvas without ever rescaling."""
 
+import json
 import sys
 
 import numpy as np
@@ -17,10 +18,8 @@ def run(monkeypatch, *argv):
     recanvas.main()
 
 
-def test_slug_and_find_root(project, tmp_path):
-    """slug matches the config keys; find_root walks up from a subdirectory and exits when none is found."""
-    assert recanvas.slug("Women’s Basketball") == "womens_basketball"
-    assert recanvas.slug("Men's Basketball") == "mens_basketball"
+def test_find_root(project, tmp_path):
+    """find_root walks up from a subdirectory and exits when none is found."""
     sub = project / "x" / "y"
     sub.mkdir(parents=True)
     assert recanvas.find_root(sub) == project
@@ -135,3 +134,68 @@ def test_refusals(project, monkeypatch, src, dest, msg):
     with pytest.raises(SystemExit) as e:
         run(monkeypatch, src, dest)
     assert msg in str(e.value)
+
+
+@pytest.mark.parametrize("dest", ["old", "old/", "./old", "x/../old"])
+def test_refuses_destination_equal_to_source(project, monkeypatch, dest):
+    """A destination that resolves to the source is refused before anything is read or written."""
+    src = art(project / "old" / "x" / "h.png", (5, 5))
+    before = src.read_bytes()
+    with pytest.raises(SystemExit) as e:
+        run(monkeypatch, "old", dest, "--canvas", "football_helmet_face", "--apply")
+    assert "Destination must differ from source." in str(e.value)
+    assert src.read_bytes() == before
+
+
+def test_std_sibling_resolves_its_canvas(project, cfg, monkeypatch, capsys):
+    """A "… STD" sibling (the recommended destination) resolves the same canvas as the folder it shadows."""
+    W, H = canvas_size(cfg, "football_jersey")
+    art(project / "old" / "x" / "j.png", (10, 10))
+    run(monkeypatch, "old", "Football/T/Jerseys Front STD")
+    assert f"canvas football_jersey = {W} x {H}, anchor top-center" in capsys.readouterr().out
+
+
+def test_destination_outside_the_project_is_unreadable(project, monkeypatch, tmp_path):
+    """A destination outside the project root cannot name a canvas, and exits cleanly."""
+    art(project / "old" / "x.png", (5, 5))
+    with pytest.raises(SystemExit) as e:
+        run(monkeypatch, "old", str(tmp_path / "elsewhere" / "Football/T/Jerseys Front"))
+    assert "Cannot read sport/slot/viewpoint from" in str(e.value)
+
+
+def test_refuses_an_authored_destination(project, cfg, monkeypatch):
+    """A destination holding PNGs without a .generated marker is authored artwork: refused, dry run or not."""
+    art(project / "old" / "x" / "h.png", (10, 10))
+    authored = art(project / DEST / "x" / "h.png", (7, 7), seed=4)
+    before = authored.read_bytes()
+    for flags in ((), ("--apply",)):
+        with pytest.raises(SystemExit) as e:
+            run(monkeypatch, "old", DEST, *flags)
+        assert "REFUSING to write to" in str(e.value)
+        assert "holds 1 PNGs but has no .generated marker" in str(e.value)
+    assert authored.read_bytes() == before
+
+
+def test_writes_a_marker_and_may_rewrite_its_own_output(project, cfg, monkeypatch, capsys):
+    """--apply writes a .generated marker naming source and canvas, so a second run into it is allowed."""
+    W, H = canvas_size(cfg, "football_helmet_face")
+    art(project / "old" / "x" / "h.png", (10, 10))
+    (project / DEST).mkdir(parents=True)
+    (project / DEST / "notes.txt").write_text("")
+    run(monkeypatch, "old", DEST, "--apply")
+    run(monkeypatch, "old", DEST, "--apply")
+    assert capsys.readouterr().out.count("Wrote 1 files.") == 2
+    marker = json.loads((project / DEST / ".generated").read_text())
+    assert marker["generated_by"] == "scripts/migration/recanvas.py"
+    assert marker["source"] == str(project / "old")
+    assert marker["canvas"] == f"{W}x{H}"
+    assert marker["canvas_name"] == "football_helmet_face"
+    assert marker["files_written"] == 1
+
+
+def test_nothing_to_write_leaves_no_marker(project, monkeypatch, capsys):
+    """A source with no PNGs writes nothing, so no destination or marker is created."""
+    (project / "old").mkdir()
+    run(monkeypatch, "old", DEST, "--apply")
+    assert "Wrote 0 files." in capsys.readouterr().out
+    assert not (project / DEST).exists()

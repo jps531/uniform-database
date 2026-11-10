@@ -12,8 +12,9 @@ destroy a file, or file it under the wrong element, era or year, is a bug
 whatever its size:
 
 - Scripts that move artwork dry-run until `--apply` and copy rather than
-  move. Keep it that way in anything new. `standardize.py pad` is the one
-  exception: it writes at once, so for an authored tree pad into a `… STD`
+  move, and never overwrite a different file already at the destination.
+  Keep it that way in anything new. `standardize.py pad` is the one
+  exception: it writes at once (and exits 1 if any file wasn't written), so for an authored tree pad into a `… STD`
   sibling and check it before replacing the source. A `.generated` tree
   (helmets from Marks) is padded into directly; it can be rebuilt.
 - Never run `pad` on standardized output. That destroyed 44 elements once,
@@ -42,7 +43,8 @@ whatever its size:
   ```
 
   When `golden` fails, the job summary lists why, and the run's
-  `golden-run` artifact holds the contact sheets and REPORT.md.
+  `golden-run` artifact holds the contact sheets and REPORT.md (locally:
+  `golden/run-ci/`).
 
 - **CI sees only the fixture.** A PR that touches a template, canvas, era
   profile, or what `compose.py`, `standardize.py` or the golden scripts do

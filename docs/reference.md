@@ -33,8 +33,10 @@ Getting this wrong loses artwork.
 | `Venues/*/*/… Cropped` | **generated** from `… Full` by derive_crops.py |
 | everything else | authored, standardized in place |
 
-Generated directories carry a `.generated` marker; `pad` refuses to write
-into a directory holding PNGs without one.
+Generated directories carry a `.generated` marker recording their source.
+`pad`, `recanvas` and `derive_crops` all refuse to write into a directory
+holding PNGs without one, and write one when they write files; `recanvas`
+also refuses a destination equal to its source.
 
     find . -name .generated | sort   # 2 per football team (Left, Right),
                                      # plus each Venues "… Cropped"
@@ -108,7 +110,8 @@ year but is plastic by size, and the file is right.
 **Numbers are opaque strings.** `03` ≠ `3`, `00` ≠ `0`. Never `int()` them.
 
 **Numbers are per-viewpoint.** Resolution: the numbered file, else the
-unnumbered one, else fail. This needs one invariant: within each full
+unnumbered one, else fail — never a file with a different number. With no
+number requested, an unnumbered file comes first. This needs one invariant: within each full
 discriminator set `(element, viewpoint, form, sequence)`, files are ALL
 numbered or ALL unnumbered. Check at that granularity — at
 `(element, viewpoint)` alone it over-reports badly.
@@ -265,8 +268,8 @@ and a pad that writes nothing leaves no destination and no marker.
 | Tool | Use on |
 |---|---|
 | `standardize.py pad` | authored source only |
-| `recanvas.py` | standardized files → a new canvas, scale untouched |
-| `classify.py` | anything you're unsure of: RAW / OLD-STD / NEW-STD, SCALED |
+| `recanvas.py` | standardized files → a new canvas, scale untouched. Slot canvas only, top-centre: a cut with its own era `canvas:` is reported as too big, not placed |
+| `classify.py` | anything you're unsure of: RAW / OLD-STD / NEW-STD, SCALED. On a `fills: fill` canvas it says FILL: canvas size can't tell source from output there |
 
 A standardized tree can't be surveyed for era coverage either — survey the
 source, then verify output by checking each file equals its canvas.
@@ -307,8 +310,12 @@ source, then verify output by checking each file equals its canvas.
 - `offsize.py` says "exact" only when it checked at least one file. A path
   matching no profile is listed under `!! skipped`. It used to build profile
   keys without the sport, miss every lookup and still report "exact". Files
-  standardized in place sit on their padded canvas and are skipped, so run
-  it on authored or raw source.
+  standardized in place sit on their padded canvas (the slot's, or an
+  era's own) and are skipped, so run it on authored or raw source.
+- Inside overlapping tolerance windows (helmet back E/E2, 669–672px — see
+  `canvas_definitions.yaml`), `classify` and the golden suite pick the
+  CLOSEST era, while `pad`, `offsize` and `migrate_marks` still take the
+  first listed. One shared matcher, closest-wins, is planned.
 - Exporting from Numbers: CSV cells keep their displayed decimal places, so
   set them before exporting or scales round to integers.
 

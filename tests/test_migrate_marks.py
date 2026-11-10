@@ -1,5 +1,6 @@
 """Tests for scripts/migration/migrate_marks.py: flat, nested and flat-noyear plans, their problems, dry run vs --apply."""
 
+import os
 import runpy
 import sys
 from pathlib import Path
@@ -140,6 +141,38 @@ def test_main_flat_blocks_on_problems_and_collisions(project, monkeypatch, capsy
         run_main(monkeypatch, project, "--apply")
     assert "Refusing to apply" in str(e.value.code)
     assert not (project / D).exists()
+
+
+def test_main_refuses_to_overwrite_a_different_existing_file(project, monkeypatch, capsys):
+    """A destination file that already exists with other bytes is flagged, blocks --apply, and survives."""
+    touch(project, T / "Speedflex" / "Alabama 2015 Crimson 1.png")
+    there = art(project / D / "Alabama/Helmets Right/2015 Crimson/2015 Crimson Speedflex.png", (4, 4), seed=5)
+    before = there.read_bytes()
+    run_main(monkeypatch, project)
+    out = capsys.readouterr().out
+    assert "!! 1 files already exist at the destination with different contents:" in out
+    assert "     Alabama/Helmets Right/2015 Crimson/2015 Crimson Speedflex.png" in out
+    assert "Resolve the flagged items first" in out
+    with pytest.raises(SystemExit) as e:
+        run_main(monkeypatch, project, "--apply")
+    assert "Refusing to apply" in str(e.value.code)
+    assert there.read_bytes() == before
+
+
+def test_main_skips_an_identical_existing_file(project, monkeypatch, capsys):
+    """A destination file identical to its source is reported as in place and not copied again."""
+    src = touch(project, T / "Speedflex" / "Alabama 2015 Crimson 1.png")
+    touch(project, T / "Speedflex" / "Alabama 2015 Crimson 2.png")
+    there = project / D / "Alabama/Helmets Right/2015 Crimson/2015 Crimson Speedflex.png"
+    there.parent.mkdir(parents=True)
+    there.write_bytes(src.read_bytes())
+    os.utime(there, (0, 0))
+    run_main(monkeypatch, project, "--apply")
+    out = capsys.readouterr().out
+    assert "1 files already at the destination, identical: nothing to copy for them." in out
+    assert "Copied 1 files (1 already in place). Source tree left intact." in out
+    assert there.stat().st_mtime == 0
+    assert (project / D / "Alabama/Helmets Left/2015 Crimson/2015 Crimson Speedflex.png").is_file()
 
 
 def test_main_exits_without_source_or_team(project, monkeypatch):

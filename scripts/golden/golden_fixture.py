@@ -15,10 +15,11 @@ What goes in:
 
   COMPOSITIONS  for every placement the last run placed, the files in its
                 element folder that compose could have picked from: those
-                carrying the requested number, plus the unnumbered ones (a
-                file with another number never wins while one of those
-                exists, so leaving it out changes nothing). If neither
-                exists, the whole folder.
+                carrying the requested number, plus the unnumbered ones. A
+                file with another number is never a candidate (compose
+                fails rather than place it), so it is left out. With no
+                number requested, the unnumbered files, or the whole folder
+                if there are none.
   HELMETS       for every Helmets Left|Right element used, the WHOLE generated
                 folder and its source folder in Marks/, so CI can re-pad the
                 marks and compare. Any helmet era (A-F, per side) not reached
@@ -75,15 +76,21 @@ def evicted(path: Path) -> bool:
 def composition_files(placement, _root: Path, vocab) -> list[Path]:
     """The files in a placed element's folder that compose could have chosen between.
 
-    Mirrors compose.candidates(): a file whose number is neither the requested
-    one nor absent ranks below every file that is, so it can only win when
-    no such file exists, and then the whole folder is kept.
+    Mirrors compose.candidates(). With a number requested, only files
+    carrying that number or none: a file with another number is never a
+    candidate. With none requested, the unnumbered files rank above every
+    numbered one, so they are kept if any exist, else the whole folder.
+    The placed file itself is always kept.
     """
-    folder = Path(placement["file"]).parent
+    placed_file = Path(placement["file"])
     element, req = placement["element"], placement.get("number_requested")
-    files = pngs(folder)
-    keep = [f for f in files if split_tail(f.stem, element, vocab[0])[1] in (req, None)]
-    return keep or files
+    files = pngs(placed_file.parent)
+    nums = [split_tail(f.stem, element, vocab[0])[1] for f in files]
+    if req is not None:
+        keep = [f for f, n in zip(files, nums, strict=True) if n in (req, None)]
+    else:
+        keep = [f for f, n in zip(files, nums, strict=True) if n is None] or files
+    return keep if placed_file in keep else sorted([*keep, placed_file])
 
 
 def content_size(path: Path):

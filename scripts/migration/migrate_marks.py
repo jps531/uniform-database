@@ -18,11 +18,15 @@ signal alongside content size.
     uv run scripts/migration/migrate_marks.py --apply    # copies files
 
 COPIES, never moves. The source tree stays intact until you have verified.
+Never overwrites either: a file already at its destination blocks --apply
+unless it is byte-identical to the source, in which case it is reported and
+left alone.
 
     uv sync
 """
 
 import argparse
+import filecmp
 import re
 import shutil
 import sys
@@ -331,8 +335,26 @@ def plan(src_root: Path, dest_root: Path, colorways: set):
     return moves, problems
 
 
+def existing(moves):
+    """Split planned copies whose destination already exists into (identical, different) destination lists.
+
+    An identical file (same bytes as its source) needs no copy; a different
+    one would be silently overwritten by shutil.copy2, so it blocks --apply.
+    """
+    same, differ = [], []
+    for s, d in moves:
+        if d.exists():
+            (same if d.is_file() and filecmp.cmp(s, d, shallow=False) else differ).append(d)
+    return same, differ
+
+
 def main():
-    """Plan the migration for the chosen mode, report it, and copy on --apply."""
+    """Plan the migration for the chosen mode, report it, and copy on --apply.
+
+    Refuses to apply while a blocking problem or a destination collision
+    remains, or a destination file already exists with different contents;
+    an identical existing file is reported and skipped.
+    """
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--root", help="project root (default: auto-detect)")
     ap.add_argument("--src", default="Marks/Temp")
@@ -414,12 +436,21 @@ def main():
             print(f"     {d.relative_to(dest_root)} ({n} sources)")
         print()
 
+    same, differ = existing(moves)
+    if differ:
+        print(f"!! {len(differ)} files already exist at the destination with different contents:")
+        for d in differ[:10]:
+            print(f"     {d.relative_to(dest_root)}")
+        print()
+    if same:
+        print(f"{len(same)} files already at the destination, identical: nothing to copy for them.\n")
+
     print("Sample of the plan:")
     for s, d in moves[:6]:
         print(f"  {s.relative_to(src_root)}")
         print(f"    -> {d.relative_to(dest_root)}")
 
-    blocking = any(by_kind.get(k) for k in BLOCKING) or dupes
+    blocking = any(by_kind.get(k) for k in BLOCKING) or dupes or differ
     if not args.apply:
         print("\nDRY RUN — nothing written. Re-run with --apply to copy.")
         if blocking:
@@ -427,14 +458,20 @@ def main():
         return
 
     if blocking:
-        sys.exit("\nRefusing to apply while flagged problems or destination collisions remain.")
+        sys.exit(
+            "\nRefusing to apply while flagged problems, destination collisions or differing existing files remain."
+        )
 
+    skip = set(same)
     written = 0
     for s, d in moves:
+        if d in skip:
+            continue
         d.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(s, d)
         written += 1
-    print(f"\nCopied {written} files. Source tree left intact.")
+    kept = f" ({len(same)} already in place)" if same else ""
+    print(f"\nCopied {written} files{kept}. Source tree left intact.")
 
 
 if __name__ == "__main__":

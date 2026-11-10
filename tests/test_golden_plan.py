@@ -554,11 +554,12 @@ def test_main_rescan_writes_inventory_manifest_and_plan(project, cfg, templates,
     draw_wbk(project, cfg)
     run_main(monkeypatch)
     out = capsys.readouterr().out
-    assert "inventory: measuring every element" in out
+    assert "inventory: measuring womens_basketball (not in golden/inventory.json)" in out
     assert "2 element-slots across 1 sports" in out
     assert "2 examples across 1 templates" in out
     inv = json.loads((project / "golden/inventory.json").read_text())
-    assert set(inv["womens_basketball"]["Mississippi State"]["shorts"]) == {"2020 Maroon", "2021 White"}
+    assert inv["sports"] == ["womens_basketball"]
+    assert set(inv["elements"]["womens_basketball"]["Mississippi State"]["shorts"]) == {"2020 Maroon", "2021 White"}
     man = yaml.safe_load((project / "golden/manifest.yaml").read_text())
     assert [m["id"] for m in man] == ["womens_basketball--wbk-shorts--01", "womens_basketball--wbk-shorts--02"]
     m = {x["uniform1"]["shorts"]: x for x in man}
@@ -582,12 +583,13 @@ def test_main_reuses_cache_and_reresolves_eras(project, cfg, templates, monkeypa
     (project / "golden/inventory.json").write_text(json.dumps(inv))
     run_main(monkeypatch)
     out = capsys.readouterr().out
-    assert "reusing golden/inventory.json (--rescan to refresh) — 1 eras re-resolved" in out
+    assert "reusing golden/inventory.json for womens_basketball (--rescan to refresh) — 1 eras re-resolved" in out
     man = yaml.safe_load((project / "golden/manifest.yaml").read_text())
     assert man[0]["expect_eras"]["1/shorts/front"] == "a"
     # --rescan ignores the cache: there is no artwork, so nothing is found
     run_main(monkeypatch, "--rescan")
     out = capsys.readouterr().out
+    assert "inventory: measuring womens_basketball (--rescan)" in out
     assert "0 element-slots across 0 sports" in out
     assert "!! 1 templates have NO examples: womens_basketball / wbk-shorts" in out
     md = (project / "golden/PLAN.md").read_text()
@@ -718,3 +720,153 @@ def test_runs_as_a_script(project, monkeypatch, capsys):
     monkeypatch.setattr(sys, "argv", ["golden_plan.py", "--sport", "womens_basketball"])
     runpy.run_path(str(REPO / "scripts/golden/golden_plan.py"), run_name="__main__")
     assert "Wrote golden/manifest.yaml and golden/PLAN.md" in capsys.readouterr().out
+
+
+# --------------------------------------------------------------------------
+# main(): --sport keeps the other sports
+# --------------------------------------------------------------------------
+
+
+def two_sport_inv(cfg) -> dict:
+    """football_inv plus one women's basketball shorts element."""
+    inv = football_inv(cfg)
+    M = "womens_basketball"
+    inv[M] = {
+        "Mississippi State": {
+            "shorts": {"2020 Maroon": rec(cfg, M, "shorts", "2020 Maroon", {"front": "a", "back": "a"})}
+        }
+    }
+    return inv
+
+
+def test_main_sport_replaces_only_that_sport_in_manifest_and_plan(project, cfg, templates, monkeypatch, capsys):
+    """--sport replaces the selected sport's manifest entries and PLAN.md section, keeping every other sport's, edits included."""
+    reduced_configs(project, templates, {"wbk-shorts", "condensed", "jersey-full"})
+    (project / "golden/inventory.json").write_text(json.dumps(two_sport_inv(cfg)))
+    run_main(monkeypatch)
+    full_man = yaml.safe_load((project / "golden/manifest.yaml").read_text())
+    full_md = (project / "golden/PLAN.md").read_text()
+    assert {m["sport"] for m in full_man} == {"football", "womens_basketball"}
+    # a hand edit on the other sport survives a re-plan of football
+    edited = [dict(m, approved=False) if m["sport"] == "womens_basketball" else m for m in full_man]
+    (project / "golden/manifest.yaml").write_text(yaml.safe_dump(edited, sort_keys=False))
+    capsys.readouterr()
+    run_main(monkeypatch, "--sport", "football")
+    out = capsys.readouterr().out
+    assert "kept 1 example for other sports: womens_basketball" in out
+    assert yaml.safe_load((project / "golden/manifest.yaml").read_text()) == edited
+    assert (project / "golden/PLAN.md").read_text() == full_md
+    # and the selected sport really is re-planned: drop its section and entries, re-plan, both come back
+    (project / "golden/manifest.yaml").write_text(
+        yaml.safe_dump([m for m in edited if m["sport"] != "football"], sort_keys=False)
+    )
+    (project / "golden/PLAN.md").write_text(
+        full_md.split("\n## Football\n")[0] + "\n## Womens Basketball\n" + full_md.split("\n## Womens Basketball\n")[1]
+    )
+    run_main(monkeypatch, "--sport", "football")
+    assert yaml.safe_load((project / "golden/manifest.yaml").read_text()) == edited
+    assert (project / "golden/PLAN.md").read_text() == full_md
+
+
+def test_main_sport_header_counts_kept_sections(project, cfg, templates, monkeypatch, capsys):
+    """PLAN.md's header totals examples, templates, empty templates and gaps across kept and re-planned sports."""
+    reduced_configs(project, templates, {"wbk-shorts", "condensed", "jersey-full", "volleyball-condensed-combo-ss-ls"})
+    inv = two_sport_inv(cfg)
+    inv["football"]["Mississippi State"]["jersey"]["2021 Odd"] = rec(
+        cfg, "football", "jersey", "2021 Odd", {"front": None}
+    )
+    (project / "golden/inventory.json").write_text(json.dumps(inv))
+    run_main(monkeypatch)
+    full_md = (project / "golden/PLAN.md").read_text()
+    assert "## ⚠ 1 template have NO examples" in full_md
+    assert "era targets could not be covered" in full_md
+    run_main(monkeypatch, "--sport", "womens_basketball")
+    assert (project / "golden/PLAN.md").read_text() == full_md
+
+
+def test_main_sport_warns_when_a_kept_sport_has_no_plan_section(project, cfg, templates, monkeypatch, capsys):
+    """A kept sport with manifest entries but no PLAN.md section is kept and named, so a full re-plan can restore it."""
+    reduced_configs(project, templates, {"wbk-shorts", "condensed"})
+    (project / "golden/inventory.json").write_text(json.dumps(two_sport_inv(cfg)))
+    run_main(monkeypatch)
+    (project / "golden/PLAN.md").unlink()
+    capsys.readouterr()
+    run_main(monkeypatch, "--sport", "womens_basketball")
+    out = capsys.readouterr().out
+    assert "PLAN.md had no section for football" in out
+    assert {m["sport"] for m in yaml.safe_load((project / "golden/manifest.yaml").read_text())} == {
+        "football",
+        "womens_basketball",
+    }
+
+
+def test_main_sport_unknown_exits(project, monkeypatch):
+    """--sport naming a sport with no template exits before writing anything."""
+    with pytest.raises(SystemExit, match="No templates for sport: curling"):
+        run_main(monkeypatch, "--sport", "curling")
+    assert not (project / "golden/manifest.yaml").exists()
+
+
+def draw_football_jerseys(project, cfg):
+    """One football jersey element, front and back, at era N3 on the jersey canvas."""
+    W = canvas_size(cfg, "football_jersey")
+    for vp in ("front", "back"):
+        size = era(cfg, f"football-jersey-{vp}", "N3")["size"]
+        art(
+            project / "Football" / "Mississippi State" / f"Jerseys {vp.title()}" / "2016 White" / "2016 White.png",
+            W,
+            size,
+        )
+
+
+def test_inventory_records_its_sports_and_extends_when_one_is_missing(project, cfg, templates, monkeypatch, capsys):
+    """An inventory measured for one sport is extended, not reused as is, when a later plan needs another."""
+    reduced_configs(project, templates, {"wbk-shorts", "jersey-full"})
+    draw_wbk(project, cfg)
+    draw_football_jerseys(project, cfg)
+    run_main(monkeypatch, "--sport", "womens_basketball")
+    saved = json.loads((project / "golden/inventory.json").read_text())
+    assert saved["sports"] == ["womens_basketball"]
+    assert set(saved["elements"]) == {"womens_basketball"}
+    capsys.readouterr()
+    run_main(monkeypatch)
+    out = capsys.readouterr().out
+    assert "inventory: measuring football (not in golden/inventory.json)" in out
+    saved = json.loads((project / "golden/inventory.json").read_text())
+    assert saved["sports"] == ["football", "womens_basketball"]
+    man = yaml.safe_load((project / "golden/manifest.yaml").read_text())
+    assert [m["uniform1"] for m in man if m["view"] == "jersey-full"] == [{"jersey": "2016 White"}]
+    # now everything needed is cached: reused, nothing measured
+    run_main(monkeypatch)
+    assert "inventory: reusing golden/inventory.json" in capsys.readouterr().out
+
+
+def test_rescan_with_sport_keeps_other_sports_inventory(project, cfg, templates, monkeypatch, capsys):
+    """--rescan --sport re-measures only the selected sport and keeps the rest of the cached inventory."""
+    reduced_configs(project, templates, {"wbk-shorts", "condensed"})
+    (project / "golden/inventory.json").write_text(
+        json.dumps({"sports": ["football", "womens_basketball"], "elements": two_sport_inv(cfg)})
+    )
+    draw_wbk(project, cfg)
+    run_main(monkeypatch, "--rescan", "--sport", "womens_basketball")
+    saved = json.loads((project / "golden/inventory.json").read_text())
+    assert saved["sports"] == ["football", "womens_basketball"]
+    assert saved["elements"]["football"] == football_inv(cfg)["football"]
+    assert set(saved["elements"]["womens_basketball"]["Mississippi State"]["shorts"]) == {"2020 Maroon", "2021 White"}
+
+
+def test_legacy_inventory_covers_the_sports_it_holds(project, cfg, templates, monkeypatch, capsys):
+    """An inventory.json from before coverage was recorded counts as covering exactly the sports it holds."""
+    reduced_configs(project, templates, {"wbk-shorts", "jersey-full"})
+    draw_football_jerseys(project, cfg)
+    M = "womens_basketball"
+    legacy = {
+        M: {"Mississippi State": {"shorts": {"2020 Maroon": rec(cfg, M, "shorts", "2020 Maroon", {"front": "a"})}}}
+    }
+    (project / "golden/inventory.json").write_text(json.dumps(legacy))
+    run_main(monkeypatch)
+    out = capsys.readouterr().out
+    assert "inventory: measuring football (not in golden/inventory.json)" in out
+    saved = json.loads((project / "golden/inventory.json").read_text())
+    assert saved["sports"] == ["football", "womens_basketball"]
+    assert saved["elements"][M] == legacy[M]

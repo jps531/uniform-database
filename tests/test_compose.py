@@ -133,12 +133,48 @@ def test_split_tail_finds_tokens_number_and_surname(fvocab, bvocab):
 
 
 def test_requested_number_is_an_opaque_string(tmp_path, fvocab):
-    """'03' and '3' are different numbers; a wrong number ranks below the unnumbered file."""
+    """'03' and '3' are different numbers; a requested number never yields a file carrying another one."""
     f = touch(tmp_path / "2025 Black", "2025 Black", "2025 Black 3", "2025 Black 03")
-    assert rank(f, "2025 Black", fvocab, "03")[0] == "2025 Black 03.png"
-    assert rank(f, "2025 Black", fvocab, "3")[0] == "2025 Black 3.png"
-    assert rank(f, "2025 Black", fvocab, "0")[0] == "2025 Black.png"
+    assert rank(f, "2025 Black", fvocab, "03") == ["2025 Black 03.png", "2025 Black.png"]
+    assert rank(f, "2025 Black", fvocab, "3") == ["2025 Black 3.png", "2025 Black.png"]
+    assert rank(f, "2025 Black", fvocab, "0") == ["2025 Black.png"]
     assert rank(f, "2025 Black", fvocab)[0] == "2025 Black.png"
+
+
+def test_a_requested_number_never_falls_back_to_another_number(tmp_path, fvocab):
+    """With a number requested and neither that number nor an unnumbered file present, there is no candidate."""
+    f = touch(tmp_path / "e", "2025 Black 3", "2025 Black 12 Grad")
+    assert rank(f, "2025 Black", fvocab, "7") == []
+    assert rank(f, "2025 Black", fvocab, "7", {"Grad"}) == []
+
+
+def test_without_a_number_any_file_is_a_candidate(tmp_path, fvocab):
+    """With no number requested, numbered files remain candidates, unnumbered first."""
+    f = touch(tmp_path / "e", "2025 Black 3", "2025 Black 12", "2025 Black")
+    assert rank(f, "2025 Black", fvocab) == ["2025 Black.png", "2025 Black 12.png", "2025 Black 3.png"]
+    only = touch(tmp_path / "n", "2025 Black 3")
+    assert rank(only, "2025 Black", fvocab) == ["2025 Black 3.png"]
+
+
+def test_resolve_names_the_missing_number(project, fvocab):
+    """resolve() fails, naming the requested number and the ones that exist, rather than placing another number."""
+    put(project, "jersey", "front", "2025 Black", "2025 Black 3")
+    put(project, "jersey", "front", "2025 Black", "2025 Black 12")
+    path, how = compose.resolve(project, MSU, "football", "jersey", "front", "2025 Black", "7", set(), fvocab)
+    assert path is None
+    assert how == "no #7 or unnumbered file under Jerseys Front/2025 Black (has #12, #3)"
+
+
+def test_a_missing_number_fails_a_required_placement(project, monkeypatch):
+    """End to end: a required jersey with only other numbers is MISSING, exit 1, nothing written."""
+    mini(project, tpl("jf", [{"slot": "jersey", "viewpoint": "front", "x": 50, "y": 0}]))
+    put(project, "jersey", "front", "2025 White", "2025 White 4")
+    res, out = compose_json(project, monkeypatch, "--view", "jf", "--jersey", "2025 White", "--number", "15", ok=False)
+    assert res["missing"] == [
+        {"label": "jersey/front", "reason": "no #15 or unnumbered file under Jerseys Front/2025 White (has #4)"}
+    ]
+    assert res["output"] is None
+    assert not out.exists()
 
 
 def test_number_outranks_with_token(tmp_path, fvocab):

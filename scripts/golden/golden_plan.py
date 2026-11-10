@@ -3,13 +3,28 @@
 Plan the GOLDEN EXAMPLE SUITE: one composition per template per era, drawn
 from real elements, for review before anything is rendered.
 
-    uv run scripts/golden/golden_plan.py            # inventory + manifest + PLAN.md
-    uv run scripts/golden/golden_plan.py --rescan   # re-measure every element
+    uv run scripts/golden/golden_plan.py                  # inventory + manifest + PLAN.md
+    uv run scripts/golden/golden_plan.py --rescan         # re-measure every element
+    uv run scripts/golden/golden_plan.py --sport soccer   # re-plan one sport, keep the rest
 
 Writes
-    golden/inventory.json   every element, its era per viewpoint, its numbers
+    golden/inventory.json   every element, its era per viewpoint, its numbers,
+                            and which sports it covers
     golden/manifest.yaml    the examples — EDIT THIS, then run golden_run.py
     golden/PLAN.md          the same, readable, with a coverage matrix
+
+--sport (repeatable) re-plans ONLY those sports: their entries in the
+existing manifest.yaml and their sections of PLAN.md are replaced, and every
+other sport's are kept as they are, hand edits included. (It used to write a
+manifest of just those sports, and a later golden_fixture.py --apply then
+deleted every other sport's fixture.) PLAN.md's header totals are recounted
+across all of them.
+
+The inventory is a cache. It records the sports it was measured for; a plan
+that needs a sport it doesn't cover measures that sport and adds it, so an
+inventory written by a --sport run is never reused as if it were complete.
+--rescan re-measures the sports being planned (all, or the --sport ones)
+and keeps the rest.
 
 COVERAGE RULE. For each template, every era of every (uniform, slot,
 viewpoint) it places must appear in at least one example. Examples are
@@ -443,10 +458,97 @@ def pick_number(rec, need_vps):
     return None
 
 
+def load_inventory(root, cfg, sports, rescan):
+    """The inventory for `sports`: cached where golden/inventory.json covers them, measured where it doesn't.
+
+    The file is {"sports": [...], "elements": {sport: ...}}. One written
+    before coverage was recorded is a bare {sport: ...} and counts as
+    covering exactly the sports it holds. With `rescan`, `sports` are
+    measured again; any other cached sport is kept. Writes the file back
+    whenever anything was measured.
+    """
+    invp = root / "golden" / "inventory.json"
+    inv, covered = {}, set()
+    if invp.is_file():
+        raw = json.loads(invp.read_text())
+        if isinstance(raw.get("sports"), list) and isinstance(raw.get("elements"), dict):
+            inv, covered = raw["elements"], set(raw["sports"])
+        else:
+            inv, covered = raw, set(raw)
+    todo = sorted(set(sports) if rescan else set(sports) - covered)
+    reused = sorted(set(sports) - set(todo))
+    if reused:
+        # Sizes are cached; eras are NOT trusted from the cache. Re-resolve
+        # them against the profiles as they stand now, so a profile fix takes
+        # effect without re-measuring every file.
+        moved = 0
+        for sport in reused:
+            for team in inv.get(sport, {}).values():
+                for slot, els in team.items():
+                    for rec in els.values():
+                        for vp, v in rec["vps"].items():
+                            era = era_for(cfg, sport, slot, vp, v["size"])
+                            moved += era != v["era"]
+                            v["era"] = era
+        print(
+            f"inventory: reusing {invp.relative_to(root)} for {', '.join(reused)} (--rescan to refresh)"
+            + (f" — {moved} eras re-resolved against current profiles" if moved else "")
+        )
+    if todo:
+        why = "--rescan" if rescan else f"not in {invp.relative_to(root)}"
+        print(
+            f"inventory: measuring {', '.join(todo)} ({why}) — this reads one file per "
+            "element per viewpoint, so it takes a minute or two..."
+        )
+        for sport in todo:
+            inv.pop(sport, None)
+        inv.update(build_inventory(root, cfg, todo))
+        covered |= set(todo)
+        invp.write_text(json.dumps({"sports": sorted(covered), "elements": inv}, indent=1))
+    return {sport: inv[sport] for sport in sports if sport in inv}
+
+
+def sport_title(sport):
+    """A sport slug as PLAN.md heads its section: mens_basketball -> Mens Basketball."""
+    return sport.replace("_", " ").title()
+
+
+def plan_sections(text, sports):
+    """Split an existing PLAN.md into its per-sport sections, keyed by slug, each as PLAN.md holds it.
+
+    A section runs from its `## {Sport}` heading to the next sport's heading
+    or the end. Anything before the first is the header, which is rebuilt.
+    """
+    titles = {f"## {sport_title(sp)}": sp for sp in sports}
+    lines = text.removesuffix("\n").split("\n")  # the one newline main() adds after the last section
+    starts = [i for i, line in enumerate(lines) if line in titles and i > 0 and lines[i - 1] == ""]
+    out = {}
+    for a, b in zip(starts, [*starts[1:], len(lines) + 1], strict=True):
+        out[titles[lines[a]]] = "\n".join(lines[a - 1 : b - 1])
+    return out
+
+
+def section_stats(sport, section):
+    """(templates, empty templates, uncoverable era targets) read back from one PLAN.md section."""
+    tpl = empty = gaps = 0
+    names = []
+    for line in section.split("\n"):
+        if line.startswith("### `"):
+            tpl += 1
+            if " — 0 examples" in line:
+                empty += 1
+                names.append(f"{sport} / {line.split('`')[1]}")
+        elif line.startswith("- "):
+            gaps += 1
+    return tpl, names if empty else [], gaps
+
+
 def main():
     """Build or reuse the inventory, plan every template, and write golden/manifest.yaml and golden/PLAN.md.
 
     Overwrites the manifest; durable choices belong in golden/pairings.yaml.
+    With --sport, only those sports' entries and PLAN.md sections are
+    replaced; every other sport's are kept.
     """
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--rescan", action="store_true")
@@ -478,38 +580,17 @@ def main():
                     n += 1
         print(f"pairings: {n} known uniform{'s' if n != 1 else ''} from golden/pairings.yaml")
     tpls = yaml.safe_load((root / "configs/view_templates.yaml").open())["templates"]
+    all_sports = sorted({t["sport"] for t in tpls})
     if args.sport:
+        unknown = sorted(set(args.sport) - set(all_sports))
+        if unknown:
+            sys.exit(f"No templates for sport: {', '.join(unknown)}\nSports with templates: {', '.join(all_sports)}")
         tpls = [t for t in tpls if t["sport"] in args.sport]
     sports = sorted({t["sport"] for t in tpls})
     out = root / "golden"
     out.mkdir(exist_ok=True)
 
-    invp = out / "inventory.json"
-    if invp.is_file() and not args.rescan:
-        inv = json.loads(invp.read_text())
-        # Sizes are cached; eras are NOT trusted from the cache. Re-resolve
-        # them against the profiles as they stand now, so a profile fix takes
-        # effect without re-measuring every file.
-        moved = 0
-        for sport, teams in inv.items():
-            for team in teams.values():
-                for slot, els in team.items():
-                    for rec in els.values():
-                        for vp, v in rec["vps"].items():
-                            era = era_for(cfg, sport, slot, vp, v["size"])
-                            moved += era != v["era"]
-                            v["era"] = era
-        print(
-            f"inventory: reusing {invp.relative_to(root)} (--rescan to refresh)"
-            + (f" — {moved} eras re-resolved against current profiles" if moved else "")
-        )
-    else:
-        print(
-            "inventory: measuring every element — this reads one file per "
-            "element per viewpoint, so it takes a minute or two..."
-        )
-        inv = build_inventory(root, cfg, sports)
-        invp.write_text(json.dumps(inv, indent=1))
+    inv = load_inventory(root, cfg, sports, args.rescan)
     n_el = sum(len(e) for s in inv.values() for t in s.values() for e in t.values())
     print(f"           {n_el} element-slots across {len(inv)} sports\n")
 
@@ -517,12 +598,11 @@ def main():
     for t in tpls:
         by_sport[t["sport"]].append(t)
 
-    manifest, plan_md = [], []
-    gaps_total = 0
-    empty = []
+    manifest, sections = [], {}
     for sport in sports:
         names = {t["view_kind"] for t in by_sport[sport]}
-        plan_md.append(f"\n## {sport.replace('_', ' ').title()}\n")
+        plan_md = sections[sport] = []
+        plan_md.append(f"\n## {sport_title(sport)}\n")
         for tpl in by_sport[sport]:
             view = tpl["view_kind"]
             examples, extras, _targets, unmatched, cons = plan_template(tpl, names, inv, cfg)
@@ -531,8 +611,6 @@ def main():
             for p in tpl["placements"]:
                 need_vps[(p.get("uniform", 1), p["slot"])].append(p["viewpoint"])
 
-            if not examples:
-                empty.append(f"{sport} / {view}")
             plan_md.append(
                 f"### `{view}` — {len(examples)} example"
                 f"{'s' if len(examples) != 1 else ''}" + (f" + {len(extras)} explicit" if extras else "")
@@ -585,11 +663,43 @@ def main():
                 )
                 plan_md.append(f"| {i} | {team} | {desc} | {cov} |")
             if unmatched:
-                gaps_total += len(unmatched)
                 plan_md.append("\n**Not coverable** — no team has an element that fits every slot of this template:")
                 for u, s, v, e in unmatched:
                     plan_md.append(f"- {'#2 ' if u == 2 else ''}{s}/{v} era `{e or 'UNMATCHED SIZE'}`")
             plan_md.append("")
+
+    # Join each sport's section; with --sport, keep the others' from the
+    # existing manifest and PLAN.md. Order is by sport, as a full plan writes.
+    text = {sp: "\n".join(lines) for sp, lines in sections.items()}
+    selected = len(manifest)
+    kept_examples = []
+    if args.sport:
+        mp, pp_ = out / "manifest.yaml", out / "PLAN.md"
+        old = (yaml.safe_load(mp.read_text()) or []) if mp.is_file() else []
+        kept_examples = [m for m in old if m.get("sport") not in sports]
+        others = set(all_sports) - set(sports)
+        # Split on EVERY sport's heading, so a kept section never swallows
+        # the stale section of a sport being re-planned.
+        old_sections = plan_sections(pp_.read_text(), all_sports) if pp_.is_file() else {}
+        old_sections = {sp: t for sp, t in old_sections.items() if sp in others}
+        text.update(old_sections)
+        manifest = sorted(kept_examples + manifest, key=lambda m: m.get("sport", ""))
+        if kept_examples:
+            kept_sports = sorted({m.get("sport", "") for m in kept_examples})
+            print(
+                f"kept {len(kept_examples)} example{'s' if len(kept_examples) != 1 else ''} "
+                f"for other sports: {', '.join(kept_sports)}"
+            )
+            missing = [sp for sp in kept_sports if sp not in old_sections]
+            if missing:
+                print(f"!! PLAN.md had no section for {', '.join(missing)}: re-plan without --sport to restore it")
+    order = sorted(text)
+    n_tpl, empty, gaps_total = 0, [], 0
+    for sp in order:
+        t, e, g = section_stats(sp, text[sp])
+        n_tpl += t
+        empty += e
+        gaps_total += g
 
     (out / "manifest.yaml").write_text(
         "# Golden example suite. Set `approved: false` on any example to skip\n"
@@ -598,12 +708,11 @@ def main():
         + yaml.safe_dump(manifest, sort_keys=False, allow_unicode=True)
     )
 
-    n_tpl = len(tpls)
     head = [
         "# Golden example suite — plan",
         "",
         f"**{len(manifest)} examples across {n_tpl} templates and "
-        f"{len(sports)} sports.** Every era of every viewpoint each template "
+        f"{len(order)} sports.** Every era of every viewpoint each template "
         "places appears in at least one example, drawn from real elements.",
         "",
         "Review this, edit `golden/manifest.yaml` (set `approved: false` to "
@@ -633,18 +742,22 @@ def main():
             "listed under each template. Usually a slot with no element "
             "on the same team, or a size no profile recognises.",
         ]
-    (out / "PLAN.md").write_text("\n".join(head + plan_md) + "\n")
+    (out / "PLAN.md").write_text("\n".join(head + [text[sp] for sp in order]) + "\n")
 
+    # The summary covers the sports planned in this run.
     per = defaultdict(int)
     for m in manifest:
         per[m["sport"]] += 1
-    print(f"{len(manifest)} examples across {n_tpl} templates")
-    for s in sports:
-        print(f"   {s:<20} {per[s]:>4}")
-    if empty:
-        print(f"\n!! {len(empty)} templates have NO examples: " + ", ".join(empty))
-    if gaps_total:
-        print(f"\n!! {gaps_total} era targets not coverable — see golden/PLAN.md")
+    mine = [section_stats(sp, text[sp]) for sp in sports]
+    print(f"{selected} examples across {len(tpls)} templates")
+    for sp in sports:
+        print(f"   {sp:<20} {per[sp]:>4}")
+    my_empty = [n for _, e, _ in mine for n in e]
+    my_gaps = sum(g for *_, g in mine)
+    if my_empty:
+        print(f"\n!! {len(my_empty)} templates have NO examples: " + ", ".join(my_empty))
+    if my_gaps:
+        print(f"\n!! {my_gaps} era targets not coverable — see golden/PLAN.md")
     print("\nWrote golden/manifest.yaml and golden/PLAN.md — review, then uv run scripts/golden/golden_run.py")
 
 

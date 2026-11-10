@@ -25,7 +25,8 @@ rendered.
 ## 1. Plan — `golden_plan.py`
 
 Measures one file per element per viewpoint (cached in
-`golden/inventory.json`; `--rescan` to refresh), resolves each to an era, and
+`golden/inventory.json`, which records the sports it covers and measures any
+missing one; `--rescan` to refresh), resolves each to an era, and
 picks the smallest set of examples so that **every era of every viewpoint
 each template places appears at least once**.
 
@@ -176,7 +177,7 @@ actually placed. It copies:
 
 | What | Why |
 |---|---|
-| Each placed element's files with the requested number, plus its unnumbered files | the candidates compose ranks; a file with another number can't win while one of these exists. If there are none, it copies the whole folder |
+| Each placed element's files with the requested number, plus its unnumbered files | the candidates compose ranks; a file with another number is never placed. With no number requested: the unnumbered files, else the whole folder |
 | Every Helmets Left/Right element used, whole, and its folder in `Marks/` | so CI can re-pad the marks and compare |
 | One more helmet element for any era (A–F, per side) not reached | so every helmet era is re-padded |
 | The first and last file of every Fields/Courts Full folder, and their cropped copies | so every sport's crop is re-derived |
@@ -196,7 +197,13 @@ of these:
 
 Pixels are compared, not bytes, so a Pillow upgrade that compresses
 differently doesn't fail it. The job summary lists every failure, and the
-`golden-run` artifact holds the contact sheets and REPORT.md.
+`golden-run` artifact holds the contact sheets and REPORT.md. Locally,
+`golden_ci.py` writes those to `golden/run-ci/`, leaving the full run in
+`golden/run/` for `golden_fixture.py`.
+
+`golden_plan.py --sport S` re-plans only that sport: its manifest entries and
+PLAN.md sections are replaced and every other sport's are kept, so it's safe
+before a `golden_fixture.py --apply`.
 
 **Refresh the fixture in the same PR** as any re-plan, or any change to
 artwork the fixture copies — and any PR touching a template, canvas, era

@@ -22,6 +22,15 @@ slot=jersey, viewpoint=front.
 
 Overrides for a slot not yet in the config:
     --canvas 2000x2300 --profile jersey-front
+
+`pad` exits 1 if ANY file was not written for a reason other than being
+already standardized or fully transparent — a file matching no era, or one
+falling outside its canvas — after writing the rest and reporting them all.
+So `pad SRC DEST && rm -rf SRC` stops before deleting unwritten artwork.
+
+`survey` suggests a canvas by the canvas rule: the largest POST-SCALE
+content, plus 1px each side on a centred axis and none against an anchored
+edge. Not headroom: padding exists to put every era at one placement.
 """
 
 import argparse
@@ -316,7 +325,34 @@ def cmd_survey(args, root, cfg):
     maxw = max(w for w, _ in sizes)
     maxh = max(h for _, h in sizes)
     print(f"\nLargest content: {maxw} x {maxh}")
-    print(f"Suggested canvas (~12% headroom): {round(maxw * 1.12 / 100) * 100} x {round(maxh * 1.11 / 100) * 100}")
+    # The canvas rule: the largest POST-SCALE content plus 1px each side on a
+    # centred axis, none against an anchored edge (fit_extent, as pad places
+    # it). Padding puts every era at one placement; it is not headroom.
+    # ~12% headroom was tried and reversed: it cost football_jersey 21% of
+    # its area.
+    post = []
+    for w, h in sizes:
+        e = (match_era(profile, w, h, tol) if profile else None) or {}
+        s = float(e.get("scale", 1.0))
+        pw, ph = (round(w * s), round(h * s)) if not math.isclose(s, 1.0) else (w, h)
+        anchor = e.get("anchor", "top-center")
+        if anchor.endswith("left"):
+            hx = "start"
+        elif anchor.endswith("right"):
+            hx = "end"
+        else:
+            hx = "centre"
+        hy = "start" if anchor.startswith("top") else "centre"
+        post.append((pw, ph, fit_extent(hx, pw, int(e.get("dx", 0))), fit_extent(hy, ph, int(e.get("dy", 0)))))
+    print(f"Largest content after era scale: {max(p[0] for p in post)} x {max(p[1] for p in post)}")
+    fits = [p for p in post if p[2] is not None and p[3] is not None]
+    if fits:
+        print(
+            f"Suggested canvas: {max(p[2] for p in fits)} x {max(p[3] for p in fits)}"
+            " (largest post-scale content, +1px each side on a centred axis)"
+        )
+    if len(fits) < len(post):
+        print("   Some sizes fit no canvas: their era's dx/dy pushes them past the anchored edge.")
     if profile is None:
         print(
             "\nNo profile yet. Add one to configs/canvas_definitions.yaml "
@@ -333,6 +369,11 @@ def cmd_pad(args, root, cfg):
     canvas an era of the profile overrides it with, or whose content matches
     what an era's scale produces. The marker's `canvas` is the slot canvas;
     `era_canvases` lists any era canvas a written file sits on.
+
+    Exits 1 if any file was left unwritten for any reason other than being
+    already standardized or fully transparent (it matched no era, or fell
+    outside its canvas), after reporting everything, so `pad && rm -rf SRC`
+    cannot lose artwork.
     """
     src = resolve(args.src, root)
     dest = resolve(args.dest, root)
@@ -617,6 +658,14 @@ def cmd_pad(args, root, cfg):
         )
     if not plan:
         sys.exit("\nNothing written: no file both matched an era and fit its canvas. No destination or marker created.")
+    # Exit non-zero whenever authored source was left behind, so that
+    # `pad SRC DEST && rm -rf SRC` can't lose it. Already-standardized and
+    # blank files are not "left behind": they have nothing to pad.
+    if unmatched or skipped:
+        sys.exit(
+            f"\n!! {len(unmatched) + len(skipped)} files were NOT written "
+            f"({len(unmatched)} matched no era, {len(skipped)} fell outside the canvas). Keep the source."
+        )
 
 
 # ---------------------------------------------------------------- main
