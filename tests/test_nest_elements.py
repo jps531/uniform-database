@@ -191,7 +191,8 @@ def test_nothing_left_is_reported(football, stem):
 
 
 def test_dry_run_plans_and_writes_nothing(project, monkeypatch, capsys):
-    """Without --apply the plan is printed, the destination is not created and the source is untouched."""
+    """Without --apply the plan is printed, nothing is written to the destination and the source is untouched."""
+    (project / "Football").mkdir()
     stage(project, "temp/Football/EMCC/Helmets Right/2014 White A Speedflex.png")
     stage(project, "temp/Football/EMCC/Helmets Right/2014 White B Speedflex.png")
     stage(project, "temp/Football/EMCC/Jerseys Front/2014 White 34 A.png")
@@ -203,12 +204,13 @@ def test_dry_run_plans_and_writes_nothing(project, monkeypatch, capsys):
     assert "-> 2014 White A/   [Speedflex]" in out
     assert "-> 2014 White/   [#34 A]" in out
     assert "DRY RUN" in out
-    assert not (project / "Football").exists()
+    assert not any((project / "Football").iterdir())
     assert len(list((project / "temp").rglob("*.png"))) == 3
 
 
 def test_apply_copies_into_element_folders_and_keeps_source(project, monkeypatch, capsys):
     """--apply copies every file, unrenamed, into its element folder and leaves the staging tree intact."""
+    (project / "Football").mkdir()
     names = {
         "Helmets Right/2016 Maroon Speedflex A.png": "2016 Maroon",
         "Helmets Right/2016 Maroon Speedflex B.png": "2016 Maroon",
@@ -232,6 +234,7 @@ def test_apply_copies_into_element_folders_and_keeps_source(project, monkeypatch
 
 def test_staging_without_sport_level_falls_back_to_temp(project, monkeypatch, capsys):
     """With no temp/{Sport}/, staging is read from temp/{Team}/ directly."""
+    (project / "Football").mkdir()
     stage(project, "temp/Jones/Helmets Left/2019 Black Cats.png")
     run(monkeypatch, "--sport", "football", "--apply")
     assert "source: temp  ->  dest: Football" in capsys.readouterr().out
@@ -268,6 +271,7 @@ def test_explicit_src_dest_root_and_team_filter(project, tmp_path, monkeypatch, 
 
 def test_unassignable_file_is_reported_and_blocks_apply(project, monkeypatch, capsys):
     """A file that strips to nothing is listed as unassigned, and --apply then refuses to copy anything."""
+    (project / "Football").mkdir()
     stage(project, "temp/Football/EMCC/Jerseys Front/ 12.png")
     stage(project, "temp/Football/EMCC/Jerseys Front/2014 White 12.png")
     with pytest.raises(SystemExit, match="Refusing to apply"):
@@ -275,11 +279,12 @@ def test_unassignable_file_is_reported_and_blocks_apply(project, monkeypatch, ca
     out = capsys.readouterr().out
     assert "!! 1 files could not be assigned" in out
     assert "EMCC/Jerseys Front/ 12.png  (nothing left)" in out
-    assert not (project / "Football").exists()
+    assert not any((project / "Football").iterdir())
 
 
 def test_collision_is_reported_and_blocks_apply(project, monkeypatch, capsys):
     """Two sources planned onto one destination are listed as a collision and --apply refuses."""
+    (project / "Football").mkdir()
     a = stage(project, "temp/Football/EMCC/Jerseys Front/2014 White 12.png")
     dest = project / "Football/EMCC/Jerseys Front/2014 White/2014 White 12.png"
     monkeypatch.setattr(ne, "build_plan", lambda *a_, **k: ([(a, dest, []), (a, dest, [])], []))
@@ -287,6 +292,27 @@ def test_collision_is_reported_and_blocks_apply(project, monkeypatch, capsys):
         run(monkeypatch, "--apply")
     assert "!! 1 destination collisions" in capsys.readouterr().out
     assert not dest.exists()
+
+
+def test_default_destination_matches_the_sport_slug(project, monkeypatch, capsys):
+    """mens_basketball (basketball's vocabulary patched in) resolves to Men's Basketball, for staging and destination."""
+    vocab = ne.load_vocab(REPO, "basketball")
+    monkeypatch.setattr(ne, "load_vocab", lambda root, sport: vocab)
+    (project / "Men's Basketball").mkdir()
+    src = stage(project, "temp/Men's Basketball/Mississippi State/Jerseys Front/2019 White 23.png")
+    run(monkeypatch, "--sport", "mens_basketball", "--apply")
+    assert "source: temp/Men's Basketball  ->  dest: Men's Basketball" in capsys.readouterr().out
+    dest = project / "Men's Basketball/Mississippi State/Jerseys Front/2019 White/2019 White 23.png"
+    assert dest.read_bytes() == src.read_bytes()
+    assert not (project / "Mens Basketball").exists()
+
+
+def test_no_sport_directory_requires_dest(project, monkeypatch):
+    """With no directory matching the sport slug, main() exits asking for --dest rather than inventing a name."""
+    stage(project, "temp/EMCC/Helmets Right/2014 White A.png")
+    with pytest.raises(SystemExit, match="No directory for sport 'football'.*--dest"):
+        run(monkeypatch, "--sport", "football", "--apply")
+    assert not (project / "Football").exists()
 
 
 def test_missing_source_exits(project, monkeypatch):
@@ -297,6 +323,7 @@ def test_missing_source_exits(project, monkeypatch):
 
 def test_source_without_pngs_exits(project, monkeypatch):
     """A source tree with no PNGs exits rather than printing an empty plan."""
+    (project / "Football").mkdir()
     (project / "temp/Football/EMCC/Helmets Right").mkdir(parents=True)
     (project / "temp/Football/notes.txt").write_text("not a team")
     with pytest.raises(SystemExit, match="No PNGs under"):
@@ -316,6 +343,7 @@ def test_find_root_walks_up_and_fails_cleanly(project, tmp_path):
 
 def test_runs_as_a_script(project, monkeypatch, capsys):
     """Run as `__main__`, the script plans the default (football) sport."""
+    (project / "Football").mkdir()
     stage(project, "temp/Football/EMCC/Helmets Right/2014 White A.png")
     monkeypatch.setattr(sys, "argv", ["nest_elements.py"])
     runpy.run_path(str(REPO / "scripts" / "migration" / "nest_elements.py"), run_name="__main__")
