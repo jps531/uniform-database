@@ -114,10 +114,13 @@ def test_lookup_is_keyed_by_sport(cfg):
     """lookup returns the sport-qualified canvas and profile, or None for either when absent."""
     canvas, profile, names = standardize.lookup(cfg, "football", "helmet", "front")
     assert names == ("football_helmet_face", "football-helmet-front")
+    assert canvas is not None
     assert (canvas["width"], canvas["height"]) == canvas_size(cfg, "football_helmet_face")
     assert profile == cfg["profiles"]["football-helmet-front"]
     canvas, profile, names = standardize.lookup(cfg, "football", "helmet", "side")
-    assert canvas is None and profile is None and names == (None, "football-helmet-side")
+    assert canvas is None
+    assert profile is None
+    assert names == (None, "football-helmet-side")
 
 
 def test_pngs_skips_hidden_files_and_directories(tmp_path):
@@ -141,7 +144,9 @@ def test_match_era_within_tolerance_only(cfg):
     tol = cfg["tolerance"]
     profile = cfg["profiles"]["football-helmet-front"]
     w, h = era(cfg, "football-helmet-front", "B")["size"]
-    assert standardize.match_era(profile, w + tol, h - tol, tol)["era"] == "B"
+    matched = standardize.match_era(profile, w + tol, h - tol, tol)
+    assert matched is not None
+    assert matched["era"] == "B"
     assert standardize.match_era(profile, w + tol + 1, h, tol) is None
     assert standardize.match_era(profile, w, h - tol - 1, tol) is None
 
@@ -186,8 +191,25 @@ def test_survey_elements_and_profile_override(project, cfg, monkeypatch, capsys)
     assert "profile=football-helmet-back (override)" in out
     assert "-> era BCD" in out
     assert f"{b[0]} x {b[1]}  (2 elements)" in out
-    assert "      2010 White" in out and "      2011 Black" in out
+    assert "      2010 White" in out
+    assert "      2011 Black" in out
     assert "2012 Black" not in out
+
+
+def test_survey_profile_override_inside_a_sport_tree(project, cfg, monkeypatch, capsys):
+    """--profile on a path that also parses surveys it: the canvas check below must not read an unset canvas.
+
+    The override skips the branch that looks the canvas up, so the
+    standardized-output note has no canvas to compare against and is left out.
+    """
+    b = era(cfg, "football-helmet-back", "BCD")["size"]
+    src = project / HELMET_FRONT
+    art(src / "2010 White" / "h.png", b)
+    run(monkeypatch, "survey", HELMET_FRONT, "--profile", "football-helmet-back")
+    out = capsys.readouterr().out
+    assert "profile=football-helmet-back (override)" in out
+    assert "-> era BCD" in out
+    assert "NOTE" not in out
 
 
 def test_survey_rejects_unknown_profile(project, monkeypatch):
@@ -260,7 +282,8 @@ def test_survey_refuses_missing_or_empty_dirs(project, monkeypatch):
     (project / "empty").mkdir()
     with pytest.raises(SystemExit) as e:
         run(monkeypatch, "survey", "empty")
-    assert "No PNGs under" in str(e.value) and "brctl download" in str(e.value)
+    assert "No PNGs under" in str(e.value)
+    assert "brctl download" in str(e.value)
 
 
 # ---------------------------------------------------------------- pad: writes
@@ -314,7 +337,8 @@ def test_pad_writes_generated_marker(project, cfg, monkeypatch):
     assert marker["canvas"] == f"{cv[0]}x{cv[1]}"
     assert marker["files_written"] == 1
     assert "profile=football-helmet-front" in marker["profile"]
-    assert marker["anchor"] == "top-center" and marker["dpi"] == 300
+    assert marker["anchor"] == "top-center"
+    assert marker["dpi"] == 300
 
 
 def test_pad_rewrites_a_marked_destination(project, cfg, monkeypatch):
@@ -386,7 +410,8 @@ def test_pad_era_canvas_override_and_offsets(project, cfg, monkeypatch, capsys):
     assert bbox(dest / "std" / "j.png") == ((40, 30), (1, 0, 39, 28))
     assert bbox(dest / "wide" / "j.png") == ((60, 30), (1, 0, 59, 28))
     assert bbox(dest / "shift" / "j.png") == ((40, 30), (3, 2, 13, 12))
-    assert not (dest / "nocanvas").exists() and not (dest / "blank").exists()
+    assert not (dest / "nocanvas").exists()
+    assert not (dest / "blank").exists()
     out = capsys.readouterr().out
     assert "!! 2 files matched NO era" in out
     assert "20x20  nocanvas/j.png" in out
@@ -417,9 +442,11 @@ def test_pad_refuses_unmarked_authored_destination(project, cfg, monkeypatch):
     art(project / "src" / "y" / "h.png", b, seed=5)
     with pytest.raises(SystemExit) as e:
         run(monkeypatch, "pad", "src", HELMET_FRONT)
-    assert "REFUSING to write" in str(e.value) and "holds 1 PNGs" in str(e.value)
+    assert "REFUSING to write" in str(e.value)
+    assert "holds 1 PNGs" in str(e.value)
     assert authored.read_bytes() == before
-    assert not (dest / "y").exists() and not (dest / ".generated").exists()
+    assert not (dest / "y").exists()
+    assert not (dest / ".generated").exists()
 
 
 def test_pad_force_writes_marker_into_unmarked_destination(project, cfg, monkeypatch):
@@ -488,7 +515,8 @@ def test_pad_refuses_bad_arguments(project, monkeypatch, tmp_path):
         with pytest.raises(SystemExit) as e:
             run(monkeypatch, *argv)
         assert msg in str(e.value), argv
-    assert not (project / HELMET_FRONT).exists() and not (project / "out").exists()
+    assert not (project / HELMET_FRONT).exists()
+    assert not (project / "out").exists()
 
 
 def test_main_accepts_explicit_root(project, cfg, monkeypatch, tmp_path, capsys):
@@ -509,7 +537,8 @@ def test_survey_of_unrecognised_path_lists_elements(project, monkeypatch, capsys
     out = capsys.readouterr().out
     assert "sport=" not in out
     assert size_line((14, 9), 1, "") in out
-    assert "14 x 9  (1 elements)" in out and "No profile yet." in out
+    assert "14 x 9  (1 elements)" in out
+    assert "No profile yet." in out
 
 
 def test_pad_keeps_partial_alpha_exactly(project, cfg, monkeypatch):
@@ -557,7 +586,8 @@ def test_pad_already_on_canvas_check_does_not_depend_on_file_order(project, cfg,
     dest = project / "Test/T/Jerseys Front"
     written = sorted(p.relative_to(dest).as_posix() for p in dest.rglob("*.png"))
     assert written == ["a/j.png", "c/j.png"]
-    assert bbox(dest / "a" / "j.png")[0] == (60, 30) and bbox(dest / "c" / "j.png")[0] == (40, 30)
+    assert bbox(dest / "a" / "j.png")[0] == (60, 30)
+    assert bbox(dest / "c" / "j.png")[0] == (40, 30)
     assert all(p.read_bytes() == b for p, b in before.items())
     out = capsys.readouterr().out
     assert "!! 2 files were SKIPPED — already 40 x 30 or 60 x 30." in out

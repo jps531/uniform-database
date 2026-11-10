@@ -26,6 +26,7 @@ Overrides for a slot not yet in the config:
 
 import argparse
 import json
+import math
 import sys
 from collections import Counter
 from datetime import UTC, datetime
@@ -176,7 +177,12 @@ def fit_extent(anchor: str, extent: int, offset: int):
 
 def placement(anchor: str, era: dict, width: int, height: int, w: int, h: int):
     """(x, y) of w x h content on a width x height canvas at `anchor`, plus the era's dx/dy."""
-    x = 0 if anchor.endswith("left") else (width - w if anchor.endswith("right") else (width - w) // 2)
+    if anchor.endswith("left"):
+        x = 0
+    elif anchor.endswith("right"):
+        x = width - w
+    else:
+        x = (width - w) // 2
     y = 0 if anchor.startswith("top") else (height - h) // 2
     return x + int(era.get("dx", 0)), y + int(era.get("dy", 0))
 
@@ -189,7 +195,12 @@ def canvas_hint(skipped) -> list:
     """
     need, lines = {}, []
     for rel, _, _, w, h, _, _, anchor, era, name, width, height in skipped:
-        hx = "start" if anchor.endswith("left") else ("end" if anchor.endswith("right") else "centre")
+        if anchor.endswith("left"):
+            hx = "start"
+        elif anchor.endswith("right"):
+            hx = "end"
+        else:
+            hx = "centre"
         hy = "start" if anchor.startswith("top") else "centre"
         fw = fit_extent(hx, w, int(era.get("dx", 0)))
         fh = fit_extent(hy, h, int(era.get("dy", 0)))
@@ -246,7 +257,7 @@ def cmd_survey(args, root, cfg):
         print(f"No file has opaque content: all {len(files)} PNGs are fully transparent.")
         return
     parsed = parse_dest(src, root, cfg)
-    profile = None
+    canvas, profile = None, None
     if getattr(args, "profile", None):
         profile = cfg.get("profiles", {}).get(args.profile)
         if profile is None:
@@ -262,7 +273,12 @@ def cmd_survey(args, root, cfg):
     tol = cfg.get("tolerance", 3)
     for (w, h), n in sizes.most_common():
         era = match_era(profile, w, h, tol) if profile else None
-        tag = f"  -> era {era['era']}" if era else ("  -> UNMATCHED" if profile else "")
+        if era:
+            tag = f"  -> era {era['era']}"
+        elif profile:
+            tag = "  -> UNMATCHED"
+        else:
+            tag = ""
         print(f"  {w:>5} x {h:<5}  {n:>4} files{tag}")
 
     if profile is None or args.elements:
@@ -329,7 +345,7 @@ def cmd_pad(args, root, cfg):
     canvas = profile = cn = None
     parsed = parse_dest(dest, root, cfg)
     if parsed:
-        sport, team, slot, viewpoint = parsed
+        sport, _team, slot, viewpoint = parsed
         canvas, profile, (cn, pn) = lookup(cfg, sport, slot, viewpoint)
         label = f"{sport}/{slot}/{viewpoint}  canvas={cn} profile={pn}"
     else:
@@ -468,7 +484,7 @@ def cmd_pad(args, root, cfg):
             name, width, height = cn, base_width, base_height
 
         s = float(era.get("scale", 1.0))
-        w, h = (round(cw * s), round(ch * s)) if s != 1.0 else (cw, ch)
+        w, h = (round(cw * s), round(ch * s)) if not math.isclose(s, 1.0) else (cw, ch)
         anchor = era.get("anchor", args.anchor)
         x, y = placement(anchor, era, width, height, w, h)
 
@@ -499,7 +515,8 @@ def cmd_pad(args, root, cfg):
         )
 
     measured = len(files) - blank
-    ignored = f" ({blank} fully transparent file{'s' if blank != 1 else ''} ignored)" if blank else ""
+    plural = "" if blank == 1 else "s"
+    ignored = f" ({blank} fully transparent file{plural} ignored)" if blank else ""
     if not measured:
         sys.exit(f"{label}\nNo file has opaque content: all {len(files)} PNGs are fully transparent.\nNothing written.")
     # Judged on files with content: a blank file must not let standardized
@@ -517,8 +534,8 @@ def cmd_pad(args, root, cfg):
     for f, rel, box, era, s, cw, ch, w, h, x, y, cvw, cvh in plan:
         with ImageOps.exif_transpose(Image.open(f)).convert("RGBA") as img:
             img = img.crop(box)
-            if s != 1.0:
-                img = img.resize((w, h), Image.LANCZOS)
+            if not math.isclose(s, 1.0):
+                img = img.resize((w, h), Image.Resampling.LANCZOS)
             out = dest / rel
             out.parent.mkdir(parents=True, exist_ok=True)
             cv = Image.new("RGBA", (cvw, cvh), (0, 0, 0, 0))

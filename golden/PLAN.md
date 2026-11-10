@@ -4,7 +4,7 @@
 
 Review this, edit `golden/manifest.yaml` (set `approved: false` to skip an example, or change any element), then run:
 
-    python3 scripts/golden/golden_run.py
+    uv run scripts/golden/golden_run.py
 
 How examples are chosen: greedily, so each one covers as many uncovered eras as possible; within a team, elements from the same year are preferred so a combination looks like one actually worn; elements with numbered files are preferred so number resolution is exercised. Explicit placements (the football helmet-left inset) get one extra example each.
 
@@ -398,3 +398,4 @@ _Constraint: uniform 1: jersey ls only; uniform 2: jersey ls only_
 | 1 | Mississippi State | jersey: 2025 Black **15**<br>shorts: 2025 Black | jersey front **all**, shorts front **c** |
 | 2 | Mississippi State | jersey: 2025 Maroon **2**<br>shorts: 2025 Maroon | jersey front **all**, shorts front **a** |
 | 3 | Mississippi State | jersey: 2025 White Pink **21**<br>shorts: 2025 White Pink | jersey front **all**, shorts front **b** |
+

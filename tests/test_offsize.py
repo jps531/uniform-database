@@ -32,7 +32,8 @@ def test_exact_matches(project, cfg, monkeypatch, capsys):
     out = run(monkeypatch, capsys, "Football")
     assert "checked 2 files under Football" in out
     assert "All 2 checked files are an exact match for their profile." in out
-    assert "!!" not in out and "skipped" not in out
+    assert "!!" not in out
+    assert "skipped" not in out
 
 
 def test_near_misses_and_unmatched_with_csv(project, cfg, monkeypatch, capsys, tmp_path):
@@ -52,13 +53,14 @@ def test_near_misses_and_unmatched_with_csv(project, cfg, monkeypatch, capsys, t
     assert (
         f"  football-helmet-front era B: {near[0]}x{near[1]} should be {b[0]}x{b[1]}  (+2, {-tol:+d})  — 2 files" in out
     )
-    assert f"       {VIEW}/p/h.png" in out and f"       {VIEW}/q/h.png" in out
+    assert f"       {VIEW}/p/h.png" in out
+    assert f"       {VIEW}/q/h.png" in out
     assert f"1 files match NO profile entry even within tolerance {tol}:" in out
     assert f"  {far[0]}x{far[1]}  [football-helmet-front]  {VIEW}/r/h.png" in out
     assert f"Wrote {out_csv}" in out
     rows = list(csv.reader(out_csv.open()))
     assert rows[0] == ["path", "width", "height", "want_w", "want_h", "dw", "dh", "profile", "era"]
-    assert [f"{VIEW}/p/h.png", str(near[0]), str(near[1]), str(b[0]), str(b[1]), "2", str(-tol)] == rows[1][:7]
+    assert rows[1][:7] == [f"{VIEW}/p/h.png", str(near[0]), str(near[1]), str(b[0]), str(b[1]), "2", str(-tol)]
     assert rows[-1] == [
         f"{VIEW}/r/h.png",
         str(far[0]),
@@ -112,7 +114,8 @@ def test_fill_canvas_files_are_checked(project, cfg, monkeypatch, capsys):
     cv = canvas_size(cfg, "football_jersey_sleeve")
     art(project / "Football/T/Jerseys Left/x/s.png", cv)
     out = run(monkeypatch, capsys, "Football")
-    assert "checked 1 files" in out and "All 1 checked files are an exact match" in out
+    assert "checked 1 files" in out
+    assert "All 1 checked files are an exact match" in out
 
 
 def test_off_canvas_padded_file_is_checked(project, cfg, monkeypatch, capsys):

@@ -106,7 +106,8 @@ def test_check_failed_short_circuits(tmp_path):
     """A result with missing placements reports FAILED for each and nothing else."""
     res = {"missing": [{"label": "jersey/front", "reason": "no file"}, {"label": "pants/left", "reason": "gone"}]}
     issues, notes = gr.check({"sport": "football"}, res, tmp_path / "none.png", {}, [])
-    assert issues == ["FAILED jersey/front: no file", "FAILED pants/left: gone"] and notes == []
+    assert issues == ["FAILED jersey/front: no file", "FAILED pants/left: gone"]
+    assert notes == []
 
 
 def test_check_empty_output(tmp_path):
@@ -260,7 +261,9 @@ def test_vocab_tokens_extends_cycles_and_sequences(tmp_path):
 def test_vocab_tokens_real_shared():
     """The real football vocabulary includes shared tokens, longest first."""
     v = gr.vocab_tokens(REPO, "football")
-    assert "NCAA" in v and "Grad" in v and v == sorted(v, key=len, reverse=True)
+    assert "NCAA" in v
+    assert "Grad" in v
+    assert v == sorted(v, key=len, reverse=True)
 
 
 def test_font_falls_back_to_default(monkeypatch):
@@ -325,7 +328,8 @@ def test_end_to_end_strict_ok(project, cfg, monkeypatch, capsys):
         project
     )
     html = (project / "golden/run/index.html").read_text()
-    assert "1 rendered" in html and "<h2>football / icons-horizontal</h2>" in html
+    assert "1 rendered" in html
+    assert "<h2>football / icons-horizontal</h2>" in html
 
 
 def test_end_to_end_failed_placement(project, cfg, monkeypatch, capsys):
@@ -340,7 +344,8 @@ def test_end_to_end_failed_placement(project, cfg, monkeypatch, capsys):
     assert "DEFECT football--icons-horizontal--01" in out
     assert "- FAILED jersey/icon: no file under Jerseys Icon/1999 Nothing" in out
     r = report(project)
-    assert "## Defects" in r and "### `football--icons-horizontal--01` — Mississippi State" in r
+    assert "## Defects" in r
+    assert "### `football--icons-horizontal--01` — Mississippi State" in r
 
 
 # --------------------------------------------------------------------------
@@ -404,7 +409,8 @@ def test_every_outcome_reported(project, monkeypatch, tmp_path, capsys):
     assert "9 examples to render (1 not approved, skipped)" in out
     assert "[  1/9] ok     fb--a--01" in out
     assert "[  2/9] note   fb--a--02" in out
-    assert "[  3/9] DEFECT fb--a--03" in out and "- CLIPPED jersey/icon T5px" in out
+    assert "[  3/9] DEFECT fb--a--03" in out
+    assert "- CLIPPED jersey/icon T5px" in out
     assert "- FAILED jersey/icon: no file" in out
     assert "- EMPTY output" in out
     assert "- FAILED compose: ValueError: boom" in out
@@ -419,15 +425,19 @@ def test_every_outcome_reported(project, monkeypatch, tmp_path, capsys):
     for flag in (["--number", "10"], ["--number2", "1"], ["--with", "Grad"], ["--jersey2", "2024 Blue Keeper"]):
         i = sc.index(flag[0])
         assert sc[i : i + 2] == flag
-    assert "--helmet-left" in sc and sc[sc.index("--team") + 1] == MSU
+    assert "--helmet-left" in sc
+    assert sc[sc.index("--team") + 1] == MSU
 
     r = report(project)
     assert "**9 examples, 6 with defects.**" in r
     assert "### `fb--a--03` — Mississippi State\n- CLIPPED jersey/icon T5px" in r
-    assert "### `fb--b--01`" in r and "### `fb--b--02`" in r and "- EMPTY output" in r
+    assert "### `fb--b--01`" in r
+    assert "### `fb--b--02`" in r
+    assert "- EMPTY output" in r
     assert "## Notes (not defects)\n\n- `fb--a--02`: clip (rounding) jersey/icon T2px" in r
     assert "### `fb--b--03` — Mississippi State\n- FAILED compose: ValueError: boom" in r
-    assert "### `fb--b--05`" in r and "fb--b--06" not in r
+    assert "### `fb--b--05`" in r
+    assert "fb--b--06" not in r
     assert "| football | `a` | 3 | 1 | [sheet](sheets/football--a.png) |" in r
     assert "| football | `b` | 5 | 5 | [sheet](sheets/football--b.png) |" in r
     assert "| soccer | `c` | 1 |  | [sheet](sheets/soccer--c.png) |" in r
@@ -460,10 +470,13 @@ def test_only_refreshes_one_and_reports_all(project, monkeypatch, tmp_path, caps
     # --strict judges every result on disk, not only this run's
     assert str(e.value) == "STRICT: 2 with defects, 1 with notes"
     out = capsys.readouterr().out
-    assert len(fake.calls) == 1 and "fb--a--03.png" in fake.calls[0][fake.calls[0].index("--out") + 1]
+    assert len(fake.calls) == 1
+    assert "fb--a--03.png" in fake.calls[0][fake.calls[0].index("--out") + 1]
     assert "1 rendered this run; report covers 6, 2 with defects" in out
     r = report(project)
-    assert "### `fb--a--03`" not in r and "| football | `a` | 3 |  |" in r and "### `fb--b--02`" in r
+    assert "### `fb--a--03`" not in r
+    assert "| football | `a` | 3 |  |" in r
+    assert "### `fb--b--02`" in r
 
 
 def test_only_strict_ok(project, monkeypatch, tmp_path, capsys):
@@ -471,7 +484,8 @@ def test_only_strict_ok(project, monkeypatch, tmp_path, capsys):
     fake = suite(project, monkeypatch, tmp_path)
     run_main(monkeypatch, "--sport", "soccer", "--strict")
     out = capsys.readouterr().out
-    assert len(fake.calls) == 1 and "STRICT: every example is ok" in out
+    assert len(fake.calls) == 1
+    assert "STRICT: every example is ok" in out
     assert "| soccer | `c` | 1 |" in report(project)
 
 
@@ -484,9 +498,11 @@ def test_sport_filter_and_report_from_disk(project, monkeypatch, tmp_path, capsy
     fake.calls.clear()
     run_main(monkeypatch, "--sport", "soccer")
     out = capsys.readouterr().out
-    assert len(fake.calls) == 1 and "report covers 6, 3 with defects" in out
+    assert len(fake.calls) == 1
+    assert "report covers 6, 3 with defects" in out
     r = report(project)
-    assert "| football | `b` | 2 | 2 |" in r and "| soccer | `c` | 1 |  |" in r
+    assert "| football | `b` | 2 | 2 |" in r
+    assert "| soccer | `c` | 1 |  |" in r
 
 
 def test_stale_png_removed_before_compose(project, monkeypatch, tmp_path, capsys):
@@ -510,8 +526,10 @@ def test_stale_json_not_read_as_ok(project, monkeypatch, tmp_path, capsys):
         run_main(monkeypatch, "--only", "fb--a--01", "--strict")
     assert str(e.value).startswith("STRICT: 1 with defects")
     out = capsys.readouterr().out
-    assert "DEFECT fb--a--01" in out and "- FAILED compose: Not in configs/modifiers_football.yaml" in out
-    assert not js.exists() and not js.with_suffix(".png").exists()
+    assert "DEFECT fb--a--01" in out
+    assert "- FAILED compose: Not in configs/modifiers_football.yaml" in out
+    assert not js.exists()
+    assert not js.with_suffix(".png").exists()
     r = report(project)
     assert "### `fb--a--01` — Mississippi State\n- FAILED compose: Not in configs/modifiers_football.yaml" in r
 
@@ -529,7 +547,8 @@ def test_end_to_end_unknown_token_after_ok_run(project, cfg, monkeypatch, capsys
         run_main(monkeypatch, "--strict")
     assert str(e.value).startswith("STRICT: 1 with defects")
     out = capsys.readouterr().out
-    assert "DEFECT football--icons-horizontal--01" in out and "- FAILED compose: " in out
+    assert "DEFECT football--icons-horizontal--01" in out
+    assert "- FAILED compose: " in out
     assert not (project / "golden/run/football/icons-horizontal/football--icons-horizontal--01.png").exists()
 
 

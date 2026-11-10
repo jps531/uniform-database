@@ -159,13 +159,22 @@ def candidates(folder: Path, element: str, number, want, vocab, player=None):
         extras = toks - want - default_form
         has_default = bool(toks & default_form)
         non_default_form = bool((toks & form_tokens) - default_form)
-        num_rank = 0 if (number is not None and num == number) else (1 if num is None else 2)
+        if number is not None and num == number:
+            num_rank = 0
+        elif num is None:
+            num_rank = 1
+        else:
+            num_rank = 2
         # leftover words after tokens and the number are the player surname
         who = " ".join(leftover) if leftover else None
-        if player:
-            play_rank = 0 if (who and who.lower() == player.lower()) else (1 if who is None else 2)
-        else:
+        if not player:
             play_rank = 0 if who is None else 1
+        elif who and who.lower() == player.lower():
+            play_rank = 0
+        elif who is None:
+            play_rank = 1
+        else:
+            play_rank = 2
         scored.append(
             (
                 (
@@ -410,8 +419,8 @@ def main():
 
         with ImageOps.exif_transpose(Image.open(path)).convert("RGBA") as img:
             s = float(p.get("scale", 1.0))
-            if s != 1.0:
-                img = img.resize((round(img.width * s), round(img.height * s)), Image.LANCZOS)
+            if not math.isclose(s, 1.0):
+                img = img.resize((round(img.width * s), round(img.height * s)), Image.Resampling.LANCZOS)
             rot = float(p.get("rotation", p.get("rotate", 0)))
             if rot:
                 # Rotate about the TOP-CENTRE ANCHOR, not the image centre.
@@ -420,7 +429,7 @@ def main():
                 # around it. Positive = clockwise (Photoshop); PIL rotates
                 # counter-clockwise, hence the negation.
                 h0 = img.height
-                img = img.rotate(-rot, resample=Image.BICUBIC, expand=True)
+                img = img.rotate(-rot, resample=Image.Resampling.BICUBIC, expand=True)
                 th = math.radians(rot)
                 # anchor offset (0, -h0/2) under a clockwise rotation, y-down
                 ax = img.width / 2 + (h0 / 2) * math.sin(th)
@@ -511,7 +520,7 @@ def main():
             print(f"\nreference {ref.size}  composed {canvas.size}")
             if ref.size != canvas.size:
                 print("  sizes differ — scaling reference to compare")
-                ref = ref.resize(canvas.size, Image.LANCZOS)
+                ref = ref.resize(canvas.size, Image.Resampling.LANCZOS)
             import numpy as np
 
             a = np.array(canvas).astype(int)
@@ -520,7 +529,7 @@ def main():
             diff = (np.abs(a[..., :3] - b[..., :3]).sum(axis=2) > 40) & ink
             pct = 100 * diff.sum() / max(ink.sum(), 1)
             print(f"  differing pixels: {diff.sum():,} of {ink.sum():,} inked ({pct:.2f}%)")
-            ys, xs = np.where(diff)
+            ys, xs = np.nonzero(diff)
             if len(xs):
                 print(f"  differences span x {xs.min()}-{xs.max()}, y {ys.min()}-{ys.max()}")
                 Image.fromarray((diff * 255).astype("uint8")).save(out.with_name(out.stem + "-diff.png"))

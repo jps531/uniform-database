@@ -26,7 +26,8 @@ def test_every_sport_resolves_a_vocabulary(sport):
 def test_every_sport_nests(sport):
     """nest_elements.load_vocab finds patch tokens and colorways for every configured sport rather than exiting."""
     strip, _, _, _, known = nest_elements.load_vocab(REPO, sport)
-    assert strip and known
+    assert strip
+    assert known
 
 
 @pytest.mark.parametrize(

@@ -77,7 +77,8 @@ def test_sport_token_overrides_shared_and_colorways_inherit(project):
     assert "ncaa" in tokens
     assert "pink" in colorways
     strip, design, *_ = ne.load_vocab(project, "mine")
-    assert "Grad" in design and "Grad" not in strip
+    assert "Grad" in design
+    assert "Grad" not in strip
     assert nest("2020 White Grad", ne.load_vocab(project, "mine"))[0] == "2020 White Grad"
 
 
@@ -200,7 +201,8 @@ def test_dry_run_plans_and_writes_nothing(project, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "source: temp/Football  ->  dest: Football" in out
     assert "3 files -> 3 element folders" in out
-    assert "EMCC" in out and "Helmets Right" in out
+    assert "EMCC" in out
+    assert "Helmets Right" in out
     assert "-> 2014 White A/   [Speedflex]" in out
     assert "-> 2014 White/   [#34 A]" in out
     assert "DRY RUN" in out

@@ -53,6 +53,12 @@ whatever its size:
   uv run scripts/golden/golden_fixture.py --apply
   ```
 
+- **A refactor must be shown to change nothing.** Green CI says the result
+  didn't change, not that a tie-break didn't. `compose.py`'s candidate
+  ranking and `golden_plan.py`'s scoring pick between files that all pass, so
+  rewriting one can quietly reorder it — ranking on number alone once chose
+  `… Grad NCAA.png` over the plain file. Prove it instead: brute-force the
+  key over its inputs, or re-run `golden_plan.py` and diff the manifest.
 - **Say what a change does to the files on disk** when it does more than
   change code: a re-nest, a re-pad, a re-crop, a folder rename.
 - Commit messages say why, not only what.
@@ -71,6 +77,19 @@ uv run ruff format .         # format
 
 **Dependencies.** Add one with `uv add NAME` (or `uv add --dev NAME` for a
 tool), which updates `pyproject.toml` and `uv.lock` together. Commit both.
+
+**Editors.** `scripts/` is a folder of tools, not a package, and its scripts
+import each other by adding the sibling folder to `sys.path` at runtime. An
+analyser can't follow that, so point yours at `.venv` and give it the same
+folders `pyproject.toml`'s `pythonpath` lists — in VS Code,
+`python.defaultInterpreterPath` and `python.analysis.extraPaths`. Editor
+settings are gitignored, so this is per-person setup, not a committed file.
+Without it every third-party and cross-folder import reads as unresolved.
+
+**Pillow.** Resampling filters go through the enum —
+`Image.Resampling.LANCZOS`, not the `Image.LANCZOS` alias. The alias still
+works at runtime but isn't in Pillow's type stubs, so an editor marks every
+use of it unresolved.
 
 **Tests.** `tests/test_<script>.py` holds each script's unit tests, run
 with pytest. They never touch the real artwork. The `project` fixture
@@ -93,6 +112,15 @@ rest; `coverage_gate.py` checks each script. For a browsable report, run
 A test asserts what the script does: files written, pixels, messages, exit
 codes. It never asserts on behaviour that's a bug. Fix the bug, or leave
 the path untested and say so in the PR.
+
+**Coverage doesn't prove a combination was tried.** `survey --profile` on a
+path that also parses crashed on an unbound `canvas`: the override skips the
+branch that sets it, and `if parsed and canvas` reads it anyway. Every line
+and branch of `cmd_survey` was covered the whole time — the test passed a
+path that doesn't parse, so `and` short-circuited before reaching the unbound
+name. Where an option overrides something derived from the path, test it both
+ways: on a path that parses and on one that doesn't. `cmd_pad` has the shape
+to copy, with every name its branches set initialised to `None` above them.
 
 **Docstrings.** Every module and function in `scripts/` and `tests/` has
 one, nested helpers included. A script's module docstring is its manual:

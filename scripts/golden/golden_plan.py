@@ -156,7 +156,7 @@ def numbers_in(stems, element, vocab_tokens):
     token ending in digits (CWS21, SEC75) is not taken for number 21 or 75.
     """
     nums = {split_tail(s, element, vocab_tokens)[1] for s in stems}
-    return sorted(nums - {None}, key=lambda n: (len(n), n))
+    return sorted((n for n in nums if n is not None), key=lambda n: (len(n), n))
 
 
 def build_inventory(root, cfg, sports):
@@ -226,7 +226,7 @@ def colorway(el):
     return rest.split()[0].lower() if rest else ""
 
 
-def plan_template(tpl, names, inv, cfg):
+def plan_template(tpl, names, inv, _cfg):
     """Choose the examples that cover every era of every viewpoint one template places.
 
     Greedy: each round anchors on the first uncovered target and builds the
@@ -372,12 +372,13 @@ def plan_template(tpl, names, inv, cfg):
         return (paired, same_name, -same, hue, -gap, new, numbered, rec["year"] or 0)
 
     while targets - covered:
-        anchor = sorted(targets - covered)[0]
+        anchor = min(targets - covered)
         best = None
         for team, el in reach[anchor]:
             u0, slot0 = anchor[0], anchor[1]
             year = teams[team][slot0][el]["year"]
-            chosen, gained = {"_anchor": el, "_anchor_u": u0}, set()
+            chosen: dict = {"_anchor": el, "_anchor_u": u0}
+            gained = set()
             ok = True
             for u, slot in sorted(need, key=lambda k: (k[0], k[1] != "jersey", k[1])):
                 if (u, slot) == (u0, slot0):
@@ -387,7 +388,7 @@ def plan_template(tpl, names, inv, cfg):
                     if not cands:
                         ok = False
                         break
-                    pick = max(cands, key=lambda e: score(team, u, slot, e, year, chosen))
+                    pick = max(cands, key=lambda e, u=u, slot=slot: score(team, u, slot, e, year, chosen))
                 chosen[(u, slot)] = pick
                 gained |= covers(team, u, slot, pick)
             if not ok:
@@ -524,7 +525,7 @@ def main():
         plan_md.append(f"\n## {sport.replace('_', ' ').title()}\n")
         for tpl in by_sport[sport]:
             view = tpl["view_kind"]
-            examples, extras, targets, unmatched, cons = plan_template(tpl, names, inv, cfg)
+            examples, extras, _targets, unmatched, cons = plan_template(tpl, names, inv, cfg)
             teams = inv.get(sport, {})
             need_vps = defaultdict(list)
             for p in tpl["placements"]:

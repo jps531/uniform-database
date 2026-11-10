@@ -70,7 +70,8 @@ def test_plan_flat_without_colorways_skips_the_colour_check(project):
     """With no colorway list, no colour is reported unknown."""
     touch(project, T / "Speed" / "Alabama 2015 Zebra 1.png")
     moves, problems = mm.plan(project / T, project / D, set())
-    assert problems == [] and len(moves) == 1
+    assert problems == []
+    assert len(moves) == 1
 
 
 def test_known_colorways_accepts_keys_tokens_and_labels(project):
@@ -137,7 +138,7 @@ def test_main_flat_blocks_on_problems_and_collisions(project, monkeypatch, capsy
     assert "Resolve the flagged items first" in out
     with pytest.raises(SystemExit) as e:
         run_main(monkeypatch, project, "--apply")
-    assert "Refusing to apply" in e.value.code
+    assert "Refusing to apply" in str(e.value.code)
     assert not (project / D).exists()
 
 
@@ -145,7 +146,7 @@ def test_main_exits_without_source_or_team(project, monkeypatch):
     """A missing source tree, or nested mode without --team, exits with a message."""
     with pytest.raises(SystemExit) as e:
         run_main(monkeypatch, project)
-    assert "Source not found" in e.value.code
+    assert "Source not found" in str(e.value.code)
     (project / T).mkdir(parents=True)
     with pytest.raises(SystemExit) as e:
         run_main(monkeypatch, project, "--mode", "nested")
@@ -164,7 +165,7 @@ def test_find_root_exits_without_configs(tmp_path):
     """find_root() exits when no directory above holds the configs."""
     with pytest.raises(SystemExit) as e:
         mm.find_root(tmp_path)
-    assert "Pass --root." in e.value.code
+    assert "Pass --root." in str(e.value.code)
 
 
 # ---------------------------------------------------------------- nested
@@ -284,7 +285,7 @@ def test_plan_nested_needs_pillow(project, monkeypatch):
     monkeypatch.setattr(mm, "Image", None)
     with pytest.raises(SystemExit) as e:
         mm.plan_nested(project, project / D, "Alabama", project)
-    assert "nested mode reads image sizes" in e.value.code
+    assert "nested mode reads image sizes" in str(e.value.code)
 
 
 def test_main_nested_reports_problems_and_collisions_then_refuses(project, monkeypatch, capsys):

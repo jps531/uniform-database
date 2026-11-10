@@ -143,6 +143,8 @@ def shell_by_era(root: Path) -> dict:
 
 def content_size(path: Path):
     """Width and height of the non-transparent bbox, or None if empty."""
+    # Pillow is optional for the flat modes; plan_nested, the only caller, exits first without it.
+    assert Image is not None
     with Image.open(path).convert("RGBA") as im:
         box = im.getchannel("A").getbbox()
     if box is None:

@@ -35,8 +35,11 @@ def test_jobs_for_reads_every_derived_canvas_from_the_real_config(cfg):
     """jobs_for() yields one OK rule per derived canvas, with the source viewpoint and crop from config."""
     rules = list(dc.jobs_for(cfg, None))
     assert {r[1] for r in rules} == {"football", "baseball", "basketball"}
-    for status, sport, slot, src_vp, dst_vp, csrc, cdst, crop in rules:
-        assert (status, src_vp, dst_vp) == ("OK", "full", "cropped")
+    for rule in rules:
+        # An ERROR rule is a shorter tuple; check the status before unpacking.
+        assert rule[0] == "OK"
+        _, sport, slot, src_vp, dst_vp, csrc, cdst, crop = rule
+        assert (src_vp, dst_vp) == ("full", "cropped")
         assert csrc == cfg["canvases"][f"{sport}_{slot}_full"]
         assert crop == tuple(cdst["derived_from"]["crop_at"])
     assert [r[1] for r in dc.jobs_for(cfg, "baseball")] == ["baseball"]

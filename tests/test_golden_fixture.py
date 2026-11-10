@@ -96,10 +96,10 @@ def write_result(root: Path, ex: dict, placements: list) -> Path:
     return js
 
 
-def placed(file: Path, slot: str, vp: str, element: str, number=None, status="placed") -> dict:
-    """One placement record as compose writes it."""
+def placed(file: Path | None, slot: str, vp: str, element: str, number=None, status="placed") -> dict:
+    """One placement record as compose writes it; a skipped placement has no file, as in compose's JSON."""
     return {
-        "file": str(file),
+        "file": str(file) if file else None,
         "slot": slot,
         "viewpoint": vp,
         "element": element,
@@ -320,7 +320,8 @@ def test_main_apply_adds_updates_removes_and_prunes(project, small, monkeypatch,
     run_main(monkeypatch, project, "--apply")
     out = capsys.readouterr().out
     assert "add 0, update 1, remove 1" in out
-    assert f"~ {changed}" in out and "- Old/Deep/stale.png" in out
+    assert f"~ {changed}" in out
+    assert "- Old/Deep/stale.png" in out
     assert "Wrote 1 files, removed 1." in out
     assert not (dest / "Old").exists()
     assert (dest / changed).read_bytes() == (project / changed).read_bytes()
