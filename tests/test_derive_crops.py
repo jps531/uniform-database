@@ -230,3 +230,46 @@ def test_a_rotated_file_is_reported_off_canvas(project, monkeypatch, capsys):
     assert e.value.code == "Refusing to apply while problems remain."
     assert f"{f.relative_to(project)}  ({H}x{W}, expected {W}x{H})" in capsys.readouterr().out
     assert not cropped_of(f).exists()
+
+
+def test_refuses_to_apply_into_an_authored_cropped_folder(project, monkeypatch, capsys):
+    """A Cropped folder holding PNGs but no .generated marker is a problem, and --apply leaves it untouched."""
+    cfg = small_configs(project)
+    f = full(project, cfg)
+    authored = art(cropped_of(f).parent / "hand drawn.png", (5, 5), seed=9)
+    before = authored.read_bytes()
+    run_main(monkeypatch, project, "--sport", "football")
+    dst = cropped_of(f).parents[1]
+    assert f"{dst.relative_to(project)}  (holds 1 PNGs but no .generated marker" in capsys.readouterr().out
+    with pytest.raises(SystemExit) as e:
+        run_main(monkeypatch, project, "--sport", "football", "--apply")
+    assert e.value.code == "Refusing to apply while problems remain."
+    assert authored.read_bytes() == before
+    assert not cropped_of(f).exists()
+    assert not (dst / ".generated").exists()
+
+
+def test_reapplies_into_its_own_generated_folder(project, monkeypatch, capsys):
+    """A Cropped folder this script generated (it carries the marker) is rewritten without complaint."""
+    cfg = small_configs(project)
+    f = full(project, cfg)
+    run_main(monkeypatch, project, "--sport", "football", "--apply")
+    run_main(monkeypatch, project, "--sport", "football", "--apply")
+    out = capsys.readouterr().out
+    assert "problems" not in out
+    assert out.count("Wrote 1 files.") == 2
+    assert cropped_of(f).is_file()
+
+
+def test_marker_records_source_and_crop_canvas(project, monkeypatch):
+    """The marker names the source folder, the crop canvas and its size, and the crop origin."""
+    cfg = small_configs(project)
+    f = full(project, cfg)
+    run_main(monkeypatch, project, "--sport", "football", "--apply")
+    c = cfg["canvases"]["football_field_cropped"]
+    marker = json.loads((cropped_of(f).parents[1] / ".generated").read_text())
+    assert marker["source"] == str(f.parents[1])
+    assert marker["canvas"] == f"{c['width']}x{c['height']}"
+    assert marker["canvas_name"] == "football_field_cropped"
+    assert marker["source_canvas"] == "football_field_full"
+    assert marker["crop_at"] == list(c["derived_from"]["crop_at"])

@@ -17,18 +17,33 @@ apart from the crop and the new margin.
 Use `pad` for authored source. Use this for anything a survey reports as
 SCALED (see classify.py).
 
+The canvas comes from DEST's path, parsed exactly as `pad` parses it, so the
+recommended "… STD" sibling ("Jerseys Front STD") resolves the same canvas as
+"Jerseys Front". `--canvas NAME` overrides it. Every file goes on that one
+canvas, anchored top-centre; era `canvas:` overrides are not consulted, so a
+cut larger than the slot canvas is reported as too big rather than placed.
+
     uv sync
 
     uv run scripts/migration/recanvas.py "temp/Mississippi State/Jerseys Front" \\
-                                "Football/Mississippi State/Jerseys Front"
+                                "Football/Mississippi State/Jerseys Front STD"
     uv run scripts/migration/recanvas.py SRC DEST --apply
 
-COPIES, never moves.
+COPIES, never moves. Refuses:
+  - a DEST that resolves to SRC (it would rewrite the source in place);
+  - a DEST holding PNGs without a .generated marker, which is treated as
+    authored artwork, as `pad` does (an empty or new folder is fine);
+  - --apply while any file's content is larger than the canvas.
+On --apply it writes a .generated marker into DEST recording the source and
+canvas. As with `pad`: recanvas into a "… STD" sibling, check it, delete its
+marker, then copy the contents across.
 """
 
 import argparse
+import json
 import sys
 from collections import Counter
+from datetime import UTC, datetime
 from pathlib import Path
 
 try:
@@ -36,6 +51,10 @@ try:
     from PIL import Image, ImageOps
 except ImportError:
     sys.exit("Missing dependencies: run `uv sync`")
+
+# Path parsing and the canvas lookup are `pad`'s, in scripts/pipeline/.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "pipeline"))
+from standardize import MARKER, lookup, parse_dest, pngs, resolve  # noqa: E402
 
 DPI = 300
 
@@ -48,16 +67,12 @@ def find_root(start: Path) -> Path:
     sys.exit(f"No configs/canvas_definitions.yaml above {start}")
 
 
-def slug(s):
-    """Directory name -> config key: lowercase, apostrophes dropped, spaces to underscores."""
-    return s.lower().replace("\u2019", "").replace("'", "").replace(" ", "_")
-
-
 def main():
     """Re-place standardized files from SRC onto DEST's canvas, top-centre; dry run unless --apply.
 
-    The canvas comes from DEST's path (or --canvas). Refuses to apply while any
-    file's content is larger than the canvas.
+    The canvas comes from DEST's path (or --canvas). Refuses a DEST equal to
+    SRC or holding PNGs without a .generated marker, and refuses to apply
+    while any file's content is larger than the canvas.
     """
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("src")
@@ -68,26 +83,41 @@ def main():
     args = ap.parse_args()
 
     root = Path(args.root).expanduser().resolve() if args.root else find_root(Path.cwd().resolve())
-    src, dest = root / args.src, root / args.dest
+    src, dest = resolve(args.src, root), resolve(args.dest, root)
     if not src.is_dir():
         sys.exit(f"Source not found: {src}")
+    # Writing into the source rewrites every file in place: nothing would be
+    # "left intact", whatever the last line printed.
+    if dest == src:
+        sys.exit("Destination must differ from source.")
 
     cfg = yaml.safe_load((root / "configs/canvas_definitions.yaml").open())
-    C, A, dir_slot = cfg["canvases"], cfg["assignments"], cfg["directory_slots"]
 
     if args.canvas:
         cname = args.canvas
+        cv = cfg["canvases"][cname]
     else:
-        parts = dest.relative_to(root).parts
-        parts = parts[1:] if parts[0] in ("Marks", "Venues") else parts
-        if len(parts) < 3:
+        parsed = parse_dest(dest, root, cfg)
+        if parsed is None:
             sys.exit(f"Cannot read sport/slot/viewpoint from {args.dest}")
-        words = parts[2].split()
-        cname = (A.get(slug(parts[0])) or {}).get(dir_slot.get(words[0]), {}).get(words[-1].lower())
-        if not cname:
+        sport, _team, slot, viewpoint = parsed
+        cv, _profile, (cname, _pn) = lookup(cfg, sport, slot, viewpoint)
+        if not cv:
             sys.exit(f"No canvas assigned for {args.dest}")
-    cv = C[cname]
     W, H = cv["width"], cv["height"]
+
+    # Provenance guard, as in `pad`: a destination holding PNGs but no marker
+    # is authored artwork, and re-placed copies must never overwrite it.
+    # Checked before the dry run too, so the plan never looks safe.
+    if dest.exists() and not (dest / MARKER).exists():
+        held = list(pngs(dest))
+        if held:
+            sys.exit(
+                f"REFUSING to write to {dest}\n"
+                f"It holds {len(held)} PNGs but has no {MARKER} marker, so it looks like AUTHORED artwork.\n"
+                "Recanvas into a new or empty folder (a … STD sibling) instead."
+            )
+
     print(f"canvas {cname} = {W} x {H}, anchor top-center")
     print(f"{args.src}  ->  {args.dest}\n")
 
@@ -128,6 +158,26 @@ def main():
             out = Image.new("RGBA", (W, H), (0, 0, 0, 0))
             out.paste(art, ((W - art.width) // 2, 0))
             out.save(d, dpi=(DPI, DPI))
+    # The marker claims "generated from that source"; with nothing written
+    # there is no such tree, so leave none.
+    if jobs:
+        (dest / MARKER).write_text(
+            json.dumps(
+                {
+                    "generated_by": "scripts/migration/recanvas.py",
+                    "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
+                    "source": str(src),
+                    "canvas": f"{W}x{H}",
+                    "canvas_name": cname,
+                    "anchor": "top-center",
+                    "dpi": DPI,
+                    "files_written": len(jobs),
+                    "note": "Re-placed standardized output; scale untouched. Do not edit by hand.",
+                },
+                indent=2,
+            )
+            + "\n"
+        )
     print(f"\nWrote {len(jobs)} files. Source left intact.")
 
 

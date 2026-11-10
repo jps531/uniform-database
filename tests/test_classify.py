@@ -5,6 +5,7 @@ import sys
 import classify
 import pytest
 from conftest import art, canvas_size, era
+from test_golden_fixture import small_configs
 
 VIEW = "Football/T/Helmets Front"
 
@@ -104,3 +105,34 @@ def test_default_target_is_whole_project(project, cfg, monkeypatch, capsys, args
     b = era(cfg, "football-helmet-front", "B")["size"]
     art(project / VIEW / "x/h.png", b)
     assert "\n.  T / Helmets Front\n" in run(monkeypatch, capsys, *args)
+
+
+def test_fill_canvas_cannot_tell_source_from_output(project, cfg, monkeypatch, capsys):
+    """Raw source on a `fills: fill` canvas (canvas = content) is FILL, not NEW-STD; the content signal still applies."""
+    pants = canvas_size(cfg, "football_pants_front")
+    art(project / "Football/T/Pants Front/x/p.png", pants)
+    art(project / "Venues/Football/T/Fields Full/2020/f.png", canvas_size(cfg, "football_field_full"), (10, 10))
+    out = run(monkeypatch, capsys, "Football", "Venues")
+    assert row(1, "FILL", f"{pants[0]}x{pants[1]}", "era all, no correction") in out
+    assert row(1, "FILL", "10x10", "NO ERA MATCH") in out
+    assert "NEW-STD" not in out
+
+
+def test_era_match_is_the_closest_within_tolerance(project, cfg, monkeypatch, capsys):
+    """Content within tolerance of two eras matches the nearer one (jersey back D 1414 over E 1406), not the last listed."""
+    d = era(cfg, "football-jersey-back", "D")["size"]
+    e = era(cfg, "football-jersey-back", "E")["size"]
+    content = (d[0] - 3, d[1])
+    assert abs(content[0] - e[0]) <= cfg["tolerance"]
+    art(project / "Football/T/Jerseys Back/x/j.png", content)
+    out = run(monkeypatch, capsys, "Football")
+    assert row(1, "RAW", f"{content[0]}x{content[1]}", "era D, no correction") in out
+
+
+def test_era_tolerance_comes_from_config(project, monkeypatch, capsys):
+    """Era matching uses the config's `tolerance`, not a constant: 3px off fails at tolerance 1."""
+    cfg = small_configs(project, lambda c: c.update(tolerance=1))
+    b = era(cfg, "football-helmet-front", "B")["size"]
+    art(project / VIEW / "x/h.png", (b[0] + 3, b[1]))
+    out = run(monkeypatch, capsys, "Football")
+    assert row(1, "RAW", f"{b[0] + 3}x{b[1]}", "NO ERA MATCH") in out

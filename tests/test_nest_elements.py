@@ -296,6 +296,38 @@ def test_collision_is_reported_and_blocks_apply(project, monkeypatch, capsys):
     assert not dest.exists()
 
 
+def test_existing_different_destination_blocks_apply(project, monkeypatch, capsys):
+    """A file already at the destination with different bytes is listed and --apply refuses, leaving it untouched."""
+    stage(project, "temp/Football/EMCC/Jerseys Front/2014 White 12.png", seed=1)
+    other = stage(project, "temp/Football/EMCC/Jerseys Front/2014 White 13.png", seed=2)
+    there = stage(project, "Football/EMCC/Jerseys Front/2014 White/2014 White 12.png", seed=3)
+    before = there.read_bytes()
+    run(monkeypatch)
+    out = capsys.readouterr().out
+    assert "!! 1 files already exist at the destination with different contents:" in out
+    assert "   EMCC/Jerseys Front/2014 White/2014 White 12.png" in out
+    with pytest.raises(SystemExit, match="Refusing to apply"):
+        run(monkeypatch, "--apply")
+    assert there.read_bytes() == before
+    assert not (project / "Football/EMCC/Jerseys Front/2014 White" / other.name).exists()
+
+
+def test_identical_destination_is_a_reported_no_op(project, monkeypatch, capsys):
+    """A file already at the destination byte for byte is reported as in place and not copied again."""
+    src = stage(project, "temp/Football/EMCC/Jerseys Front/2014 White 12.png", seed=1)
+    stage(project, "temp/Football/EMCC/Jerseys Front/2014 White 13.png", seed=2)
+    there = project / "Football/EMCC/Jerseys Front/2014 White/2014 White 12.png"
+    there.parent.mkdir(parents=True)
+    there.write_bytes(src.read_bytes())
+    os.utime(there, (0, 0))
+    run(monkeypatch, "--apply")
+    out = capsys.readouterr().out
+    assert "1 files already at the destination, identical: nothing to copy for them." in out
+    assert "Copied 1 files (1 already in place). Source tree left intact." in out
+    assert there.stat().st_mtime == 0
+    assert (there.parent / "2014 White 13.png").read_bytes() == (src.parent / "2014 White 13.png").read_bytes()
+
+
 def test_default_destination_matches_the_sport_slug(project, monkeypatch, capsys):
     """mens_basketball (basketball's vocabulary patched in) resolves to Men's Basketball, for staging and destination."""
     vocab = ne.load_vocab(REPO, "basketball")

@@ -144,3 +144,23 @@ def test_explicit_root_and_bad_target(project, monkeypatch, capsys, tmp_path):
     with pytest.raises(SystemExit) as e:
         run(monkeypatch, capsys, "Nope", "--root", str(project))
     assert "Not a directory" in str(e.value)
+
+
+def test_files_on_an_era_canvas_are_skipped_as_standardized(project, cfg, monkeypatch, capsys):
+    """A file on an era's own canvas (soccer long sleeve) is standardized output, skipped like one on the slot canvas."""
+    ls = canvas_size(cfg, "soccer_jersey_ls")
+    e = era(cfg, "soccer-jersey-front", "ls")["size"]
+    art(project / "Soccer/T/Jerseys Front/k/j.png", ls, (e[0] - 2, e[1]))
+    out = run(monkeypatch, capsys, "Soccer")
+    assert "skipped 1 files already on their standardized canvas" in out
+    assert "checked 0 files" in out
+
+
+def test_standard_canvases_mirror_pad(cfg):
+    """standard_canvases is the slot canvas plus every era canvas override, leaving out `fills: fill` ones."""
+    slot = cfg["assignments"]["soccer"]["jersey"]["front"]
+    got = offsize.standard_canvases(cfg, cfg["canvases"][slot], cfg["profiles"]["soccer-jersey-front"])
+    assert got == {canvas_size(cfg, slot), canvas_size(cfg, "soccer_jersey_ls")}
+    sleeve = cfg["canvases"]["football_jersey_sleeve"]
+    fill_era = [{"era": "x", "size": [1, 1], "canvas": "football_jersey_sleeve"}]
+    assert offsize.standard_canvases(cfg, sleeve, fill_era) == set()

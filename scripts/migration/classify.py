@@ -12,9 +12,18 @@ Two independent signals:
 
     RAW          content matches an era's PRE-scale size; canvas hugs content
     OLD-STD      canvas matches a previous canvas size (see WAS below)
-    NEW-STD      canvas matches the current canvas
+    NEW-STD      canvas matches the current padded canvas (slot or era)
+    FILL         sits on a `fills: fill` canvas (football pants and sleeves,
+                 icons, fields, courts). There canvas = content, so raw
+                 source cropped to its content and standardized output are
+                 the same size: the canvas can't tell them apart. Read the
+                 content column instead.
     SCALED       content matches an era's POST-scale size — correction applied
     UNSCALED     content matches an era's PRE-scale size — correction pending
+
+Content is matched to the CLOSEST era within the config's `tolerance`
+(smallest |dw| + |dh|), as the golden scripts do. Canvas sizes are compared
+within TOL px.
 
     uv run scripts/migration/classify.py Football temp
 """
@@ -48,6 +57,8 @@ WAS = {
     "volleyball_jersey": (2290, 2770),
     "volleyball_jersey_ls": (2810, 3010),
 }
+# px slack when comparing a file's CANVAS with a known canvas size. Era
+# (content) matching uses `tolerance` from the config instead.
 TOL = 5
 
 
@@ -56,9 +67,23 @@ def slug(s):
     return s.lower().replace("\u2019", "").replace("'", "").replace(" ", "_")
 
 
-def near(a, b):
-    """True if two (width, height) sizes are within TOL pixels on both axes."""
-    return abs(a[0] - b[0]) <= TOL and abs(a[1] - b[1]) <= TOL
+def near(a, b, tol=TOL):
+    """True if two (width, height) sizes are within `tol` pixels (default TOL) on both axes."""
+    return abs(a[0] - b[0]) <= tol and abs(a[1] - b[1]) <= tol
+
+
+def closest(content, sizes, tol):
+    """The era of the (size, era) pair nearest `content` (smallest |dw| + |dh|) within `tol`, or None.
+
+    Ties go to the first listed. Keeping the last match instead made the
+    answer depend on profile order whenever two eras sit within tolerance.
+    """
+    hits = [
+        (abs(content[0] - w) + abs(content[1] - h), i, era)
+        for i, ((w, h), era) in enumerate(sizes)
+        if near(content, (w, h), tol)
+    ]
+    return min(hits)[2] if hits else None
 
 
 def main():
@@ -76,6 +101,7 @@ def main():
             break
     cfg = yaml.safe_load((root / "configs/canvas_definitions.yaml").open())
     C, A, P = cfg["canvases"], cfg["assignments"], cfg["profiles"]
+    tol = cfg.get("tolerance", TOL)
     dir_slot = cfg["directory_slots"]
     args = sys.argv[1:]
     # temp/{Team}/{Viewpoint} has no sport segment, so allow an explicit one.
@@ -117,28 +143,39 @@ def main():
                 b = im.getchannel("A").getbbox()
             content = (b[2] - b[0], b[3] - b[1]) if b else (0, 0)
 
-            # which canvas is this sitting on
-            now = (C[cname]["width"], C[cname]["height"])
-            alts = {e["canvas"] for e in P.get(f"{sport}-{slot}-{vp}", []) if e.get("canvas")}
-            new_sizes = [now] + [(C[a]["width"], C[a]["height"]) for a in alts]
-            old_sizes = [WAS[k] for k in [cname, *alts] if k in WAS]
-            if any(near(canvas, s) for s in new_sizes):
+            # which canvas is this sitting on. A `fills: fill` canvas is kept
+            # out of NEW-STD: canvas = content there, so source cropped to its
+            # content sits on it too (standardize.py pad's comment on
+            # `on_canvas` explains the same blind spot).
+            profile = P.get(f"{sport}-{slot}-{vp}", [])
+            alts = {e["canvas"] for e in profile if e.get("canvas")}
+            names = [cname, *sorted(alts)]
+            padded = [(C[n]["width"], C[n]["height"]) for n in names if C[n].get("fills") != "fill"]
+            filled = [(C[n]["width"], C[n]["height"]) for n in names if C[n].get("fills") == "fill"]
+            old_sizes = [WAS[k] for k in names if k in WAS]
+            if any(near(canvas, s) for s in padded):
                 where = "NEW-STD"
             elif any(near(canvas, s) for s in old_sizes):
                 where = "OLD-STD"
+            elif any(near(canvas, s) for s in filled):
+                where = "FILL"
             elif near(canvas, content):
                 where = "RAW"
             else:
                 where = f"? {canvas[0]}x{canvas[1]}"
 
-            # has the era scale been applied to the pixels
-            pre = post = None
-            for e in P.get(f"{sport}-{slot}-{vp}", []):
-                s = e.get("scale", 1)
-                if near(content, tuple(e["size"])):
-                    pre = e["era"]
-                if s != 1 and near(content, (round(e["size"][0] * s), round(e["size"][1] * s))):
-                    post = e["era"]
+            # has the era scale been applied to the pixels: the closest era
+            # within the config's tolerance, before and after its scale
+            pre = closest(content, [(tuple(e["size"]), e["era"]) for e in profile], tol)
+            post = closest(
+                content,
+                [
+                    ((round(e["size"][0] * e["scale"]), round(e["size"][1] * e["scale"])), e["era"])
+                    for e in profile
+                    if e.get("scale", 1) != 1
+                ],
+                tol,
+            )
             if post:
                 how = f"SCALED (era {post})"
             elif pre:
