@@ -22,21 +22,36 @@ Two independent signals:
     UNSCALED     content matches an era's PRE-scale size — correction pending
 
 Content is matched to the CLOSEST era within the config's `tolerance`
-(smallest |dw| + |dh|), as the golden scripts do. Canvas sizes are compared
+(smallest |dw| + |dh|), as every script does. Canvas sizes are compared
 within TOL px.
 
+The slot and viewpoint come from the viewpoint folder, parsed as `pad`
+parses it, so a "… STD" sibling ("Helmets Left STD") reads as its slot and
+viewpoint. The sport is the first folder above it named for a sport; a tree
+without one, like temp/{Team}/…, needs `--sport`.
+
     uv run scripts/migration/classify.py Football temp
+    uv run scripts/migration/classify.py temp --sport Football
 """
 
+import argparse
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
-try:
-    import yaml
-    from PIL import Image, ImageOps
-except ImportError:
-    sys.exit("Missing dependencies: run `uv sync`")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "pipeline"))
+from common import (  # noqa: E402
+    add_root_arg,
+    content_box,
+    load_config,
+    match_era,
+    pngs,
+    root_from,
+    scaled_eras,
+    sport_slug,
+    tolerance,
+)
+from standardize import lookup, parse_view  # noqa: E402
 
 # Canvas sizes BEFORE the minimal-padding pass. Anything still at one of
 # these was written by the earlier standardization.
@@ -62,28 +77,9 @@ WAS = {
 TOL = 5
 
 
-def slug(s):
-    """Directory name -> config key: lowercase, apostrophes dropped, spaces to underscores."""
-    return s.lower().replace("\u2019", "").replace("'", "").replace(" ", "_")
-
-
 def near(a, b, tol=TOL):
     """True if two (width, height) sizes are within `tol` pixels (default TOL) on both axes."""
     return abs(a[0] - b[0]) <= tol and abs(a[1] - b[1]) <= tol
-
-
-def closest(content, sizes, tol):
-    """The era of the (size, era) pair nearest `content` (smallest |dw| + |dh|) within `tol`, or None.
-
-    Ties go to the first listed. Keeping the last match instead made the
-    answer depend on profile order whenever two eras sit within tolerance.
-    """
-    hits = [
-        (abs(content[0] - w) + abs(content[1] - h), i, era)
-        for i, ((w, h), era) in enumerate(sizes)
-        if near(content, (w, h), tol)
-    ]
-    return min(hits)[2] if hits else None
 
 
 def main():
@@ -94,29 +90,24 @@ def main():
     Files whose content already carries an era's scale are flagged CANNOT
     RE-PAD.
     """
-    root = Path(".")
-    for d in [root, *Path.cwd().parents]:
-        if (d / "configs" / "canvas_definitions.yaml").is_file():
-            root = d
-            break
-    cfg = yaml.safe_load((root / "configs/canvas_definitions.yaml").open())
-    C, A, P = cfg["canvases"], cfg["assignments"], cfg["profiles"]
-    tol = cfg.get("tolerance", TOL)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("paths", nargs="*", metavar="PATH", help="relative to the project root (default: all of it)")
+    ap.add_argument("--sport", help="the sport for trees with no sport folder, e.g. temp/{Team}/…")
+    add_root_arg(ap)
+    args = ap.parse_args()
+
+    root = root_from(args)
+    cfg = load_config(root)
+    C, A = cfg["canvases"], cfg["assignments"]
+    tol = tolerance(cfg)
     dir_slot = cfg["directory_slots"]
-    args = sys.argv[1:]
     # temp/{Team}/{Viewpoint} has no sport segment, so allow an explicit one.
-    fallback = None
-    if "--sport" in args:
-        i = args.index("--sport")
-        fallback = slug(args[i + 1])
-        del args[i : i + 2]
-    targets = args or ["."]
+    fallback = sport_slug(args.sport) if args.sport else None
+    targets = args.paths or ["."]
 
     groups = defaultdict(Counter)
     for base in targets:
-        for f in sorted((root / base).rglob("*.png")):
-            if f.name.startswith("."):
-                continue
+        for f in pngs(root / base):
             parts = f.relative_to(root).parts
             # temp/{Sport}/... and temp/{Team}/... both occur; find the
             # viewpoint directory by looking for a known slot word.
@@ -127,27 +118,27 @@ def main():
             if vp_i is None:
                 continue
             view = parts[vp_i]
-            words = view.split()
-            slot, vp = dir_slot[words[0]], words[-1].lower()
-            sport = next((slug(x) for x in parts[:vp_i] if slug(x) in A), None)
+            sport = next((sport_slug(x) for x in parts[:vp_i] if sport_slug(x) in A), None)
             if sport is None:
                 sport = fallback
             if sport is None:
                 continue
-            cname = (A.get(sport) or {}).get(slot, {}).get(vp)
+            # parsed as `pad` parses it, so "Helmets Left STD" is (helmet, left)
+            parsed = parse_view(sport, view, cfg)
+            if parsed is None:
+                continue
+            _canvas, profile, (cname, _key) = lookup(cfg, sport, *parsed)
             if not cname:
                 continue
 
-            with ImageOps.exif_transpose(Image.open(f)).convert("RGBA") as im:
-                canvas = im.size
-                b = im.getchannel("A").getbbox()
+            canvas, b = content_box(f)
             content = (b[2] - b[0], b[3] - b[1]) if b else (0, 0)
 
             # which canvas is this sitting on. A `fills: fill` canvas is kept
             # out of NEW-STD: canvas = content there, so source cropped to its
-            # content sits on it too (standardize.py pad's comment on
-            # `on_canvas` explains the same blind spot).
-            profile = P.get(f"{sport}-{slot}-{vp}", [])
+            # content sits on it too (common.standard_canvases explains the
+            # same blind spot).
+            profile = profile or []
             alts = {e["canvas"] for e in profile if e.get("canvas")}
             names = [cname, *sorted(alts)]
             padded = [(C[n]["width"], C[n]["height"]) for n in names if C[n].get("fills") != "fill"]
@@ -166,24 +157,15 @@ def main():
 
             # has the era scale been applied to the pixels: the closest era
             # within the config's tolerance, before and after its scale
-            pre = closest(content, [(tuple(e["size"]), e["era"]) for e in profile], tol)
-            post = closest(
-                content,
-                [
-                    ((round(e["size"][0] * e["scale"]), round(e["size"][1] * e["scale"])), e["era"])
-                    for e in profile
-                    if e.get("scale", 1) != 1
-                ],
-                tol,
-            )
+            pre = match_era(profile, content, tol)
+            post = match_era(scaled_eras(profile), content, tol, post_scale=True)
             if post:
-                how = f"SCALED (era {post})"
+                how = f"SCALED (era {post['era']})"
             elif pre:
-                e = next(x for x in P[f"{sport}-{slot}-{vp}"] if x["era"] == pre)
                 how = (
-                    f"UNSCALED (era {pre}, needs x{e['scale']})"
-                    if e.get("scale", 1) != 1
-                    else f"era {pre}, no correction"
+                    f"UNSCALED (era {pre['era']}, needs x{pre['scale']})"
+                    if pre.get("scale", 1) != 1
+                    else f"era {pre['era']}, no correction"
                 )
             else:
                 how = "NO ERA MATCH"

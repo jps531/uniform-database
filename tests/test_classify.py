@@ -31,7 +31,6 @@ def test_near_uses_tolerance():
     """near() accepts sizes up to TOL apart on each axis, and no further."""
     assert classify.near((100, 100), (100 + classify.TOL, 100 - classify.TOL))
     assert not classify.near((100, 100), (100 + classify.TOL + 1, 100))
-    assert classify.slug("Men's Basketball") == "mens_basketball"
 
 
 def test_classifies_canvas_and_scale_state(project, cfg, monkeypatch, capsys):
@@ -136,3 +135,22 @@ def test_era_tolerance_comes_from_config(project, monkeypatch, capsys):
     art(project / VIEW / "x/h.png", (b[0] + 3, b[1]))
     out = run(monkeypatch, capsys, "Football")
     assert row(1, "RAW", f"{b[0] + 3}x{b[1]}", "NO ERA MATCH") in out
+
+
+def test_std_sibling_reads_as_its_slot_and_viewpoint(project, cfg, monkeypatch, capsys):
+    """A "… STD" folder is parsed as `pad` parses it: Helmets Front STD is the helmet front, not a viewpoint "std"."""
+    b = era(cfg, "football-helmet-front", "B")["size"]
+    art(project / f"{VIEW} STD" / "x" / "h.png", canvas_size(cfg, "football_helmet_face"), b)
+    out = run(monkeypatch, capsys, "Football")
+    assert "\nFootball  T / Helmets Front STD\n" in out
+    assert row(1, "NEW-STD", f"{b[0]}x{b[1]}", "era B, no correction") in out
+
+
+def test_root_flag_from_outside_the_project(project, cfg, tmp_path, monkeypatch, capsys):
+    """--root classifies a project from anywhere; without it, outside a project, classify exits."""
+    b = era(cfg, "football-helmet-front", "B")["size"]
+    art(project / VIEW / "x/h.png", b)
+    monkeypatch.chdir(tmp_path)
+    assert "T / Helmets Front" in run(monkeypatch, capsys, "Football", "--root", str(project))
+    with pytest.raises(SystemExit, match="No configs/canvas_definitions.yaml"):
+        run(monkeypatch, capsys, "Football")

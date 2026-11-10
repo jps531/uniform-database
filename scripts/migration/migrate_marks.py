@@ -33,15 +33,23 @@ import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
-try:
-    from PIL import Image
-except ImportError:
-    Image = None
-
-try:
-    import yaml
-except ImportError:
-    sys.exit("Missing dependencies: run `uv sync`")
+# The shared helpers, and path parsing and the sport-qualified profile key
+# shared with `pad`, live in scripts/pipeline/.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "pipeline"))
+from common import (
+    add_root_arg,
+    content_size,
+    known_colorways,
+    load_config,
+    load_vocabulary,
+    longest_first,
+    match_era,
+    pngs,
+    root_from,
+    slot_dirs,
+    tolerance,
+)
+from standardize import lookup, parse_dest
 
 SIDE_TO_VIEWPOINT = {"1": "Right", "2": "Left"}
 
@@ -78,14 +86,6 @@ BLOCKING = (
 )
 
 
-def find_root(start: Path) -> Path:
-    """Walk up for the directory containing configs/canvas_definitions.yaml."""
-    for d in [start, *start.parents]:
-        if (d / "configs" / "canvas_definitions.yaml").is_file():
-            return d
-    sys.exit(f"No configs/canvas_definitions.yaml above {start}. Pass --root.")
-
-
 def plan_flat_noyear(
     src_root: Path,
     dest_root: Path,
@@ -102,13 +102,11 @@ def plan_flat_noyear(
     is why a reversed name like "Black Campbell" is reported rather than
     guessed at.
     """
-    colorways = sorted(known_colorways(root), key=len, reverse=True)
+    colorways = longest_first(known_colorways(root))
     if not colorways:
         return [], [("no colorways", "configs/slots_global.yaml", "")]
     moves, problems = [], []
-    for f in sorted(src_root.rglob("*.png")):
-        if f.name.startswith("."):
-            continue
+    for f in pngs(src_root):
         stem = f.stem
         best = None
         for c in colorways:
@@ -137,45 +135,28 @@ def plan_flat_noyear(
 
 
 def shell_by_era(root: Path) -> dict:
-    """era letter -> shell label, from the `shell` tokens in the vocabulary."""
-    p = root / "configs" / "modifiers_football.yaml"
-    if not p.is_file():
-        return {}
-    cfg = yaml.safe_load(p.open()) or {}
-    return {v["era"]: v["label"] for v in (cfg.get("tokens") or {}).values() if v.get("kind") == "shell" and "era" in v}
-
-
-def content_size(path: Path):
-    """Width and height of the non-transparent bbox, or None if empty."""
-    # Pillow is optional for the flat modes; plan_nested, the only caller, exits first without it.
-    assert Image is not None
-    with Image.open(path).convert("RGBA") as im:
-        box = im.getchannel("A").getbbox()
-    if box is None:
-        return None
-    return box[2] - box[0], box[3] - box[1]
+    """era letter -> shell label, from the `shell` tokens in the football vocabulary, `extends` followed."""
+    tokens = load_vocabulary(root, "football").tokens
+    return {v["era"]: v["label"] for v in tokens.values() if v.get("kind") == "shell" and "era" in v}
 
 
 def plan_nested(src_root: Path, dest_root: Path, team: str, root: Path):
     """Source already in element-folder shape; derive the shell token from
-    content size where the filename does not already carry one."""
-    if Image is None:
-        sys.exit("Missing dependencies: run `uv sync` (nested mode reads image sizes)")
-    # Path parsing and the sport-qualified profile key are shared with `pad`.
-    # Imported here because standardize.py requires Pillow and the flat
-    # modes do not. It lives in scripts/pipeline/.
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "pipeline"))
-    from standardize import lookup, parse_dest
+    content size where the filename does not already carry one.
 
-    cfg = yaml.safe_load((root / "configs" / "canvas_definitions.yaml").open())
-    tol = cfg.get("tolerance", 3)
+    The era is the CLOSEST within the config's `tolerance`, as every script
+    matches eras.
+    """
+    cfg = load_config(root)
+    tol = tolerance(cfg)
+    helmets = slot_dirs(cfg)["helmet"]
     era_shell = shell_by_era(root)
-    shell_names = sorted(era_shell.values(), key=len, reverse=True)
+    shell_names = longest_first(era_shell.values())
     moves, problems = [], []
 
     skipped_dirs = []
     for view_dir in sorted(src_root.iterdir()):
-        if not view_dir.is_dir() or not view_dir.name.startswith("Helmets"):
+        if not view_dir.is_dir() or not view_dir.name.startswith(helmets):
             continue
         # Generated trees are outputs, not sources.
         if (view_dir / ".generated").exists():
@@ -206,9 +187,7 @@ def plan_nested(src_root: Path, dest_root: Path, team: str, root: Path):
 
         for element_dir in sorted(d for d in view_dir.iterdir() if d.is_dir()):
             element = element_dir.name
-            for f in sorted(element_dir.glob("*.png")):
-                if f.name.startswith("."):
-                    continue
+            for f in pngs(element_dir, recursive=False):
                 stem = f.stem
                 if not stem.startswith(element):
                     problems.append(
@@ -237,10 +216,7 @@ def plan_nested(src_root: Path, dest_root: Path, team: str, root: Path):
                     if cs is None:
                         problems.append(("no opaque content", f"{element}/{f.name}", ""))
                         continue
-                    entry = next(
-                        (e for e in profile if abs(e["size"][0] - cs[0]) <= tol and abs(e["size"][1] - cs[1]) <= tol),
-                        None,
-                    )
+                    entry = match_era(profile, cs, tol)
                     if entry is None:
                         problems.append(
                             (
@@ -262,7 +238,7 @@ def plan_nested(src_root: Path, dest_root: Path, team: str, root: Path):
                         continue
 
                 parts = [element, shell] + ([number] if number else [])
-                dest = dest_root / team / f"Helmets {viewpoint}" / element / (" ".join(parts) + ".png")
+                dest = dest_root / team / f"{helmets} {viewpoint}" / element / (" ".join(parts) + ".png")
                 moves.append((f, dest))
 
     if skipped_dirs:
@@ -273,31 +249,12 @@ def plan_nested(src_root: Path, dest_root: Path, team: str, root: Path):
     return moves, problems
 
 
-def known_colorways(root: Path) -> set:
-    """Colorway strings AS THEY APPEAR IN FILENAMES.
+def plan(src_root: Path, dest_root: Path, colorways: set, helmets: str):
+    """Return (moves, problems). Each move is (source, destination).
 
-    Both the KEY and the token/label are accepted, because filenames use
-    either: "Dark Gray" matches the token where the key is dark_gray, while
-    "Kansas Powder" matches the key where the label is "Powder Blue".
-    Reading keys alone missed every multi-word colorway; reading labels alone
-    missed the shortened ones.
+    `colorways` are common.known_colorways(); `helmets` is the helmet slot's
+    directory word from `directory_slots` ("Helmets").
     """
-    p = root / "configs" / "slots_global.yaml"
-    if not p.is_file():
-        return set()
-    cfg = yaml.safe_load(p.open()) or {}
-    out = set()
-    for key, v in (cfg.get("colorways") or {}).items():
-        out.add(str(key).replace("_", " ").lower())
-        if isinstance(v, dict):
-            for alt in (v.get("token"), v.get("label")):
-                if alt:
-                    out.add(alt.lower())
-    return out
-
-
-def plan(src_root: Path, dest_root: Path, colorways: set):
-    """Return (moves, problems). Each move is (source, destination)."""
     moves, problems = [], []
     for shell_dir in sorted(src_root.iterdir()):
         if not shell_dir.is_dir():
@@ -306,9 +263,7 @@ def plan(src_root: Path, dest_root: Path, colorways: set):
         if shell is None:
             problems.append(("unknown shell directory", shell_dir.name, ""))
             continue
-        for f in sorted(shell_dir.glob("*.png")):
-            if f.name.startswith("."):
-                continue
+        for f in pngs(shell_dir, recursive=False):
             m = NAME.match(f.stem)
             if not m:
                 problems.append(("unparsed filename", f"{shell_dir.name}/{f.name}", ""))
@@ -326,7 +281,7 @@ def plan(src_root: Path, dest_root: Path, colorways: set):
             parts = [element, shell] + ([number] if number else [])
             filename = " ".join(parts) + ".png"
 
-            dest = dest_root / g["team"] / f"Helmets {viewpoint}" / element / filename
+            dest = dest_root / g["team"] / f"{helmets} {viewpoint}" / element / filename
             moves.append((f, dest))
 
             colour = rest.split()[0].lower() if rest else ""
@@ -356,7 +311,7 @@ def main():
     an identical existing file is reported and skipped.
     """
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--root", help="project root (default: auto-detect)")
+    add_root_arg(ap)
     ap.add_argument("--src", default="Marks/Temp")
     ap.add_argument("--dest", default="Marks/Football")
     ap.add_argument(
@@ -383,7 +338,7 @@ def main():
     )
     args = ap.parse_args()
 
-    root = Path(args.root).expanduser().resolve() if args.root else find_root(Path.cwd().resolve())
+    root = root_from(args)
     src_root, dest_root = root / args.src, root / args.dest
     if not src_root.is_dir():
         sys.exit(f"Source not found: {src_root}")
@@ -401,7 +356,7 @@ def main():
             sys.exit("--team is required in nested mode")
         moves, problems = plan_nested(src_root, dest_root, args.team, root)
     else:
-        moves, problems = plan(src_root, dest_root, known_colorways(root))
+        moves, problems = plan(src_root, dest_root, known_colorways(root), slot_dirs(load_config(root))["helmet"])
 
     # --- report -------------------------------------------------------
     teams = {m[1].relative_to(dest_root).parts[0] for m in moves}

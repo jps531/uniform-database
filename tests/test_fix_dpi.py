@@ -271,3 +271,16 @@ def test_missing_pillow_exits_with_a_hint(monkeypatch):
     monkeypatch.setitem(sys.modules, "PIL", None)
     with pytest.raises(SystemExit, match="uv sync"):
         runpy.run_path(SCRIPT, run_name="fix_dpi_noimport")
+
+
+def test_relative_path_is_taken_from_the_root(project, tmp_path, monkeypatch, capsys):
+    """A relative PATH is read from --root (or the project above the cwd), not from the cwd."""
+    art(project / "Football" / "a.png", (4, 4), dpi=(72, 72))
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    run_script(monkeypatch, "--root", str(project), "check", "Football")
+    assert "1 PNGs under Football" in capsys.readouterr().out
+    monkeypatch.chdir(project / "Football")
+    run_script(monkeypatch, "check", "Football")
+    assert "72 DPI" in capsys.readouterr().out

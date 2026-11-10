@@ -47,24 +47,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 try:
-    import yaml
-    from PIL import Image, ImageOps
+    from PIL import Image
 except ImportError:
     sys.exit("Missing dependencies: run `uv sync`")
 
 # Path parsing and the canvas lookup are `pad`'s, in scripts/pipeline/.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "pipeline"))
-from standardize import MARKER, lookup, parse_dest, pngs, resolve  # noqa: E402
-
-DPI = 300
-
-
-def find_root(start: Path) -> Path:
-    """The nearest directory at or above `start` holding configs/canvas_definitions.yaml; exits if none."""
-    for d in [start, *start.parents]:
-        if (d / "configs" / "canvas_definitions.yaml").is_file():
-            return d
-    sys.exit(f"No configs/canvas_definitions.yaml above {start}")
+from common import DPI, MARKER, add_root_arg, alpha_box, load_config, open_rgba, pngs, resolve, root_from  # noqa: E402
+from standardize import lookup, parse_dest  # noqa: E402
 
 
 def main():
@@ -77,12 +67,12 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("src")
     ap.add_argument("dest")
-    ap.add_argument("--root")
+    add_root_arg(ap)
     ap.add_argument("--canvas", help="override the canvas looked up from DEST")
     ap.add_argument("--apply", action="store_true")
     args = ap.parse_args()
 
-    root = Path(args.root).expanduser().resolve() if args.root else find_root(Path.cwd().resolve())
+    root = root_from(args)
     src, dest = resolve(args.src, root), resolve(args.dest, root)
     if not src.is_dir():
         sys.exit(f"Source not found: {src}")
@@ -91,7 +81,7 @@ def main():
     if dest == src:
         sys.exit("Destination must differ from source.")
 
-    cfg = yaml.safe_load((root / "configs/canvas_definitions.yaml").open())
+    cfg = load_config(root)
 
     if args.canvas:
         cname = args.canvas
@@ -110,7 +100,7 @@ def main():
     # is authored artwork, and re-placed copies must never overwrite it.
     # Checked before the dry run too, so the plan never looks safe.
     if dest.exists() and not (dest / MARKER).exists():
-        held = list(pngs(dest))
+        held = pngs(dest)
         if held:
             sys.exit(
                 f"REFUSING to write to {dest}\n"
@@ -122,11 +112,9 @@ def main():
     print(f"{args.src}  ->  {args.dest}\n")
 
     jobs, too_big = [], []
-    for f in sorted(src.rglob("*.png")):
-        if f.name.startswith("."):
-            continue
-        with ImageOps.exif_transpose(Image.open(f)).convert("RGBA") as im:
-            b = im.getchannel("A").getbbox()
+    for f in pngs(src):
+        with open_rgba(f) as im:
+            b = alpha_box(im)
             cw, ch = (b[2] - b[0], b[3] - b[1]) if b else im.size
         if cw > W or ch > H:
             too_big.append((f.relative_to(src), f"{cw}x{ch}"))
@@ -152,8 +140,8 @@ def main():
 
     for s, d, _ in jobs:
         d.parent.mkdir(parents=True, exist_ok=True)
-        with ImageOps.exif_transpose(Image.open(s)).convert("RGBA") as im:
-            b = im.getchannel("A").getbbox()
+        with open_rgba(s) as im:
+            b = alpha_box(im)
             art = im.crop(b) if b else im
             out = Image.new("RGBA", (W, H), (0, 0, 0, 0))
             out.paste(art, ((W - art.width) // 2, 0))
