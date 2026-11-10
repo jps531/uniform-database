@@ -1,0 +1,10 @@
+# Women's basketball — basketball's vocabulary, unchanged.
+#
+# Scripts load modifiers_{sport}.yaml by sport slug, so `womens_basketball`
+# needs a file of its own; without one compose ranked its files with no
+# tokens at all and nest_elements refused to run. The tokens themselves live
+# in modifiers_basketball.yaml, shared with men's basketball. Add a token
+# here only if it is the women's program's alone.
+
+extends: basketball
+tokens: {}
