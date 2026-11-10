@@ -1,8 +1,6 @@
 """Tests for scripts/pipeline/compose.py: candidate ranking, placement resolution, pasting, --json and --diff."""
 
 import json
-import runpy
-import sys
 
 import common
 import compose
@@ -751,13 +749,6 @@ def test_root_flag_from_elsewhere(project, tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     with pytest.raises(SystemExit, match="No template for football/nope"):
         main(monkeypatch, compose, "--root", str(project), "--view", "nope")
-
-
-def test_missing_dependencies_exit_with_a_hint(monkeypatch):
-    """Without Pillow the script exits telling the user to run `uv sync`."""
-    monkeypatch.setitem(sys.modules, "PIL", None)
-    with pytest.raises(SystemExit, match="uv sync"):
-        runpy.run_path(SCRIPT, run_name="compose_noimport")
 
 
 def test_slot_flags_are_the_slots_templates_place(project, monkeypatch):

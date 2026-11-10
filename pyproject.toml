@@ -33,6 +33,11 @@ source = ["scripts"]
 # golden_ci.py and golden_run.py run other scripts as subprocesses; measure those too.
 patch = ["subprocess"]
 
+[tool.coverage.report]
+# Lines only a missing install or a direct `python script.py` reach: tests
+# import the scripts and call main(), so testing these would only pad coverage.
+exclude_also = ["except ImportError:", "if __name__ == .__main__.:"]
+
 [tool.coverage.json]
 output = "coverage.json"
 

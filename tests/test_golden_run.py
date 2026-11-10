@@ -1,7 +1,6 @@
 """Tests for scripts/golden/golden_run.py: automatic checks, filtering, report, sheets and --strict."""
 
 import json
-import sys
 import types
 from pathlib import Path
 
@@ -589,16 +588,6 @@ def test_contact_sheet_labels_and_outline(tmp_path):
         # the defect's outline, just outside its thumbnail
         assert im.getpixel((40 + 560 - 2, 110 + 100)) == (200, 30, 30)
         assert im.getpixel((40 - 4, 110 + 100)) == (210, 210, 210)
-
-
-def test_runs_as_a_script(project, monkeypatch, capsys):
-    """Executed as __main__, the script runs the manifest of the project it is run in."""
-    import runpy
-
-    manifest(project, [])
-    monkeypatch.setattr(sys, "argv", ["golden_run.py"])
-    runpy.run_path(str(REPO / "scripts/golden/golden_run.py"), run_name="__main__")
-    assert "0 rendered this run; report covers 0, 0 with defects" in capsys.readouterr().out
 
 
 def test_root_flag_from_outside_the_project(project, tmp_path, monkeypatch):

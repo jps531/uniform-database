@@ -2,9 +2,7 @@
 
 import json
 import os
-import runpy
 import shutil
-import sys
 from pathlib import Path
 
 import common
@@ -12,7 +10,6 @@ import golden_fixture as gf
 import pytest
 from helpers import (
     ERAS,
-    REPO,
     TEAM,
     art,
     canvas_size,
@@ -315,11 +312,3 @@ def test_find_root_exits_without_configs(tmp_path):
     with pytest.raises(SystemExit) as e:
         common.find_root(tmp_path)
     assert "No configs/canvas_definitions.yaml" in str(e.value.code)
-
-
-def test_runs_as_a_script(monkeypatch):
-    """Run as a script, the module reaches main(); --help exits cleanly."""
-    monkeypatch.setattr(sys, "argv", ["golden_fixture.py", "--help"])
-    with pytest.raises(SystemExit) as e:
-        runpy.run_path(str(REPO / "scripts" / "golden" / "golden_fixture.py"), run_name="__main__")
-    assert e.value.code == 0

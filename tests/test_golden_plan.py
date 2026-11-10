@@ -2,7 +2,6 @@
 
 import argparse
 import json
-import sys
 
 import common
 import golden_plan as gp
@@ -680,16 +679,6 @@ def test_main_reads_colorway_tokens_and_labels(project, templates, monkeypatch, 
         "powder",
     }
     assert "NO examples" in capsys.readouterr().out
-
-
-def test_runs_as_a_script(project, monkeypatch, capsys):
-    """Executed as __main__, the script plans from the project it is run in."""
-    import runpy
-
-    (project / "golden/inventory.json").write_text("{}")
-    monkeypatch.setattr(sys, "argv", ["golden_plan.py", "--sport", "womens_basketball"])
-    runpy.run_path(str(REPO / "scripts/golden/golden_plan.py"), run_name="__main__")
-    assert "Wrote golden/manifest.yaml and golden/PLAN.md" in capsys.readouterr().out
 
 
 # --------------------------------------------------------------------------

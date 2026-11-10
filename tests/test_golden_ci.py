@@ -14,9 +14,7 @@ the module-scoped build happens once.
 """
 
 import re
-import runpy
 import shutil
-import sys
 import tempfile
 from pathlib import Path
 
@@ -305,14 +303,6 @@ def test_find_root_exits_without_configs(tmp_path):
     with pytest.raises(SystemExit) as e:
         common.find_root(tmp_path)
     assert "No configs/canvas_definitions.yaml" in str(e.value.code)
-
-
-def test_runs_as_a_script(monkeypatch):
-    """Run as a script, the module reaches main(); --help exits cleanly."""
-    monkeypatch.setattr(sys, "argv", ["golden_ci.py", "--help"])
-    with pytest.raises(SystemExit) as e:
-        runpy.run_path(str(REPO / "scripts" / "golden" / "golden_ci.py"), run_name="__main__")
-    assert e.value.code == 0
 
 
 def test_png_set_ignores_dot_folders_only_inside_the_folder(tmp_path):

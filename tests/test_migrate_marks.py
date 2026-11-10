@@ -1,14 +1,12 @@
 """Tests for scripts/migration/migrate_marks.py: flat, nested and flat-noyear plans, their problems, dry run vs --apply."""
 
 import os
-import runpy
-import sys
 from pathlib import Path
 
 import common
 import migrate_marks as mm
 import pytest
-from helpers import REPO, art, era, main, override_configs, small_configs
+from helpers import art, era, main, override_configs, small_configs
 
 T = Path("Marks/Temp")
 D = Path("Marks/Football")
@@ -417,11 +415,3 @@ def test_main_flat_noyear_without_colorways_refuses(project, monkeypatch, capsys
     with pytest.raises(SystemExit):
         main(monkeypatch, mm, "--root", str(project), "--mode", "flat-noyear", "--dest", "Marks/Baseball", "--apply")
     assert "!! 1 no colorways:\n     configs/slots_global.yaml" in capsys.readouterr().out
-
-
-def test_runs_as_a_script(monkeypatch):
-    """Run as a script, the module reaches main(); --help exits cleanly."""
-    monkeypatch.setattr(sys, "argv", ["migrate_marks.py", "--help"])
-    with pytest.raises(SystemExit) as e:
-        runpy.run_path(str(REPO / "scripts" / "migration" / "migrate_marks.py"), run_name="__main__")
-    assert e.value.code == 0

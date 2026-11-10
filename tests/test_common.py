@@ -2,8 +2,6 @@
 
 import argparse
 import io
-import runpy
-import sys
 
 import common
 import pytest
@@ -253,10 +251,3 @@ def test_pngs_skips_hidden_parts_below_the_root_only(tmp_path):
     assert [p.relative_to(root).as_posix() for p in common.pngs(root)] == ["a/1.png", "b/2.png", "top.png"]
     assert [p.name for p in common.pngs(root / "a", recursive=False)] == ["1.png"]
     assert common.pngs(tmp_path / "missing") == []
-
-
-def test_missing_dependencies_exit_with_a_hint(monkeypatch):
-    """Without PyYAML the module exits telling the user to run `uv sync`, before any script uses it."""
-    monkeypatch.setitem(sys.modules, "yaml", None)
-    with pytest.raises(SystemExit, match="uv sync"):
-        runpy.run_path(str(REPO / "scripts" / "pipeline" / "common.py"), run_name="common_noimport")

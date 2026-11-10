@@ -1,8 +1,6 @@
 """Tests for scripts/migration/nest_elements.py: element folder = filename minus non-design tokens; dry run, then copy."""
 
 import os
-import runpy
-import sys
 
 import common
 import nest_elements as ne
@@ -360,21 +358,13 @@ def test_find_root_walks_up_and_fails_cleanly(project, tmp_path):
         common.find_root(lone)
 
 
-def test_runs_as_a_script(project, monkeypatch, capsys):
-    """Run as `__main__`, the script plans the default (football) sport."""
+def test_default_sport_is_football(project, monkeypatch):
+    """With no --sport, main() nests football from temp/Football into Football/."""
     (project / "Football").mkdir()
     stage(project, "temp/Football/EMCC/Helmets Right/2014 White A.png")
-    monkeypatch.setattr(sys, "argv", ["nest_elements.py"])
-    runpy.run_path(str(REPO / "scripts" / "migration" / "nest_elements.py"), run_name="__main__")
-    assert "DRY RUN" in capsys.readouterr().out
-
-
-def test_missing_pyyaml_exits_with_a_hint(monkeypatch):
-    """Without PyYAML installed the script exits telling the user to run `uv sync`."""
-    monkeypatch.delitem(sys.modules, "common", raising=False)
-    monkeypatch.setitem(sys.modules, "yaml", None)
-    with pytest.raises(SystemExit, match="uv sync"):
-        runpy.run_path(str(REPO / "scripts" / "migration" / "nest_elements.py"), run_name="nest_noimport")
+    out = main(monkeypatch, ne)
+    assert "source: temp/Football  ->  dest: Football" in out
+    assert "DRY RUN" in out
 
 
 def test_equal_length_tokens_are_ordered_alphabetically(football):

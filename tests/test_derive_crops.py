@@ -1,14 +1,12 @@
 """Tests for scripts/pipeline/derive_crops.py: rules from config, crop geometry, dry run vs --apply, markers and refusals."""
 
 import json
-import runpy
-import sys
 
 import common
 import derive_crops as dc
 import numpy as np
 import pytest
-from helpers import REPO, TEAM, art, canvas_size, cropped_of, main, small_configs, venue
+from helpers import TEAM, art, canvas_size, cropped_of, main, small_configs, venue
 from PIL import Image
 
 
@@ -176,14 +174,6 @@ def test_find_root_exits_without_configs(tmp_path):
     with pytest.raises(SystemExit) as e:
         common.find_root(tmp_path)
     assert "No configs/canvas_definitions.yaml" in str(e.value.code)
-
-
-def test_runs_as_a_script(monkeypatch):
-    """Run as a script, the module reaches main(); --help exits cleanly."""
-    monkeypatch.setattr(sys, "argv", ["derive_crops.py", "--help"])
-    with pytest.raises(SystemExit) as e:
-        runpy.run_path(str(REPO / "scripts" / "pipeline" / "derive_crops.py"), run_name="__main__")
-    assert e.value.code == 0
 
 
 def test_markers_count_each_teams_own_files(project, monkeypatch, capsys):

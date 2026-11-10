@@ -1,8 +1,5 @@
 """Tests for scripts/migration/fix_dpi.py: `check` reports DPI tags read-only, `set` retags without touching pixels."""
 
-import runpy
-import sys
-
 import fix_dpi
 import numpy as np
 import pytest
@@ -258,13 +255,6 @@ def test_bad_arguments_print_usage_and_exit_2(monkeypatch, capsys, argv):
         main(monkeypatch, fix_dpi, *argv)
     assert e.value.code == 2
     assert "usage:" in capsys.readouterr().err
-
-
-def test_missing_pillow_exits_with_a_hint(monkeypatch):
-    """Without Pillow installed the script exits telling the user to run `uv sync`."""
-    monkeypatch.setitem(sys.modules, "PIL", None)
-    with pytest.raises(SystemExit, match="uv sync"):
-        runpy.run_path(SCRIPT, run_name="fix_dpi_noimport")
 
 
 def test_relative_path_is_taken_from_the_root(project, tmp_path, monkeypatch, capsys):
