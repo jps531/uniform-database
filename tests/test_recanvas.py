@@ -7,7 +7,7 @@ import common
 import numpy as np
 import pytest
 import recanvas
-from helpers import art, canvas_size, era, main
+from helpers import art, blank, canvas_size, era, main
 from PIL import Image
 
 DEST = "Football/T/Helmets Front"
@@ -65,7 +65,7 @@ def test_apply_moves_content_without_rescaling(project, cfg, monkeypatch, capsys
 def test_apply_keeps_blank_file_blank(project, cfg, monkeypatch):
     """A fully transparent file is written as a blank canvas."""
     W, H = canvas_size(cfg, "football_helmet_face")
-    art(project / "old" / "x" / "blank.png", (20, 20), (0, 0))
+    blank(project / "old" / "x" / "blank.png", (20, 20))
     main(monkeypatch, recanvas, "old", DEST, "--apply")
     with Image.open(project / DEST / "x" / "blank.png") as o:
         assert o.size == (W, H)
@@ -153,15 +153,15 @@ def test_destination_outside_the_project_is_unreadable(project, monkeypatch, tmp
         main(monkeypatch, recanvas, "old", str(tmp_path / "elsewhere" / "Football/T/Jerseys Front"))
 
 
-def test_refuses_an_authored_destination(project, cfg, monkeypatch):
+@pytest.mark.parametrize("flags", [(), ("--apply",)], ids=["dry run", "apply"])
+def test_refuses_an_authored_destination(project, monkeypatch, flags):
     """A destination holding PNGs without a .generated marker is authored artwork: refused, dry run or not."""
     art(project / "old" / "x" / "h.png", (10, 10))
     authored = art(project / DEST / "x" / "h.png", (7, 7), seed=4)
     before = authored.read_bytes()
-    for flags in ((), ("--apply",)):
-        with pytest.raises(SystemExit, match="REFUSING to write to") as e:
-            main(monkeypatch, recanvas, "old", DEST, *flags)
-        assert "holds 1 PNGs but has no .generated marker" in str(e.value)
+    with pytest.raises(SystemExit, match="REFUSING to write to") as e:
+        main(monkeypatch, recanvas, "old", DEST, *flags)
+    assert "holds 1 PNGs but has no .generated marker" in str(e.value)
     assert authored.read_bytes() == before
 
 

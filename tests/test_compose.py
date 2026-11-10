@@ -6,7 +6,7 @@ import common
 import compose
 import numpy as np
 import pytest
-from helpers import REPO, art, canvas_size, main, override_configs, pixels
+from helpers import REPO, art, blank, canvas_size, main, override_configs, pixels
 from PIL import Image
 
 SCRIPT = str(REPO / "scripts" / "pipeline" / "compose.py")
@@ -368,27 +368,24 @@ def test_unknown_with_token_exits(project, monkeypatch):
         main(monkeypatch, compose, "--view", "mini", "--helmet", "x", "--with", "Glitter")
 
 
-def test_ranking_flags_pick_the_file_end_to_end(project, monkeypatch):
+@pytest.mark.parametrize(
+    "flags, name, number, tokens",
+    [
+        ((), "2025 Black.png", None, []),
+        (("--number", "03"), "2025 Black 03.png", "03", []),
+        (("--number", "3"), "2025 Black 3.png", "3", []),
+        (("--number", "03", "--with", "Grad"), "2025 Black 03 Grad.png", "03", ["Grad"]),
+    ],
+)
+def test_ranking_flags_pick_the_file_end_to_end(project, monkeypatch, flags, name, number, tokens):
     """--number, --with and the plainest-file rule decide which file is composed, reported in --json."""
     mini(project, MINI)
     for n in ("2025 Black", "2025 Black 3", "2025 Black 03", "2025 Black 03 Grad"):
         put(project, "helmet", "front", "2025 Black", n)
-    cases = {
-        (): ("2025 Black.png", None),
-        ("--number", "03"): ("2025 Black 03.png", "03"),
-        ("--number", "3"): ("2025 Black 3.png", "3"),
-        ("--number", "03", "--with", "Grad"): ("2025 Black 03 Grad.png", "03"),
-    }
-    placed = {}
-    for flags, (name, num) in cases.items():
-        res, _ = compose_json(project, monkeypatch, "--view", "mini", "--helmet", "2025 Black", *flags)
-        p = by_label(res)["helmet/front"]
-        assert (p["file"].rsplit("/", 1)[-1], p["number_found"]) == (name, num)
-        placed[flags] = p
-    # Only the one case passes --with, so name it rather than relying on it being last.
-    grad = placed[("--number", "03", "--with", "Grad")]
-    assert grad["tokens_requested"] == ["Grad"]
-    assert grad["tokens_found"] == ["Grad"]
+    res, _ = compose_json(project, monkeypatch, "--view", "mini", "--helmet", "2025 Black", *flags)
+    p = by_label(res)["helmet/front"]
+    assert (p["file"].rsplit("/", 1)[-1], p["number_found"]) == (name, number)
+    assert p["tokens_requested"] == p["tokens_found"] == tokens
 
 
 def test_numbers_resolve_per_viewpoint(project, monkeypatch):
@@ -564,9 +561,7 @@ def test_clipping_is_judged_on_artwork_not_padding(project, monkeypatch, capsys)
 def test_fully_transparent_artwork_is_placed_without_bbox(project, monkeypatch):
     """An element with no opaque pixels is placed with an empty artwork bbox and no clipping."""
     mini(project, tpl("edge", [{"slot": "helmet", "viewpoint": "front", "x": 50, "y": 0}]))
-    path = project / "Football" / MSU / "Helmets Front" / "Blank" / "Blank.png"
-    path.parent.mkdir(parents=True)
-    Image.new("RGBA", (30, 30), (0, 0, 0, 0)).save(path)
+    blank(project / "Football" / MSU / "Helmets Front" / "Blank" / "Blank.png", (30, 30))
     res, _ = compose_json(project, monkeypatch, "--view", "edge", "--helmet", "Blank")
     p = by_label(res)["helmet/front"]
     assert p["status"] == "placed"
@@ -720,6 +715,7 @@ def test_mens_basketball_finds_the_apostrophe_directory(project, monkeypatch, cf
         project, monkeypatch, "--sport", "mens_basketball", "--view", "mbk-jersey", "--jersey", "2025 Maroon"
     )
     assert out.is_file()
+    assert res["placements"]
     assert all("/Men's Basketball/" in p["file"] for p in res["placements"])
 
 

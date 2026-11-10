@@ -5,7 +5,7 @@ import csv
 import common
 import offsize
 import pytest
-from helpers import art, canvas_size, era, main
+from helpers import art, blank, canvas_size, era, main
 
 VIEW = "Football/T/Helmets Front"
 
@@ -13,15 +13,15 @@ VIEW = "Football/T/Helmets Front"
 def test_content_size(tmp_path):
     """content_size is the alpha bbox size, or None for a blank image."""
     assert common.content_size(art(tmp_path / "a.png", (30, 20), (7, 5), top=3)) == (7, 5)
-    assert common.content_size(art(tmp_path / "b.png", (9, 9), (0, 0))) is None
+    assert common.content_size(blank(tmp_path / "b.png", (9, 9))) is None
 
 
-def test_exact_matches(project, cfg, monkeypatch, capsys):
+def test_exact_matches(project, cfg, monkeypatch):
     """Files exactly at their era's size are reported as exact, counting only files actually checked."""
     b = era(cfg, "football-helmet-front", "B")["size"]
     art(project / VIEW / "x/h.png", b)
     art(project / VIEW / "y/h.png", (b[0] + 6, b[1] + 4), b, top=2)
-    art(project / VIEW / "z/blank.png", (9, 9), (0, 0))
+    blank(project / VIEW / "z/blank.png", (9, 9))
     out = main(monkeypatch, offsize, "Football")
     assert "checked 2 files under Football" in out
     assert "All 2 checked files are an exact match for their profile." in out
@@ -29,7 +29,7 @@ def test_exact_matches(project, cfg, monkeypatch, capsys):
     assert "skipped" not in out
 
 
-def test_near_misses_and_unmatched_with_csv(project, cfg, monkeypatch, capsys, tmp_path):
+def test_near_misses_and_unmatched_with_csv(project, cfg, monkeypatch, tmp_path):
     """Files inside tolerance but off-size are grouped with their offset; ones beyond tolerance are UNMATCHED; --csv lists both."""
     tol = cfg["tolerance"]
     b = era(cfg, "football-helmet-front", "B")["size"]
@@ -68,7 +68,7 @@ def test_near_misses_and_unmatched_with_csv(project, cfg, monkeypatch, capsys, t
     assert len(rows) == 4
 
 
-def test_only_unmatched_without_csv(project, monkeypatch, capsys):
+def test_only_unmatched_without_csv(project, monkeypatch):
     """With nothing near, only the unmatched section prints, and no CSV is written."""
     art(project / VIEW / "r/h.png", (40, 40))
     out = main(monkeypatch, offsize, "Football")
@@ -77,7 +77,7 @@ def test_only_unmatched_without_csv(project, monkeypatch, capsys):
     assert "Wrote" not in out
 
 
-def test_skips_generated_standardized_unparsed_and_unprofiled(project, cfg, monkeypatch, capsys):
+def test_skips_generated_standardized_unparsed_and_unprofiled(project, cfg, monkeypatch):
     """Generated trees, files on their padded canvas, non-tree paths and missing profiles are skipped and counted."""
     cv = canvas_size(cfg, "football_helmet_face")
     b = era(cfg, "football-helmet-front", "B")["size"]
@@ -102,7 +102,7 @@ def test_skips_generated_standardized_unparsed_and_unprofiled(project, cfg, monk
     assert "exact" not in out
 
 
-def test_fill_canvas_files_are_checked(project, cfg, monkeypatch, capsys):
+def test_fill_canvas_files_are_checked(project, cfg, monkeypatch):
     """On a `fills: fill` canvas the canvas IS the content, so files equal to it are checked, not skipped."""
     cv = canvas_size(cfg, "football_jersey_sleeve")
     art(project / "Football/T/Jerseys Left/x/s.png", cv)
@@ -111,7 +111,7 @@ def test_fill_canvas_files_are_checked(project, cfg, monkeypatch, capsys):
     assert "All 1 checked files are an exact match" in out
 
 
-def test_off_canvas_padded_file_is_checked(project, cfg, monkeypatch, capsys):
+def test_off_canvas_padded_file_is_checked(project, cfg, monkeypatch):
     """A padded-canvas slot only skips files sitting exactly on that canvas."""
     b = era(cfg, "football-helmet-front", "B")["size"]
     cv = canvas_size(cfg, "football_helmet_face")
@@ -119,7 +119,7 @@ def test_off_canvas_padded_file_is_checked(project, cfg, monkeypatch, capsys):
     assert "All 1 checked files are an exact match" in main(monkeypatch, offsize, "Football")
 
 
-def test_marks_paths_resolve_like_sport_trees(project, cfg, monkeypatch, capsys):
+def test_marks_paths_resolve_like_sport_trees(project, cfg, monkeypatch):
     """Marks/ trees are checked against the same sport-qualified profile."""
     f = era(cfg, "football-helmet-right", "D")["size"]
     art(project / "Marks/Football/T/Helmets Right/x/h.png", (f[0] - 1, f[1]))
@@ -127,7 +127,7 @@ def test_marks_paths_resolve_like_sport_trees(project, cfg, monkeypatch, capsys)
     assert f"football-helmet-right era D: {f[0] - 1}x{f[1]} should be {f[0]}x{f[1]}  (-1, +0)" in out
 
 
-def test_explicit_root_and_bad_target(project, monkeypatch, capsys, tmp_path):
+def test_explicit_root_and_bad_target(project, monkeypatch, tmp_path):
     """--root works from outside the project; a missing target exits."""
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
@@ -138,7 +138,7 @@ def test_explicit_root_and_bad_target(project, monkeypatch, capsys, tmp_path):
         main(monkeypatch, offsize, "Nope", "--root", str(project))
 
 
-def test_files_on_an_era_canvas_are_skipped_as_standardized(project, cfg, monkeypatch, capsys):
+def test_files_on_an_era_canvas_are_skipped_as_standardized(project, cfg, monkeypatch):
     """A file on an era's own canvas (soccer long sleeve) is standardized output, skipped like one on the slot canvas."""
     ls = canvas_size(cfg, "soccer_jersey_ls")
     e = era(cfg, "soccer-jersey-front", "ls")["size"]
@@ -158,8 +158,8 @@ def test_standard_canvases_mirror_pad(cfg):
     assert common.standard_canvases(cfg, sleeve, fill_era) == set()
 
 
-def test_offsize_compares_with_the_closest_era(project, cfg, monkeypatch, capsys):
-    """671px sits in both the helmet back E and E2 windows; offsize measures it against E2, the closer one."""
+def test_offsize_compares_with_the_closest_era(project, cfg, monkeypatch):
+    """A width in both the helmet back E and E2 windows but nearer E2 is measured against E2, the closer one."""
     e2 = era(cfg, "football-helmet-back", "E2")["size"]
     art(project / "Football/T/Helmets Back/x/h.png", (e2[0] - 3, e2[1]))
     out = main(monkeypatch, offsize, "Football")

@@ -9,7 +9,7 @@ import common
 import numpy as np
 import pytest
 import standardize
-from helpers import art, bbox, canvas_size, era, main, override_configs, scaled, small_configs
+from helpers import art, bbox, blank, canvas_size, era, main, override_configs, pixels, scaled, small_configs
 from PIL import Image
 
 HELMET_FRONT = "Football/T/Helmets Front"
@@ -106,7 +106,7 @@ def test_pngs_skips_hidden_files_and_directories(tmp_path):
     assert [p.relative_to(tmp_path).as_posix() for p in standardize.pngs(tmp_path)] == ["a/y.png", "b/x.png"]
 
 
-def test_content_size_of_opaque_and_empty_images(tmp_path):
+def test_measure_of_opaque_and_empty_images(tmp_path):
     """measure returns an open image's alpha bbox and its size, or (None, None) for a blank image."""
     with Image.open(art(tmp_path / "a.png", (20, 10), (6, 4), top=2)) as im:
         assert standardize.measure(im.convert("RGBA")) == ((7, 2, 13, 6), (6, 4))
@@ -137,7 +137,7 @@ def test_survey_reports_sizes_eras_and_margins(project, cfg, monkeypatch, capsys
     art(src / "2000 White" / "helmet.png", (b[0] + 10, b[1] + 6), b, top=3)
     art(src / "2001 White" / "helmet.png", b, seed=1)
     art(src / "2002 White" / "helmet.png", (50, 50))
-    art(src / "2003 White" / "blank.png", (40, 40), (0, 0))
+    blank(src / "2003 White" / "blank.png", (40, 40))
     main(monkeypatch, standardize, "survey", HELMET_FRONT)
     out = capsys.readouterr().out
     assert "5 PNGs under Helmets Front" in out
@@ -195,7 +195,7 @@ def test_survey_elements_and_profile_override(project, cfg, monkeypatch, capsys)
     src = project / "temp" / "helmets"
     art(src / "2010 White" / "h.png", b)
     art(src / "2011 Black" / "h.png", b)
-    art(src / "2012 Black" / "blank.png", (9, 9), (0, 0))
+    blank(src / "2012 Black" / "blank.png", (9, 9))
     main(monkeypatch, standardize, "survey", "temp/helmets", "--profile", "football-helmet-back", "--elements")
     out = capsys.readouterr().out
     assert "profile=football-helmet-back (override)" in out
@@ -389,7 +389,7 @@ def test_pad_reports_unmatched_skipped_and_mixed(project, cfg, monkeypatch, caps
     art(project / "src" / "wide" / "s.png", wide)
     art(project / "src" / "odd" / "s.png", (40, 40))
     art(project / "src" / "std" / "s.png", cv, e)
-    art(project / "src" / "blank" / "s.png", (9, 9), (0, 0))
+    blank(project / "src" / "blank" / "s.png", (9, 9))
     with pytest.raises(
         SystemExit,
         match=r"^\n!! 2 files were NOT written \(1 matched no era, 1 fell outside the canvas\)\. Keep the source\.$",
@@ -583,8 +583,8 @@ def test_pad_keeps_partial_alpha_exactly(project, cfg, monkeypatch):
 
 def test_survey_of_only_transparent_files_reports_and_exits_cleanly(project, monkeypatch, capsys):
     """survey of a tree whose every PNG is fully transparent says so instead of crashing."""
-    art(project / HELMET_FRONT / "x" / "blank.png", (9, 9), (0, 0))
-    art(project / HELMET_FRONT / "y" / "blank.png", (4, 4), (0, 0))
+    blank(project / HELMET_FRONT / "x" / "blank.png", (9, 9))
+    blank(project / HELMET_FRONT / "y" / "blank.png", (4, 4))
     main(monkeypatch, standardize, "survey", HELMET_FRONT)
     out = capsys.readouterr().out
     assert "2 PNGs under Helmets Front" in out
@@ -627,14 +627,18 @@ def test_pad_refuses_input_all_on_slot_or_era_canvases(project, cfg, monkeypatch
     assert not (project / "Test").exists()
 
 
-def test_pad_canvas_hint_fits_centred_content_with_a_margin(project, monkeypatch, capsys):
+def test_pad_canvas_hint_fits_centred_content_with_a_margin(project, cfg, monkeypatch, capsys):
     """The canvas hint is content plus 1px each side on a centred axis, never the canvas that just failed."""
-    art(project / "src" / "w" / "s.png", (781, 537))
+    cv = canvas_size(cfg, "soccer_shorts")
+    e = era(cfg, "soccer-shorts-front", "all")["size"]
+    w, h = cv[0] + 1, e[1]  # one px wider than the canvas, still within tolerance of the era
+    assert w - e[0] <= cfg["tolerance"]
+    art(project / "src" / "w" / "s.png", (w, h))
     with pytest.raises(SystemExit, match="Nothing written"):  # every file falls off the canvas: nothing written
         main(monkeypatch, standardize, "pad", "src", "Soccer/T/Shorts Front")
     out = capsys.readouterr().out
-    assert "781x537 -> 781x537 at (-1,0)  w/s.png" in out
-    assert "A canvas of at least 783 x 537 would fit them (soccer_shorts)." in out
+    assert f"{w}x{h} -> {w}x{h} at ({(cv[0] - w) // 2},0)  w/s.png" in out
+    assert f"A canvas of at least {w + 2} x {h} would fit them (soccer_shorts)." in out
 
 
 @pytest.mark.parametrize(
@@ -686,7 +690,7 @@ def test_pad_blank_file_does_not_slip_standardized_output_past_the_refusal(proje
     b = era(cfg, "football-helmet-front", "B")["size"]
     art(project / "src" / "x" / "h.png", cv, b)
     art(project / "src" / "y" / "h.png", cv, b)
-    art(project / "src" / "z" / "blank.png", cv, (0, 0))
+    blank(project / "src" / "z" / "blank.png", cv)
     with pytest.raises(
         SystemExit, match=re.escape(f"All 2 files are ALREADY {cv[0]} x {cv[1]} (1 fully transparent file ignored)")
     ):
@@ -694,10 +698,10 @@ def test_pad_blank_file_does_not_slip_standardized_output_past_the_refusal(proje
     assert not (project / HELMET_FRONT).exists()
 
 
-def test_pad_refuses_a_source_with_no_opaque_content(project, cfg, monkeypatch):
+def test_pad_refuses_a_source_with_no_opaque_content(project, monkeypatch):
     """A source of only fully transparent files is refused, and nothing (not even a marker) is written."""
-    art(project / "src" / "a" / "blank.png", (9, 9), (0, 0))
-    art(project / "src" / "b" / "blank.png", (9, 9), (0, 0))
+    blank(project / "src" / "a" / "blank.png", (9, 9))
+    blank(project / "src" / "b" / "blank.png", (9, 9))
     with pytest.raises(SystemExit, match="No file has opaque content: all 2 PNGs are fully transparent"):
         main(monkeypatch, standardize, "pad", "src", HELMET_FRONT)
     assert not (project / HELMET_FRONT).exists()
@@ -714,31 +718,32 @@ def test_pad_writes_no_marker_when_nothing_was_written(project, monkeypatch, cap
 
 def test_pad_fill_canvas_source_cropped_to_content_is_padded_not_refused(project, cfg, monkeypatch):
     """On a `fills: fill` canvas, authored source cropped to its content equals the canvas and is still padded."""
-    cv = canvas_size(cfg, "football_pants_front")
-    assert cfg["canvases"]["football_pants_front"]["fills"] == "fill"
+    cv = canvas_size(cfg, "football_jersey_sleeve")
+    assert cfg["canvases"]["football_jersey_sleeve"]["fills"] == "fill"
     src = art(project / "src" / "1990 White" / "1990 White.png", cv)
-    main(monkeypatch, standardize, "pad", "src", "Football/T/Pants Front")
-    out = project / "Football/T/Pants Front/1990 White/1990 White.png"
-    with Image.open(src) as a, Image.open(out) as b:
-        assert a.size == b.size == cv
-        assert a.convert("RGBA").tobytes() == b.convert("RGBA").tobytes()
-    assert (project / "Football/T/Pants Front/.generated").is_file()
+    main(monkeypatch, standardize, "pad", "src", "Football/T/Jerseys Left")
+    out = project / "Football/T/Jerseys Left/1990 White/1990 White.png"
+    assert bbox(out)[0] == cv
+    assert np.array_equal(pixels(out), pixels(src))
+    assert (project / "Football/T/Jerseys Left/.generated").is_file()
 
 
-def test_pad_takes_the_closest_era_where_windows_overlap(project, cfg, monkeypatch, capsys):
-    """671px is within tolerance of helmet back E (667) and E2 (674): pad files it as E2, the closer, not the first listed."""
-    h = era(cfg, "football-helmet-back", "E")["size"][1]
-    art(project / "src" / "2010 White" / "h.png", (671, h))
-    main(monkeypatch, standardize, "pad", "src", "Football/T/Helmets Back")
-    rows = [line.split() for line in capsys.readouterr().out.splitlines()]
-    assert ["E2", "671", "x", str(h)] in [r[:4] for r in rows]
+def test_pad_takes_the_closest_era_where_windows_overlap(project, cfg, monkeypatch):
+    """A width within tolerance of helmet back E and E2 but nearer E2 is filed as E2, not as E, the first listed."""
+    (e, h), (e2, _) = era(cfg, "football-helmet-back", "E")["size"], era(cfg, "football-helmet-back", "E2")["size"]
+    w = e2 - 3
+    assert w - e <= cfg["tolerance"] and e2 - w < w - e
+    art(project / "src" / "2010 White" / "h.png", (w, h))
+    out = main(monkeypatch, standardize, "pad", "src", "Football/T/Helmets Back")
+    rows = [line.split() for line in out.splitlines()]
+    assert ["E2", str(w), "x", str(h)] in [r[:4] for r in rows]
 
 
-def test_survey_and_pad_need_tolerance_in_the_config(project, monkeypatch):
+@pytest.mark.parametrize("argv", [("survey", "src"), ("pad", "src", HELMET_FRONT)], ids=["survey", "pad"])
+def test_survey_and_pad_need_tolerance_in_the_config(project, monkeypatch, argv):
     """With no `tolerance` in the config, survey and pad exit saying so rather than guessing one."""
     small_configs(project, lambda c: c.pop("tolerance"))
     b = era(standardize.load_config(project), "football-helmet-front", "B")["size"]
     art(project / "src" / "x" / "h.png", b)
-    for argv in (("survey", "src"), ("pad", "src", HELMET_FRONT)):
-        with pytest.raises(SystemExit, match="No `tolerance`"):
-            main(monkeypatch, standardize, *argv)
+    with pytest.raises(SystemExit, match="No `tolerance`"):
+        main(monkeypatch, standardize, *argv)

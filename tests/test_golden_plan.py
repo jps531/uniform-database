@@ -7,7 +7,7 @@ import common
 import golden_plan as gp
 import pytest
 import yaml
-from helpers import REPO, art, canvas_size, era, main, override_configs, scaled
+from helpers import REPO, art, blank, canvas_size, era, main, override_configs, scaled
 
 # --------------------------------------------------------------------------
 # helpers
@@ -87,15 +87,16 @@ def test_era_for_uses_post_scale_size(cfg):
 
 
 def test_era_for_tolerance_and_nearest(cfg):
-    """Within 5px matches, 6px does not, and the closest of two candidates wins (E vs E2 helmet backs)."""
+    """Within `tolerance` matches, one px more does not, and the closest of two candidates wins (E vs E2 helmet backs)."""
     e = post(cfg, "football-helmet-back", "E")
     e2 = post(cfg, "football-helmet-back", "E2")
     assert gp.era_for(cfg, "football", "helmet", "back", [e[0] + 1, e[1]]) == "E"
     assert gp.era_for(cfg, "football", "helmet", "back", [e2[0] - 1, e2[1]]) == "E2"
     assert gp.era_for(cfg, "football", "helmet", "back", [e[0] + 3, e[1]]) == "E"
     w = post(cfg, "football-pants-left", "all")
-    assert gp.era_for(cfg, "football", "pants", "left", [w[0] + 5, w[1]]) == "all"
-    assert gp.era_for(cfg, "football", "pants", "left", [w[0] + 6, w[1]]) is None
+    tol = cfg["tolerance"]
+    assert gp.era_for(cfg, "football", "pants", "left", [w[0] + tol, w[1]]) == "all"
+    assert gp.era_for(cfg, "football", "pants", "left", [w[0] + tol + 1, w[1]]) is None
     assert gp.era_for(cfg, "nosport", "pants", "left", w) is None
 
 
@@ -103,11 +104,7 @@ def test_content_size_bbox_and_transparent(tmp_path):
     """content_size() is the opaque bbox, or None when nothing is opaque."""
     p = art(tmp_path / "a.png", (40, 30), (10, 7), top=2)
     assert gp.content_size(p) == (10, 7)
-    from PIL import Image
-
-    q = tmp_path / "b.png"
-    Image.new("RGBA", (12, 9), (0, 0, 0, 0)).save(q)
-    assert gp.content_size(q) is None
+    assert gp.content_size(blank(tmp_path / "b.png", (12, 9))) is None
 
 
 def test_numbers_in_opaque_strings_sorted():
@@ -178,7 +175,11 @@ def test_pick_number_prefers_back(cfg):
 
 def test_every_era_covered_greedily(cfg, templates):
     """Each era of each placed viewpoint appears in an example; one element covering two eras saves an example."""
-    J = lambda n, f, b: rec(cfg, "mens_basketball", "jersey", n, {"front": f, "back": b})  # noqa: E731
+
+    def J(n, f, b):
+        """An inventory record for a mens_basketball jersey element with these eras."""
+        return rec(cfg, "mens_basketball", "jersey", n, {"front": f, "back": b})
+
     inv = {
         "mens_basketball": {
             "Mississippi State": {
@@ -205,7 +206,11 @@ def test_every_era_covered_greedily(cfg, templates):
 
 def test_tq_constraint_splits_baseball_jerseys(cfg, templates):
     """A -tq template takes only three-quarter jerseys; its sibling never does, and neither reports the other's as a gap."""
-    J = lambda n, e: rec(cfg, "baseball", "jersey", n, {"front": e, "back": e}, {"back": ["5"]})  # noqa: E731
+
+    def J(n, e):
+        """An inventory record for a baseball jersey element with these eras."""
+        return rec(cfg, "baseball", "jersey", n, {"front": e, "back": e}, {"back": ["5"]})
+
     inv = {
         "baseball": {
             "Mississippi State": {"jersey": {"2020 White": J("2020 White", "std"), "2021 Gray": J("2021 Gray", "tq")}}
@@ -222,8 +227,15 @@ def test_tq_constraint_splits_baseball_jerseys(cfg, templates):
 
 def test_soccer_combo_keeper_and_cut(cfg, templates):
     """Combos put a field kit in uniform 1 and a keeper in uniform 2, the keeper's cut set by the -ls variant."""
-    J = lambda n, e: rec(cfg, "soccer", "jersey", n, {"front": e, "back": e})  # noqa: E731
-    S = lambda n: rec(cfg, "soccer", "shorts", n, {"front": "all", "back": "all"})  # noqa: E731
+
+    def J(n, e):
+        """An inventory record for a soccer jersey element with these eras."""
+        return rec(cfg, "soccer", "jersey", n, {"front": e, "back": e})
+
+    def S(n):
+        """An inventory record for a soccer shorts element with these eras."""
+        return rec(cfg, "soccer", "shorts", n, {"front": "all", "back": "all"})
+
     inv = {
         "soccer": {
             "Mississippi State": {
@@ -248,16 +260,18 @@ def test_soccer_combo_keeper_and_cut(cfg, templates):
     assert {c[(2, "jersey")] for _, c, _ in ex} == {"2024 Blue Keeper", "2024 Green Keeper"}
     assert {c[(1, "jersey")] for _, c, _ in ex} == {"2024 Maroon"}
     ex, *_ = plan(templates, cfg, "soccer-jersey-ls", inv)
-    assert {c[(1, "jersey")] for _, c, _ in ex} <= {"2024 White LS", "2024 Green Keeper"}
+    assert [c[(1, "jersey")] for _, c, _ in ex] == ["2024 White LS"]
     ex, *_ = plan(templates, cfg, "soccer-jersey", inv)
-    assert all(
-        inv["soccer"]["Mississippi State"]["jersey"][c[(1, "jersey")]]["vps"]["front"]["era"] == "ss" for _, c, _ in ex
-    )
+    assert [c[(1, "jersey")] for _, c, _ in ex] == ["2024 Maroon"]  # short sleeves only: no ls cut, keeper or not
 
 
 def test_volleyball_cuts_and_distinct_combo(cfg, templates):
     """Volleyball -a-b combos take cut a then cut b; a folded combo shows two different jerseys."""
-    J = lambda n, e: rec(cfg, "volleyball", "jersey", n, {"front": e, "back": e})  # noqa: E731
+
+    def J(n, e):
+        """An inventory record for a volleyball jersey element with these eras."""
+        return rec(cfg, "volleyball", "jersey", n, {"front": e, "back": e})
+
     inv = {
         "volleyball": {
             "Mississippi State": {
@@ -270,7 +284,7 @@ def test_volleyball_cuts_and_distinct_combo(cfg, templates):
         }
     }
     ex, *_ = plan(templates, cfg, "volleyball-condensed-combo-ss-ls", inv)
-    assert all(c[(2, "jersey")] == "2022 Gray LS" and c[(1, "jersey")] != "2022 Gray LS" for _, c, _ in ex)
+    assert [c for _, c, _ in ex] == [{(1, "jersey"): "2022 Maroon", (2, "jersey"): "2022 Gray LS"}]
     ex, *_ = plan(templates, cfg, "volleyball-combo", inv)
     assert ex
     assert all(c[(1, "jersey")] != c[(2, "jersey")] for _, c, _ in ex)
@@ -305,7 +319,7 @@ def test_same_year_and_numbered_preferred(cfg, templates):
     assert c[(1, "pants")] == "2015 White Pinstripes"  # same name as the jersey
 
 
-def test_pairing_beats_heuristics(cfg, templates, monkeypatch):
+def test_pairing_beats_heuristics(cfg, templates):
     """A known pairing chooses the jersey and pants over a same-colourway, same-year match."""
     B = "baseball"
     inv = {
@@ -726,7 +740,7 @@ def test_main_sport_replaces_only_that_sport_in_manifest_and_plan(project, cfg, 
     assert (project / "golden/PLAN.md").read_text() == full_md
 
 
-def test_main_sport_header_counts_kept_sections(project, cfg, templates, monkeypatch, capsys):
+def test_main_sport_header_counts_kept_sections(project, cfg, templates, monkeypatch):
     """PLAN.md's header totals examples, templates, empty templates and gaps across kept and re-planned sports."""
     reduced_configs(project, templates, {"wbk-shorts", "condensed", "jersey-full", "volleyball-condensed-combo-ss-ls"})
     inv = two_sport_inv(cfg)
@@ -799,7 +813,7 @@ def test_inventory_records_its_sports_and_extends_when_one_is_missing(project, c
     assert "inventory: reusing golden/inventory.json" in capsys.readouterr().out
 
 
-def test_rescan_with_sport_keeps_other_sports_inventory(project, cfg, templates, monkeypatch, capsys):
+def test_rescan_with_sport_keeps_other_sports_inventory(project, cfg, templates, monkeypatch):
     """--rescan --sport re-measures only the selected sport and keeps the rest of the cached inventory."""
     reduced_configs(project, templates, {"wbk-shorts", "condensed"})
     (project / "golden/inventory.json").write_text(
@@ -830,7 +844,7 @@ def test_legacy_inventory_covers_the_sports_it_holds(project, cfg, templates, mo
     assert saved["elements"][M] == legacy[M]
 
 
-def test_root_flag_and_manifest_header(project, tmp_path, monkeypatch, capsys):
+def test_root_flag_and_manifest_header(project, tmp_path, monkeypatch):
     """--root plans a project from elsewhere, and the manifest it writes warns that a re-plan overwrites it."""
     (project / "golden/inventory.json").write_text("{}")
     elsewhere = tmp_path / "elsewhere"

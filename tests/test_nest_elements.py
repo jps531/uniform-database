@@ -135,8 +135,7 @@ def test_empty_vocabulary_file_is_allowed(project):
 def test_football_element_names(football, stem, element, notes):
     """Football stems lose form, patch, variation and number tokens and keep design tokens and design letters."""
     got, stripped = nest(stem, football)
-    # Equal-length tokens match in set order, so the order of `notes` is not fixed.
-    assert (got, sorted(stripped)) == (element, sorted(notes))
+    assert (got, stripped) == (element, notes)
 
 
 @pytest.mark.parametrize(
@@ -160,8 +159,7 @@ def test_football_element_names(football, stem, element, notes):
 def test_baseball_element_names(baseball, stem, element, notes):
     """Baseball: the number is stripped wherever it sits, surnames parse out, colorway and design words never do."""
     got, stripped = nest(stem, baseball)
-    # Equal-length tokens match in set order, so the order of `notes` is not fixed.
-    assert (got, sorted(stripped)) == (element, sorted(notes))
+    assert (got, stripped) == (element, notes)
 
 
 @pytest.mark.parametrize("stem", [" 12", " Speedflex"])
@@ -312,9 +310,7 @@ def test_identical_destination_is_a_reported_no_op(project, monkeypatch, capsys)
 
 
 def test_default_destination_matches_the_sport_slug(project, monkeypatch, capsys):
-    """mens_basketball (basketball's vocabulary patched in) resolves to Men's Basketball, for staging and destination."""
-    vocab = ne.load_vocab(REPO, "basketball")
-    monkeypatch.setattr(ne, "load_vocab", lambda root, sport: vocab)
+    """mens_basketball resolves to Men's Basketball, for staging and destination."""
     (project / "Men's Basketball").mkdir()
     src = stage(project, "temp/Men's Basketball/Mississippi State/Jerseys Front/2019 White 23.png")
     main(monkeypatch, ne, "--sport", "mens_basketball", "--apply")

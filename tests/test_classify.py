@@ -2,7 +2,7 @@
 
 import classify
 import pytest
-from helpers import art, canvas_size, era, main, scaled, small_configs
+from helpers import art, blank, canvas_size, era, main, scaled, small_configs
 
 VIEW = "Football/T/Helmets Front"
 
@@ -18,7 +18,7 @@ def test_near_uses_tolerance():
     assert not classify.near((100, 100), (100 + classify.TOL + 1, 100))
 
 
-def test_classifies_canvas_and_scale_state(project, cfg, monkeypatch, capsys):
+def test_classifies_canvas_and_scale_state(project, cfg, monkeypatch):
     """Each file is labelled by the canvas it sits on and whether its era's scale is already applied."""
     cv = canvas_size(cfg, "football_helmet_face")
     old = classify.WAS["football_helmet_face"]
@@ -31,7 +31,7 @@ def test_classifies_canvas_and_scale_state(project, cfg, monkeypatch, capsys):
     art(d / "old" / "h.png", old, post)
     art(d / "raw" / "h.png", tuple(a["size"]))
     art(d / "odd" / "h.png", (100, 100), (50, 50))
-    art(d / "blank" / "h.png", (20, 20), (0, 0))
+    blank(d / "blank" / "h.png", (20, 20))
     art(d / "x" / ".hidden.png", cv, b)
     out = main(monkeypatch, classify, "Football")
     assert f"\nFootball  T / Helmets Front\n{row(2, 'NEW-STD', f'{b[0]}x{b[1]}', 'era B, no correction')}\n" in out
@@ -42,7 +42,7 @@ def test_classifies_canvas_and_scale_state(project, cfg, monkeypatch, capsys):
     assert len([ln for ln in out.splitlines() if ln.startswith("   ")]) == 5
 
 
-def test_era_canvas_counts_as_new(project, cfg, monkeypatch, capsys):
+def test_era_canvas_counts_as_new(project, cfg, monkeypatch):
     """A file on an era's own canvas (soccer long sleeve) is NEW-STD, one on that canvas's old size OLD-STD."""
     ls = canvas_size(cfg, "soccer_jersey_ls")
     art(project / "Soccer/MSU/Jerseys Front/k/j.png", ls, (10, 10))
@@ -54,7 +54,7 @@ def test_era_canvas_counts_as_new(project, cfg, monkeypatch, capsys):
     assert row(1, "RAW", "12x12", "NO ERA MATCH") in out
 
 
-def test_skips_paths_it_cannot_place(project, monkeypatch, capsys):
+def test_skips_paths_it_cannot_place(project, monkeypatch):
     """Files with no slot directory, no known sport, or no assigned canvas are ignored."""
     art(project / "Football/T/Loose/x.png", (5, 5))
     art(project / "Curling/T/Jerseys Front/x.png", (5, 5))
@@ -62,7 +62,7 @@ def test_skips_paths_it_cannot_place(project, monkeypatch, capsys):
     assert main(monkeypatch, classify).strip() == ""
 
 
-def test_sport_flag_supplies_missing_sport(project, cfg, monkeypatch, capsys):
+def test_sport_flag_supplies_missing_sport(project, cfg, monkeypatch):
     """--sport classifies temp/{Team}/{View} trees that carry no sport segment, and without it they're skipped."""
     b = era(cfg, "football-helmet-front", "B")["size"]
     art(project / "temp/T/Helmets Front/x/h.png", b)
@@ -72,7 +72,7 @@ def test_sport_flag_supplies_missing_sport(project, cfg, monkeypatch, capsys):
     assert row(1, "RAW", f"{b[0]}x{b[1]}", "era B, no correction") in out
 
 
-def test_finds_root_from_a_subdirectory(project, cfg, monkeypatch, capsys):
+def test_finds_root_from_a_subdirectory(project, cfg, monkeypatch):
     """Run from below the project root, classify still finds the config and resolves targets from the root."""
     b = era(cfg, "football-helmet-front", "B")["size"]
     art(project / VIEW / "x/h.png", b)
@@ -84,25 +84,25 @@ def test_finds_root_from_a_subdirectory(project, cfg, monkeypatch, capsys):
 
 
 @pytest.mark.parametrize("args", [(), (".",)])
-def test_default_target_is_whole_project(project, cfg, monkeypatch, capsys, args):
+def test_default_target_is_whole_project(project, cfg, monkeypatch, args):
     """With no path, or '.', the whole project is classified."""
     b = era(cfg, "football-helmet-front", "B")["size"]
     art(project / VIEW / "x/h.png", b)
     assert "\n.  T / Helmets Front\n" in main(monkeypatch, classify, *args)
 
 
-def test_fill_canvas_cannot_tell_source_from_output(project, cfg, monkeypatch, capsys):
+def test_fill_canvas_cannot_tell_source_from_output(project, cfg, monkeypatch):
     """Raw source on a `fills: fill` canvas (canvas = content) is FILL, not NEW-STD; the content signal still applies."""
-    pants = canvas_size(cfg, "football_pants_front")
-    art(project / "Football/T/Pants Front/x/p.png", pants)
+    sleeve = canvas_size(cfg, "football_jersey_sleeve")
+    art(project / "Football/T/Jerseys Left/x/s.png", sleeve)
     art(project / "Venues/Football/T/Fields Full/2020/f.png", canvas_size(cfg, "football_field_full"), (10, 10))
     out = main(monkeypatch, classify, "Football", "Venues")
-    assert row(1, "FILL", f"{pants[0]}x{pants[1]}", "era all, no correction") in out
+    assert row(1, "FILL", f"{sleeve[0]}x{sleeve[1]}", "era all, no correction") in out
     assert row(1, "FILL", "10x10", "NO ERA MATCH") in out
     assert "NEW-STD" not in out
 
 
-def test_era_match_is_the_closest_within_tolerance(project, cfg, monkeypatch, capsys):
+def test_era_match_is_the_closest_within_tolerance(project, cfg, monkeypatch):
     """Content within tolerance of two eras matches the nearer one (jersey back D 1414 over E 1406), not the last listed."""
     d = era(cfg, "football-jersey-back", "D")["size"]
     e = era(cfg, "football-jersey-back", "E")["size"]
@@ -113,7 +113,7 @@ def test_era_match_is_the_closest_within_tolerance(project, cfg, monkeypatch, ca
     assert row(1, "RAW", f"{content[0]}x{content[1]}", "era D, no correction") in out
 
 
-def test_era_tolerance_comes_from_config(project, monkeypatch, capsys):
+def test_era_tolerance_comes_from_config(project, monkeypatch):
     """Era matching uses the config's `tolerance`, not a constant: 3px off fails at tolerance 1."""
     cfg = small_configs(project, lambda c: c.update(tolerance=1))
     b = era(cfg, "football-helmet-front", "B")["size"]
@@ -122,7 +122,7 @@ def test_era_tolerance_comes_from_config(project, monkeypatch, capsys):
     assert row(1, "RAW", f"{b[0] + 3}x{b[1]}", "NO ERA MATCH") in out
 
 
-def test_std_sibling_reads_as_its_slot_and_viewpoint(project, cfg, monkeypatch, capsys):
+def test_std_sibling_reads_as_its_slot_and_viewpoint(project, cfg, monkeypatch):
     """A "… STD" folder is parsed as `pad` parses it: Helmets Front STD is the helmet front, not a viewpoint "std"."""
     b = era(cfg, "football-helmet-front", "B")["size"]
     art(project / f"{VIEW} STD" / "x" / "h.png", canvas_size(cfg, "football_helmet_face"), b)
@@ -131,7 +131,7 @@ def test_std_sibling_reads_as_its_slot_and_viewpoint(project, cfg, monkeypatch, 
     assert row(1, "NEW-STD", f"{b[0]}x{b[1]}", "era B, no correction") in out
 
 
-def test_root_flag_from_outside_the_project(project, cfg, tmp_path, monkeypatch, capsys):
+def test_root_flag_from_outside_the_project(project, cfg, tmp_path, monkeypatch):
     """--root classifies a project from anywhere; without it, outside a project, classify exits."""
     b = era(cfg, "football-helmet-front", "B")["size"]
     art(project / VIEW / "x/h.png", b)

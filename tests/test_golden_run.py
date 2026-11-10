@@ -8,7 +8,7 @@ import golden_run as gr
 import pytest
 import yaml
 from helpers import REPO, art, blank, canvas_size, era, main, placed
-from PIL import Image
+from PIL import Image, ImageFont
 
 MSU = "Mississippi State"
 
@@ -106,14 +106,20 @@ def test_check_wrong_era(tmp_path, cfg):
     odd = art(tmp_path / "c" / "2000 White.png", W, (10, 10))
     blank = empty_png(tmp_path / "d" / "2000 White.png")
     ex = {"sport": "mens_basketball", "expect_eras": {"1/shorts/left": "a", "1/shorts/right": None}}
-    P = lambda f: {"placements": [placed(f, "shorts", "left", "2000 White")]}  # noqa: E731
+
+    def P(f):
+        """A compose result placing `f` as uniform 1's left shorts."""
+        return {"placements": [placed(f, "shorts", "left", "2000 White")]}
+
     assert gr.check(ex, P(a), None, cfg, []) == ([], [])
     assert gr.check(ex, P(b), None, cfg, []) == (["WRONG ERA shorts/left: planned a, placed b"], [])
     assert gr.check(ex, P(odd), None, cfg, [])[0] == ["WRONG ERA shorts/left: planned a, placed unrecognised size"]
     assert gr.check(ex, P(blank), None, cfg, [])[0] == ["WRONG ERA shorts/left: planned a, placed unrecognised size"]
-    # the nearest of two eras inside tolerance wins (helmet back E 667 vs E2 674)
+    # the nearest of two eras inside tolerance wins: helmet back E's width plus 3 is nearer E than E2
     e = era(cfg, "football-helmet-back", "E")["size"]
-    near = art(tmp_path / "e" / "2000 White.png", (700, 800), (e[0] + 3, e[1]))
+    e2 = era(cfg, "football-helmet-back", "E2")["size"]
+    assert abs(e2[0] - (e[0] + 3)) <= cfg["tolerance"]
+    near = art(tmp_path / "e" / "2000 White.png", canvas_size(cfg, "football_helmet_face"), (e[0] + 3, e[1]))
     hb = {"sport": "football", "expect_eras": {"1/helmet/back": "E"}}
     assert gr.check(hb, {"placements": [placed(near, "helmet", "back", "2000 White")]}, None, cfg, []) == ([], [])
     # a viewpoint whose expected era is empty is not checked
@@ -250,8 +256,6 @@ def test_vocab_tokens_real_shared():
 
 def test_font_falls_back_to_default(monkeypatch):
     """Without any TrueType font installed, the label font is Pillow's default."""
-    from PIL import ImageFont
-
     real = ImageFont.truetype
 
     def nope(f, *a, **k):
@@ -287,7 +291,7 @@ def draw_icons(project, cfg):
         art(base / f"{slot} Icon" / "2020 Maroon" / "2020 Maroon.png", W)
 
 
-def test_end_to_end_strict_ok(project, cfg, monkeypatch, capsys):
+def test_end_to_end_strict_ok(project, cfg, templates, monkeypatch, capsys):
     """A real composition passes every check, and --strict reports every example ok."""
     draw_icons(project, cfg)
     els = {"helmet": "2020 Maroon", "jersey": "2020 Maroon", "pants": "2020 Maroon"}
@@ -300,7 +304,8 @@ def test_end_to_end_strict_ok(project, cfg, monkeypatch, capsys):
     assert "STRICT: every example is ok" in out
     d = project / "golden/run/football/icons-horizontal"
     with Image.open(d / "football--icons-horizontal--01.png") as im:
-        assert im.size == (2430, 750)
+        out_size = next(t["output"] for t in templates if t["view_kind"] == "icons-horizontal")
+        assert im.size == (out_size["width"], out_size["height"])
     assert json.loads((d / "football--icons-horizontal--01.json").read_text())["missing"] == []
     assert (project / "golden/run/sheets/football--icons-horizontal.png").is_file()
     assert "**1 examples, 0 with defects.**" in report(project)
@@ -478,7 +483,7 @@ def test_strict_with_sport_ignores_earlier_results_on_disk(project, monkeypatch,
     assert "STRICT: every example is ok (1 rendered this run)" in out
 
 
-def test_strict_judges_this_runs_defect_not_an_older_clean_result(project, monkeypatch, tmp_path, capsys):
+def test_strict_judges_this_runs_defect_not_an_older_clean_result(project, monkeypatch, tmp_path):
     """A defect rendered in this run fails --strict even if earlier results of other examples are clean."""
     fake = suite(project, monkeypatch, tmp_path)
     main(monkeypatch, gr, "--only", "fb--a--01")
@@ -492,6 +497,7 @@ def test_sport_filter_and_report_from_disk(project, monkeypatch, tmp_path, capsy
     fake = suite(project, monkeypatch, tmp_path)
     main(monkeypatch, gr, "--sport", "football")
     capsys.readouterr()
+    assert fake.calls
     assert all("soccer" not in c for c in fake.calls)
     fake.calls.clear()
     main(monkeypatch, gr, "--sport", "soccer")
@@ -503,7 +509,7 @@ def test_sport_filter_and_report_from_disk(project, monkeypatch, tmp_path, capsy
     assert "| soccer | `c` | 1 |  |" in r
 
 
-def test_stale_png_removed_before_compose(project, monkeypatch, tmp_path, capsys):
+def test_stale_png_removed_before_compose(project, monkeypatch, tmp_path):
     """A PNG left from an earlier run is deleted before compose runs, so a failed compose shows NOT RENDERED."""
     suite(project, monkeypatch, tmp_path)
     old = opaque_png(project / "golden/run/football/b/fb--b--01.png")

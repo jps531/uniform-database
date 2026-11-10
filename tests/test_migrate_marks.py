@@ -1,12 +1,13 @@
 """Tests for scripts/migration/migrate_marks.py: flat, nested and flat-noyear plans, their problems, dry run vs --apply."""
 
 import os
+import re
 from pathlib import Path
 
 import common
 import migrate_marks as mm
 import pytest
-from helpers import art, era, main, override_configs, small_configs
+from helpers import art, blank, era, main, override_configs, small_configs
 
 T = Path("Marks/Temp")
 D = Path("Marks/Football")
@@ -226,9 +227,9 @@ def test_plan_nested_skips_non_source_directories(project, capsys):
     moves, _ = mm.plan_nested(project / "Incoming", project / D, "Alabama", project)
     out = capsys.readouterr().out
     assert len(moves) == 1
-    assert f"{'Helmets Right':<24} generated output" in out
-    assert f"{'Helmets Front':<24} not a mark viewpoint" in out
-    assert f"{'Helmets Left STD':<24} not a mark viewpoint" in out
+    assert re.search(r"Helmets Right +generated output", out)
+    assert re.search(r"Helmets Front +not a mark viewpoint", out)
+    assert re.search(r"Helmets Left STD +not a mark viewpoint", out)
     assert "Jerseys" not in out
 
 
@@ -273,7 +274,7 @@ def test_plan_nested_reports_each_problem(project):
 def test_plan_nested_reports_an_empty_mark(project):
     """A fully transparent mark with no shell token is a problem, not a crash."""
     small_configs(project)
-    art(project / "Incoming/Helmets Left/2015 Crimson/2015 Crimson.png", (20, 20), (0, 0))
+    blank(project / "Incoming/Helmets Left/2015 Crimson/2015 Crimson.png", (20, 20))
     moves, problems = mm.plan_nested(project / "Incoming", project / D, "Alabama", project)
     assert moves == []
     assert problems == [("no opaque content", "2015 Crimson/2015 Crimson.png", "")]
@@ -282,7 +283,7 @@ def test_plan_nested_reports_an_empty_mark(project):
 def test_main_nested_blocks_on_an_empty_mark(project, monkeypatch, capsys):
     """An empty mark is printed among nested problems and blocks --apply."""
     small_configs(project)
-    art(project / "Incoming/Helmets Left/2015 Crimson/2015 Crimson.png", (20, 20), (0, 0))
+    blank(project / "Incoming/Helmets Left/2015 Crimson/2015 Crimson.png", (20, 20))
     with pytest.raises(SystemExit, match="Refusing to apply while flagged problems"):
         main(monkeypatch, mm, "--root", str(project), "--mode", "nested", "--team", "X", "--src", "Incoming", "--apply")
     out = capsys.readouterr().out
@@ -293,7 +294,7 @@ def test_main_nested_blocks_on_an_empty_mark(project, monkeypatch, capsys):
 
 def test_content_size_of_an_empty_file_is_none(tmp_path):
     """content_size() is None for a fully transparent image and the bbox size otherwise."""
-    assert mm.content_size(art(tmp_path / "e.png", (6, 6), (0, 0))) is None
+    assert mm.content_size(blank(tmp_path / "e.png", (6, 6))) is None
     assert mm.content_size(art(tmp_path / "f.png", (6, 6), (3, 2))) == (3, 2)
 
 

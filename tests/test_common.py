@@ -5,7 +5,7 @@ import io
 
 import common
 import pytest
-from helpers import REPO, art, era, override_configs
+from helpers import REPO, art, blank, era, override_configs
 from PIL import Image
 
 # --- the project -------------------------------------------------------------
@@ -109,13 +109,13 @@ def test_vocabulary_follows_the_extends_chain_and_merges_colorways(project):
     assert v.colorways == ["maroon", "purple", "white"]
 
 
-def test_real_baseball_keeps_shared_colorways():
-    """Baseball lists its own colorways and still has shared's purple; softball reaches both through baseball."""
-    for sport in ("baseball", "softball"):
-        colorways = common.load_vocabulary(REPO, sport).colorways
-        assert {"purple", "teal", "maroon"} <= set(colorways)
-        assert len(colorways) == len(set(colorways))
-    assert "NCAA" in {common.token_name(t) for t in common.load_vocabulary(REPO, "softball").tokens.values()}
+@pytest.mark.parametrize("sport", ["baseball", "softball"])
+def test_real_baseball_keeps_shared_colorways(sport):
+    """Baseball lists its own colorways and still has shared's purple and NCAA; softball reaches both through baseball."""
+    v = common.load_vocabulary(REPO, sport)
+    assert {"purple", "teal", "maroon"} <= set(v.colorways)
+    assert len(v.colorways) == len(set(v.colorways))
+    assert "NCAA" in {common.token_name(t) for t in v.tokens.values()}
 
 
 def test_vocabulary_cycle_and_missing_files_exit(project):
@@ -158,14 +158,16 @@ def test_known_colorways_reads_keys_tokens_and_labels(project):
 
 
 def test_closest_era_wins_inside_overlapping_windows(cfg):
-    """Helmet backs E (667) and E2 (674) overlap at tolerance 5: 670 takes E (3px), 671 takes E2 (3px vs 4px)."""
+    """Helmet backs E and E2 (7px apart) overlap within tolerance: each width between goes to the nearer era."""
     profile = cfg["profiles"]["football-helmet-back"]
     tol = common.tolerance(cfg)
-    h = era(cfg, "football-helmet-back", "E")["size"][1]
-    assert common.match_era(profile, (670, h), tol)["era"] == "E"
-    assert common.match_era(profile, (671, h), tol)["era"] == "E2"
-    assert common.match_era(profile, (674 + tol, h), tol)["era"] == "E2"
-    assert common.match_era(profile, (674 + tol + 1, h), tol) is None
+    (e, h), (e2, _) = era(cfg, "football-helmet-back", "E")["size"], era(cfg, "football-helmet-back", "E2")["size"]
+    assert e < e2 <= e + 2 * tol, "E and E2 no longer overlap; pick another pair"
+    mid = (e + e2) / 2
+    for w in range(e2 - tol, e + tol + 1):  # inside both windows
+        assert common.match_era(profile, (w, h), tol)["era"] == ("E" if w <= mid else "E2"), w
+    assert common.match_era(profile, (e2 + tol, h), tol)["era"] == "E2"
+    assert common.match_era(profile, (e2 + tol + 1, h), tol) is None
 
 
 def test_ties_go_to_the_first_listed_era():
@@ -234,7 +236,7 @@ def test_open_rgba_applies_orientation_and_closes(tmp_path):
 
 def test_blank_file_has_no_content(tmp_path):
     """A fully transparent file has no box and no content size, not the whole image's."""
-    p = art(tmp_path / "b.png", (9, 7), (0, 0))
+    p = blank(tmp_path / "b.png", (9, 7))
     assert common.content_box(p) == ((9, 7), None)
     assert common.content_size(p) is None
     with common.open_rgba(p) as im:

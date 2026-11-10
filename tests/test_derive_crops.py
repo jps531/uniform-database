@@ -140,7 +140,7 @@ def test_exits_when_no_canvas_is_derived(project, monkeypatch):
         main(monkeypatch, dc, "--root", str(project))
 
 
-def test_sport_tree_fallback_and_teams_without_source(project, monkeypatch, capsys):
+def test_sport_tree_fallback_and_teams_without_source(project, monkeypatch):
     """Without Venues/<Sport>, the uniform tree is searched; teams without the source viewpoint are skipped."""
     cfg = small_configs(project)
     f = full(project, cfg, tree=".", team="Alpha")
@@ -243,7 +243,7 @@ def test_marker_records_source_and_crop_canvas(project, monkeypatch):
     assert marker["crop_at"] == list(c["derived_from"]["crop_at"])
 
 
-def test_venue_directory_is_matched_by_slug(project, monkeypatch, capsys):
+def test_venue_directory_is_matched_by_slug(project, monkeypatch):
     """A Venues sport folder is found by its slug, so "football" (not the title-cased "Football") is cropped too."""
     cfg = small_configs(project)
     src = full(project, cfg)

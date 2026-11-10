@@ -166,10 +166,10 @@ def test_set_aborts_if_a_save_changes_pixel_dimensions(tmp_path, monkeypatch):
         """Save a cropped copy, simulating a save that did more than retag."""
         return real_save(self.crop((0, 0, 5, 5)), fp, *args, **kwargs)
 
-    monkeypatch.setattr(Image.Image, "save", shrinking_save)
-    with pytest.raises(SystemExit, match=r"ABORT: .*a\.png changed size \(10, 10\) -> \(5, 5\)"):
-        fix_dpi.cmd_set(tmp_path, 300, apply=True)
-    monkeypatch.undo()
+    with monkeypatch.context() as m:
+        m.setattr(Image.Image, "save", shrinking_save)
+        with pytest.raises(SystemExit, match=r"ABORT: .*a\.png changed size \(10, 10\) -> \(5, 5\)"):
+            fix_dpi.cmd_set(tmp_path, 300, apply=True)
     assert p.read_bytes() == before
     assert [q.name for q in tmp_path.iterdir()] == ["a.png"]
 
@@ -184,10 +184,10 @@ def test_set_aborts_if_a_save_changes_pixels(tmp_path, monkeypatch):
         """Save a transparent image of the same size, simulating a lossy save."""
         return real_save(Image.new("RGBA", self.size), fp, *args, **kwargs)
 
-    monkeypatch.setattr(Image.Image, "save", blanking_save)
-    with pytest.raises(SystemExit, match=r"ABORT: .*a\.png pixels changed"):
-        fix_dpi.cmd_set(tmp_path, 300, apply=True)
-    monkeypatch.undo()
+    with monkeypatch.context() as m:
+        m.setattr(Image.Image, "save", blanking_save)
+        with pytest.raises(SystemExit, match=r"ABORT: .*a\.png pixels changed"):
+            fix_dpi.cmd_set(tmp_path, 300, apply=True)
     assert p.read_bytes() == before
     assert [q.name for q in tmp_path.iterdir()] == ["a.png"]
 
@@ -203,10 +203,10 @@ def test_set_aborts_if_a_save_drops_the_orientation(tmp_path, monkeypatch):
         kwargs.pop("exif", None)
         return real_save(self, fp, *args, **kwargs)
 
-    monkeypatch.setattr(Image.Image, "save", exif_dropping_save)
-    with pytest.raises(SystemExit, match=r"ABORT: .*r\.png orientation changed 6 -> None"):
-        fix_dpi.cmd_set(tmp_path, 300, apply=True)
-    monkeypatch.undo()
+    with monkeypatch.context() as m:
+        m.setattr(Image.Image, "save", exif_dropping_save)
+        with pytest.raises(SystemExit, match=r"ABORT: .*r\.png orientation changed 6 -> None"):
+            fix_dpi.cmd_set(tmp_path, 300, apply=True)
     assert p.read_bytes() == before
 
 
@@ -221,10 +221,10 @@ def test_set_aborts_if_a_save_drops_the_dpi_tag(tmp_path, monkeypatch):
         kwargs.pop("dpi", None)
         return real_save(self, fp, *args, **kwargs)
 
-    monkeypatch.setattr(Image.Image, "save", dpi_dropping_save)
-    with pytest.raises(SystemExit, match=r"ABORT: .*a\.png re-saved without the 300 DPI tag"):
-        fix_dpi.cmd_set(tmp_path, 300, apply=True)
-    monkeypatch.undo()
+    with monkeypatch.context() as m:
+        m.setattr(Image.Image, "save", dpi_dropping_save)
+        with pytest.raises(SystemExit, match=r"ABORT: .*a\.png re-saved without the 300 DPI tag"):
+            fix_dpi.cmd_set(tmp_path, 300, apply=True)
     assert p.read_bytes() == before
 
 
@@ -237,10 +237,10 @@ def test_set_removes_the_temp_file_if_the_save_raises(tmp_path, monkeypatch):
         """Fail as a full disk would."""
         raise OSError("disk full")
 
-    monkeypatch.setattr(Image.Image, "save", failing_save)
-    with pytest.raises(OSError, match="disk full"):
-        fix_dpi.cmd_set(tmp_path, 300, apply=True)
-    monkeypatch.undo()
+    with monkeypatch.context() as m:
+        m.setattr(Image.Image, "save", failing_save)
+        with pytest.raises(OSError, match="disk full"):
+            fix_dpi.cmd_set(tmp_path, 300, apply=True)
     assert p.read_bytes() == before
     assert [q.name for q in tmp_path.iterdir()] == ["a.png"]
 

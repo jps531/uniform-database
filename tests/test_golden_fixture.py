@@ -12,6 +12,7 @@ from helpers import (
     ERAS,
     TEAM,
     art,
+    blank,
     canvas_size,
     cropped_of,
     main,
@@ -72,9 +73,7 @@ def scene(root: Path, cfg: dict) -> dict:
     generated(root, "Left", "x", team="Aardvark")
     want.add(mark(root, cfg, "Left", "1950 White", "A", team="Alpha").relative_to(root))
     want.add(
-        art(root / "Marks/Football/Alpha/Helmets Left/1950 White/1950 White Empty.png", (8, 8), (0, 0)).relative_to(
-            root
-        )
+        blank(root / "Marks/Football/Alpha/Helmets Left/1950 White/1950 White Empty.png", (8, 8)).relative_to(root)
     )
     want.add(generated(root, "Left", "1950 White", team="Alpha").relative_to(root))
     mark(root, cfg, "Left", "1960 White", "B", team="Alpha")
@@ -129,7 +128,7 @@ def test_plan_copies_candidates_whole_helmets_era_top_up_and_venue_ends(project,
     assert need == s["want"]
 
 
-def test_composition_files_never_keeps_another_number(project, small):
+def test_composition_files_never_keeps_another_number(project):
     """With a number requested, files carrying any other number are left out, as compose never picks them."""
     folder = project / "Football" / TEAM / "Jerseys Back" / "2020 White"
     files = [art(folder / f"2020 White {n}.png", (4, 4)) for n in ("5", "7")]
@@ -144,7 +143,7 @@ def test_composition_files_never_keeps_another_number(project, small):
     assert gf.composition_files(p, vocab) == [files[0], plain]
 
 
-def test_composition_files_without_a_number_keeps_unnumbered_else_the_whole_folder(project, small):
+def test_composition_files_without_a_number_keeps_unnumbered_else_the_whole_folder(project):
     """With no number requested, the unnumbered files are kept if any exist, else every file, as compose ranks them."""
     folder = project / "Football" / TEAM / "Jerseys Back" / "2020 White"
     files = [art(folder / f"2020 White {n}.png", (4, 4)) for n in ("5", "7")]
@@ -160,7 +159,7 @@ def test_helmet_eras_matches_marks_and_ignores_empty_files(project, small):
     mark(project, small, "Left", "1950 White", "A")
     mark(project, small, "Left", "1950 White", "D", name="1950 White D")
     folder = project / "Marks/Football" / TEAM / "Helmets Left/1950 White"
-    art(folder / "blank.png", (8, 8), (0, 0))
+    blank(folder / "blank.png", (8, 8))
     art(folder / ".hidden.png", (8, 8))
     assert gf.helmet_eras(folder, small["profiles"]["football-helmet-left"], 5) == {"A", "D"}
 
