@@ -76,6 +76,17 @@ uv run ruff format .         # format
 **Dependencies.** Add one with `uv add NAME` (or `uv add --dev NAME` for a
 tool), which updates `pyproject.toml` and `uv.lock` together. Commit both.
 
+**Shared helpers.** Anything more than one script needs — finding the
+root and `--root`, reading config and `tolerance`, sport slugs and
+directories, the vocabulary, era matching, measuring artwork, walking PNGs,
+`DPI` and `MARKER` — lives in `scripts/pipeline/common.py`, and a new
+script must use it rather than write its own. Every one of those once
+existed in several copies that disagreed: first-match era lookup in some
+scripts and closest in others, three root markers, three hidden-file rules,
+colorways replaced instead of merged. A new shared helper goes in
+`common.py`, with its tests in `tests/test_common.py`. Every script takes
+`--root` (`common.add_root_arg`, `common.root_from`).
+
 **Editors.** `scripts/` is a folder of tools, not a package, and its scripts
 import each other by adding the sibling folder to `sys.path` at runtime. An
 analyser can't follow that, so point yours at `.venv` and give it the same
@@ -145,7 +156,8 @@ command line.
 | A pairing the golden planner gets wrong | `golden/pairings.yaml`, not `manifest.yaml`, which `golden_plan.py` overwrites. |
 | The golden plan (`manifest.yaml`), or any artwork the fixture copies | A refreshed `golden/fixture/`, committed with the change ([docs/golden_suite.md](docs/golden_suite.md), section 3). CI can't tell a stale fixture from a current one. |
 | A script, a command or an option | Its module docstring, CLAUDE.md's "Commands", README.md wherever it shows the command, and its tests in `tests/test_<script>.py`, which must keep it at 95% or more. |
-| A new script | A `tests/test_<script>.py`; `coverage_gate.py` fails any script under 95%, including one with no tests. |
+| A new script | A `tests/test_<script>.py`; `coverage_gate.py` fails any script under 95%, including one with no tests. It takes `--root` and uses `common.py`'s helpers, not copies of them. |
+| A helper in `scripts/pipeline/common.py` | `tests/test_common.py`, and every script that calls it: a change there changes all of them. |
 | How the pipeline behaves (resolution, ranking, nesting rules) | The section of docs/reference.md that describes it (and CLAUDE.md if it touches a safety rule), and "Tried and reversed" if it undoes an earlier choice. |
 | A token string, scope or colorway in any config | `uv run pytest tests/test_configs.py`: no token at both folder and file level, every colorway global. |
 | A dependency | `pyproject.toml` and `uv.lock`, through `uv add` or `uv lock`. |

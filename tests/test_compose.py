@@ -5,6 +5,7 @@ import os
 import runpy
 import sys
 
+import common
 import compose
 import numpy as np
 import pytest
@@ -14,6 +15,7 @@ from PIL import Image
 
 SCRIPT = str(REPO / "scripts" / "pipeline" / "compose.py")
 MSU = "Mississippi State"
+SLOT_DIR = common.slot_dirs(common.load_config(REPO))
 
 
 @pytest.fixture(scope="module")
@@ -30,7 +32,7 @@ def bvocab():
 
 def put(root, slot, vp, element, name, size=(40, 30), content=None, sport="Football", team=MSU, seed=0, top=0):
     """Draw element artwork at {sport}/{team}/{Slot} {Viewpoint}/{element}/{name}.png."""
-    path = root / sport / team / f"{compose.SLOT_DIR[slot]} {vp.title()}" / element / f"{name}.png"
+    path = root / sport / team / f"{SLOT_DIR[slot]} {vp.title()}" / element / f"{name}.png"
     return art(path, size, content, top=top, seed=seed)
 
 
@@ -108,16 +110,21 @@ def test_vocab_excludes_sequences_and_marks_default_forms(fvocab, bvocab):
     assert bvocab[2] == {"Modern"}
 
 
-def test_vocab_tolerates_loops_missing_files_and_unlabelled_tokens(project):
-    """Circular extends stop, a missing base contributes nothing, and a token with no name is skipped."""
+def test_vocab_exits_on_loops_and_missing_files_and_skips_unlabelled_tokens(project):
+    """Circular extends and a missing vocabulary exit naming the file; a token with no name is skipped."""
     mini(project)
     d = project / "configs"
     (d / "modifiers_a.yaml").write_text(yaml.safe_dump({"extends": "b", "tokens": {"x": {"label": "Xtra"}}}))
     (d / "modifiers_b.yaml").write_text(yaml.safe_dump({"extends": "a", "tokens": {"y": {"scope": "patch"}}}))
     (d / "modifiers_c.yaml").write_text(yaml.safe_dump({"extends": "nope", "tokens": {"z": {"label": "Zed"}}}))
-    assert compose.load_vocab(project, "a") == (["Xtra"], set(), set())
-    assert compose.load_vocab(project, "c") == (["Zed"], set(), set())
-    assert compose.load_vocab(project, "curling") == ([], set(), set())
+    (d / "modifiers_e.yaml").write_text(yaml.safe_dump({"tokens": {"x": {"label": "Xtra"}, "y": {"scope": "patch"}}}))
+    with pytest.raises(SystemExit, match="Circular `extends` reaching modifiers_a.yaml"):
+        compose.load_vocab(project, "a")
+    with pytest.raises(SystemExit, match="No vocabulary at configs/modifiers_nope.yaml"):
+        compose.load_vocab(project, "c")
+    with pytest.raises(SystemExit, match="No vocabulary at configs/modifiers_curling.yaml"):
+        compose.load_vocab(project, "curling")
+    assert compose.load_vocab(project, "e") == (["Xtra"], set(), set())
 
 
 def test_split_tail_finds_tokens_number_and_surname(fvocab, bvocab):
@@ -248,13 +255,13 @@ def test_missing_or_empty_folder_has_no_candidates(tmp_path, fvocab):
 
 
 def test_sport_dir_matches_slug_including_apostrophes(tmp_path):
-    """Slugs find "Men's Basketball" and "Women’s Basketball"; with no match the title-cased path is returned."""
+    """Slugs find "Men's Basketball" and "Women’s Basketball"; with no match there is no directory, not a guessed one."""
     (tmp_path / "Men's Basketball").mkdir()
     (tmp_path / "Women’s Basketball").mkdir()
     (tmp_path / "notes.txt").write_text("")
     assert compose.sport_dir(tmp_path, "mens_basketball") == tmp_path / "Men's Basketball"
     assert compose.sport_dir(tmp_path, "womens_basketball") == tmp_path / "Women’s Basketball"
-    assert compose.sport_dir(tmp_path, "field_hockey") == tmp_path / "Field Hockey"
+    assert compose.sport_dir(tmp_path, "field_hockey") is None
 
 
 def test_resolve_reports_how_and_has_no_generic_fallback(project, fvocab):
@@ -737,11 +744,11 @@ def test_find_root_walks_up_and_fails_cleanly(project, tmp_path, monkeypatch):
     """Without --root the project is found above cwd; with none above, compose exits."""
     sub = project / "a" / "b"
     sub.mkdir(parents=True)
-    assert compose.find_root(sub) == project
+    assert common.find_root(sub) == project
     lone = tmp_path / "lone"
     lone.mkdir()
     monkeypatch.chdir(lone)
-    with pytest.raises(SystemExit, match="No configs/view_templates.yaml above"):
+    with pytest.raises(SystemExit, match="No configs/canvas_definitions.yaml in"):
         run(monkeypatch, "--view", "mini")
 
 
@@ -754,7 +761,18 @@ def test_root_flag_and_script_entry_point(project, tmp_path, monkeypatch):
 
 
 def test_missing_dependencies_exit_with_a_hint(monkeypatch):
-    """Without PyYAML or Pillow the script exits telling the user to run `uv sync`."""
-    monkeypatch.setitem(sys.modules, "yaml", None)
+    """Without Pillow the script exits telling the user to run `uv sync`."""
+    monkeypatch.setitem(sys.modules, "PIL", None)
     with pytest.raises(SystemExit, match="uv sync"):
         runpy.run_path(SCRIPT, run_name="compose_noimport")
+
+
+def test_slot_flags_are_the_slots_templates_place(project, monkeypatch, capsys):
+    """compose offers --{slot} only for slots a template places: venue slots (field, court) are not combination slots."""
+    monkeypatch.setattr(sys, "argv", ["compose.py", "--help"])
+    with pytest.raises(SystemExit):
+        compose.main()
+    out = capsys.readouterr().out
+    for slot in ("--helmet", "--jersey", "--pants", "--hat", "--shorts"):
+        assert slot in out
+    assert "--field" not in out and "--court" not in out

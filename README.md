@@ -37,7 +37,7 @@ just the artwork the golden suite uses, so CI can run it.
 | Path | What it is |
 |---|---|
 | `configs/` | Everything the pipeline knows, as YAML: canvases and era profiles, the 48 view templates, slots and colorways, and each sport's token vocabulary |
-| `scripts/` | The Python asset pipeline, in three folders: `pipeline/` (standardize, crop, compose), `migration/` (bringing new artwork and marks in, and checking it), `golden/` (the golden suite) |
+| `scripts/` | The Python asset pipeline, in three folders: `pipeline/` (standardize, crop, compose, and `common.py`, the helpers they all share), `migration/` (bringing new artwork and marks in, and checking it), `golden/` (the golden suite) |
 | `golden/` | The golden suite's approved plan (`manifest.yaml`, `PLAN.md`), known pairings, and `fixture/`: a copy of the artwork the suite needs, so CI can run it. Renders go to `golden/run/`, which isn't tracked |
 | `tests/` | Unit tests for every script (pytest), on synthetic artwork |
 | `docs/` | [reference.md](docs/reference.md), the full pipeline reference: naming grammar, invariants, eras and canvases, composition, and the mistakes not to repeat. [golden_suite.md](docs/golden_suite.md), the golden suite and its CI |
@@ -55,7 +55,7 @@ Install [uv](https://docs.astral.sh/uv/). Then, once, from the project
 folder (the one holding `configs/` and the artwork):
 
 ```
-uv sync          # Python 3.13 and every dependency, into .venv
+uv sync          # Python 3.13 (required) and every dependency, into .venv
 ```
 
 Run every command below from that same folder. Every script prints its full

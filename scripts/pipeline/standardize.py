@@ -10,9 +10,14 @@ so this script holds no per-era knowledge of its own.
     # inspect a slot before configuring it
     uv run scripts/pipeline/standardize.py survey "Football/Mississippi State/Helmets Right"
 
-    # standardize into place (canvas + profile looked up from the path)
+    # authored source: pad into a "… STD" sibling, check it, then replace
     uv run scripts/pipeline/standardize.py pad \\
-        "~/.../MSU Uniforms/Football/Helmets Right" \\
+        "Football/Mississippi State/Jerseys Front" \\
+        "Football/Mississippi State/Jerseys Front STD"
+
+    # generated helmets: pad the native-scale Marks into the .generated tree
+    uv run scripts/pipeline/standardize.py pad \\
+        "Marks/Football/Mississippi State/Helmets Right" \\
         "Football/Mississippi State/Helmets Right"
 
 Paths may be absolute, or relative to the project root (the directory
@@ -20,8 +25,14 @@ containing configs/). The DESTINATION path determines which canvas and
 profile apply: "Football/<Team>/Jerseys Front" -> sport=football,
 slot=jersey, viewpoint=front.
 
-Overrides for a slot not yet in the config:
-    --canvas 2000x2300 --profile jersey-front
+Overrides for a slot not yet in the config (profiles are keyed
+{sport}-{slot}-{viewpoint}):
+    --canvas 1792x2044 --profile football-jersey-front
+
+Content is matched to the CLOSEST era within the config's `tolerance`
+(smallest |dw| + |dh|; ties to the first listed), as every script does.
+Files are placed top-centre, the `--anchor` default, unless their era sets
+an `anchor`.
 
 `pad` exits 1 if ANY file was not written for a reason other than being
 already standardized or fully transparent — a file matching no era, or one
@@ -41,47 +52,29 @@ from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 
-MARKER = ".generated"
-
 try:
-    import yaml
-except ImportError:
-    sys.exit("Missing dependencies: run `uv sync`")
-try:
-    from PIL import Image, ImageOps
+    from PIL import Image
 except ImportError:
     sys.exit("Missing dependencies: run `uv sync`")
 
+from common import (
+    DPI,
+    MARKER,
+    add_root_arg,
+    alpha_box,
+    load_config,
+    match_era,
+    open_rgba,
+    pngs,
+    resolve,
+    root_from,
+    scaled_eras,
+    sport_slug,
+    standard_canvases,
+    tolerance,
+)
 
 # ---------------------------------------------------------------- config
-
-
-def sport_slug(name: str) -> str:
-    """Directory name -> the key used in `assignments`."""
-    return name.lower().replace("\u2019", "").replace("'", "").replace(" ", "_")
-
-
-def find_root(start: Path) -> Path:
-    """Walk up for the directory containing configs/canvas_definitions.yaml."""
-    for d in [start, *start.parents]:
-        if (d / "configs" / "canvas_definitions.yaml").is_file():
-            return d
-    sys.exit(
-        "Could not find configs/canvas_definitions.yaml in any parent "
-        f"of {start}. Run from inside the project, or pass --root."
-    )
-
-
-def load_config(root: Path) -> dict:
-    """Parsed configs/canvas_definitions.yaml."""
-    with (root / "configs" / "canvas_definitions.yaml").open() as fh:
-        return yaml.safe_load(fh)
-
-
-def resolve(path_arg: str, root: Path) -> Path:
-    """A path argument as an absolute path; relative ones are taken from the project root, not the cwd."""
-    p = Path(path_arg).expanduser()
-    return p.resolve() if p.is_absolute() else (root / p).resolve()
 
 
 def parse_dest(dest: Path, root: Path, cfg: dict):
@@ -109,8 +102,20 @@ def parse_dest(dest: Path, root: Path, cfg: dict):
     # used in `assignments`. Keeping it gave men's_basketball, which matched
     # nothing and reported every canvas as (unassigned).
     sport = sport_slug(parts[0])
-    team = parts[1]
-    words = parts[2].split()
+    view = parse_view(sport, parts[2], cfg)
+    if view is None:
+        return None
+    return sport, parts[1], *view
+
+
+def parse_view(sport: str, name: str, cfg: dict):
+    """A viewpoint directory name -> (slot, viewpoint) for `sport`, or None if its first word is not a slot.
+
+    'Jerseys Front' and 'Jerseys Front STD' both give (jersey, front): the
+    viewpoint is the first later word declared for that sport+slot in
+    `assignments`, not the last word.
+    """
+    words = name.split()
     if len(words) < 2:
         return None
     slot = cfg["directory_slots"].get(words[0])
@@ -124,7 +129,7 @@ def parse_dest(dest: Path, root: Path, cfg: dict):
         # slot known but viewpoint not declared yet — fall back to the first
         # word after the slot so the error message is useful
         viewpoint = rest[0]
-    return sport, team, slot, viewpoint
+    return slot, viewpoint
 
 
 def lookup(cfg, sport, slot, viewpoint):
@@ -141,29 +146,12 @@ def lookup(cfg, sport, slot, viewpoint):
 # ---------------------------------------------------------------- imaging
 
 
-def pngs(root: Path):
-    """Yield every PNG under root, sorted, skipping anything inside a hidden directory or hidden itself."""
-    for p in sorted(root.rglob("*.png")):
-        if any(part.startswith(".") for part in p.relative_to(root).parts):
-            continue
-        yield p
-
-
-def content_size(img: Image.Image):
-    """(bbox, (width, height)) of the image's opaque content, or (None, None) if fully transparent."""
-    box = img.getchannel("A").getbbox()
+def measure(img: Image.Image):
+    """(bbox, (width, height)) of an open RGBA image's opaque content, or (None, None) if fully transparent."""
+    box = alpha_box(img)
     if box is None:
         return None, None
     return box, (box[2] - box[0], box[3] - box[1])
-
-
-def match_era(profile, w, h, tol):
-    """The first profile entry whose size is within `tol` of (w, h), or None."""
-    for entry in profile:
-        ew, eh = entry["size"]
-        if abs(ew - w) <= tol and abs(eh - h) <= tol:
-            return entry
-    return None
 
 
 def fit_extent(anchor: str, extent: int, offset: int):
@@ -251,8 +239,8 @@ def cmd_survey(args, root, cfg):
 
     sizes, margined = Counter(), []
     for f in files:
-        with ImageOps.exif_transpose(Image.open(f)).convert("RGBA") as img:
-            box, cs = content_size(img)
+        with open_rgba(f) as img:
+            box, cs = measure(img)
             if cs is None:
                 continue
             sizes[cs] += 1
@@ -279,9 +267,9 @@ def cmd_survey(args, root, cfg):
         print(f"  canvas={cn or '(unassigned)'}  profile={pn}{'' if profile else ' (not yet defined)'}")
 
     print(f"\n{len(sizes)} distinct CONTENT sizes:")
-    tol = cfg.get("tolerance", 3)
+    tol = tolerance(cfg)
     for (w, h), n in sizes.most_common():
-        era = match_era(profile, w, h, tol) if profile else None
+        era = match_era(profile, (w, h), tol) if profile else None
         if era:
             tag = f"  -> era {era['era']}"
         elif profile:
@@ -294,8 +282,8 @@ def cmd_survey(args, root, cfg):
         # Group elements by size so eras can be assigned by inspection.
         by_size = {}
         for f in files:
-            with ImageOps.exif_transpose(Image.open(f)).convert("RGBA") as img:
-                _, cs = content_size(img)
+            with open_rgba(f) as img:
+                _, cs = measure(img)
             if cs is None:
                 continue
             el = f.relative_to(src).parts[0]
@@ -316,7 +304,10 @@ def cmd_survey(args, root, cfg):
     # on unstandardized artwork.
     if parsed and canvas and canvas.get("width") and canvas.get("fills") == "pad":
         cw_, ch_ = canvas["width"], canvas["height"]
-        std = sum(1 for f in files if Image.open(f).size == (cw_, ch_))
+        std = 0
+        for f in files:
+            with Image.open(f) as im:
+                std += im.size == (cw_, ch_)
         if std == len(files):
             print(f"\nNOTE: every file is already {cw_} x {ch_} — this is standardized OUTPUT, not source artwork.")
             print("Sizes above are post-correction, so era A will read as UNMATCHED (it lists pre-correction sizes).")
@@ -332,7 +323,7 @@ def cmd_survey(args, root, cfg):
     # its area.
     post = []
     for w, h in sizes:
-        e = (match_era(profile, w, h, tol) if profile else None) or {}
+        e = (match_era(profile, (w, h), tol) if profile else None) or {}
         s = float(e.get("scale", 1.0))
         pw, ph = (round(w * s), round(h * s)) if not math.isclose(s, 1.0) else (w, h)
         anchor = e.get("anchor", "top-center")
@@ -382,7 +373,7 @@ def cmd_pad(args, root, cfg):
     if dest == src:
         sys.exit("Destination must differ from source.")
 
-    tol = cfg.get("tolerance", 3)
+    tol = tolerance(cfg)
     canvas = profile = cn = None
     parsed = parse_dest(dest, root, cfg)
     if parsed:
@@ -426,13 +417,7 @@ def cmd_pad(args, root, cfg):
     # and the check can't tell source from output. Re-padding output there is
     # harmless unless an era scales, and scaled output is refused above by
     # the post-correction check, which runs first.
-    on_canvas = set()
-    if canvas.get("fills") != "fill":
-        on_canvas.add((base_width, base_height))
-    for e in profile:
-        oc = cfg["canvases"].get(e.get("canvas") or "") or {}
-        if oc.get("width") and oc.get("fills") != "fill":
-            on_canvas.add((oc["width"], oc["height"]))
+    on_canvas = standard_canvases(cfg, canvas, profile)
     # Provenance guard. A destination holding authored artwork must never be
     # overwritten by a generated run. Generated trees carry a .generated
     # marker; anything else with content in it is treated as authored.
@@ -464,11 +449,7 @@ def cmd_pad(args, root, cfg):
     # silently not written — and a following `rm -rf` of the source lost
     # them. Use scripts/migration/recanvas.py to move standardized files to a new
     # canvas; it never touches scale.
-    corrected = {}
-    for e in profile:
-        s = e.get("scale", 1)
-        if s != 1:
-            corrected[(round(e["size"][0] * s), round(e["size"][1] * s))] = e["era"]
+    corrected = scaled_eras(profile)
 
     # Two passes. Pass 1 measures and classifies EVERY file and decides where
     # each one goes; nothing is written. Pass 2 writes, and only runs once
@@ -483,19 +464,16 @@ def cmd_pad(args, root, cfg):
     blank = 0  # fully transparent: nothing to measure, so never counted as source or output
     for f in files:
         rel = f.relative_to(src)
-        with ImageOps.exif_transpose(Image.open(f)).convert("RGBA") as img:
+        with open_rgba(f) as img:
             iw, ih = img.size
-            box, cs = content_size(img)
+            box, cs = measure(img)
         if cs is None:
             blank += 1
             continue
 
-        hit = next(
-            (era for size, era in corrected.items() if abs(size[0] - cs[0]) <= tol and abs(size[1] - cs[1]) <= tol),
-            None,
-        )
+        hit = match_era(corrected, cs, tol, post_scale=True)
         if hit is not None:
-            post_correction.append((rel, cs, hit))
+            post_correction.append((rel, cs, hit["era"]))
             continue
 
         # A file whose CANVAS already equals a target has been through this
@@ -506,7 +484,7 @@ def cmd_pad(args, root, cfg):
 
         cw, ch = cs
 
-        era = match_era(profile, cw, ch, tol)
+        era = match_era(profile, cs, tol)
         if era is None:
             unmatched.append((rel, cw, ch))
             continue
@@ -573,8 +551,8 @@ def cmd_pad(args, root, cfg):
 
     # Pass 2: every refusal has passed, so write.
     for f, rel, box, era, s, cw, ch, w, h, x, y, cvw, cvh in plan:
-        with ImageOps.exif_transpose(Image.open(f)).convert("RGBA") as img:
-            img = img.crop(box)
+        with open_rgba(f) as src_img:
+            img = src_img.crop(box)
             if not math.isclose(s, 1.0):
                 img = img.resize((w, h), Image.Resampling.LANCZOS)
             out = dest / rel
@@ -674,12 +652,12 @@ def cmd_pad(args, root, cfg):
 def main():
     """Parse the command line and run `survey` or `pad`."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--root", help="project root (default: auto-detect)")
+    add_root_arg(ap)
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     s = sub.add_parser("survey", help="report content sizes for a slot")
     s.add_argument("path")
-    s.add_argument("--profile", help="override profile name, e.g. helmet-right")
+    s.add_argument("--profile", help="override profile name, e.g. football-helmet-right")
     s.add_argument(
         "--elements",
         action="store_true",
@@ -689,7 +667,7 @@ def main():
     p = sub.add_parser("pad", help="standardize onto the configured canvas")
     p.add_argument("src")
     p.add_argument("dest")
-    p.add_argument("--canvas", help="override, e.g. 2000x2300")
+    p.add_argument("--canvas", help="override, e.g. 1792x2044")
     p.add_argument("--profile", help="override profile name")
     p.add_argument(
         "--force",
@@ -699,8 +677,8 @@ def main():
     p.add_argument(
         "--dpi",
         type=int,
-        default=300,
-        help="DPI tag written to output PNGs (default 300). Metadata only — does not resample.",
+        default=DPI,
+        help=f"DPI tag written to output PNGs (default {DPI}). Metadata only — does not resample.",
     )
     p.add_argument(
         "--anchor",
@@ -713,11 +691,12 @@ def main():
             "middle-center",
             "middle-right",
         ],
-        help="default top-center (jerseys, pants). Use top-left for right-facing helmets, top-right for left-facing.",
+        help="default top-center, which every slot uses, helmets included (corner-anchored helmets were "
+        "tried and reversed). An era's own `anchor` overrides it.",
     )
 
     args = ap.parse_args()
-    root = Path(args.root).expanduser().resolve() if args.root else find_root(Path.cwd().resolve())
+    root = root_from(args)
     cfg = load_config(root)
 
     if args.cmd == "survey":

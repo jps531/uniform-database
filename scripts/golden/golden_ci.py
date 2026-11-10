@@ -40,7 +40,6 @@ import tempfile
 from pathlib import Path
 
 try:
-    import yaml
     from PIL import Image
 except ImportError:
     sys.exit("Missing dependencies: run `uv sync`")
@@ -48,6 +47,7 @@ except ImportError:
 # Sibling scripts live in scripts/pipeline/ and here in scripts/golden/.
 SCRIPTS = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(SCRIPTS / "pipeline"), str(SCRIPTS / "golden")]
+from common import add_root_arg, load_config, pngs, root_from, slot_dirs, sport_slug, tolerance  # noqa: E402
 from derive_crops import jobs_for  # noqa: E402
 from golden_fixture import SIDES, helmet_eras  # noqa: E402
 
@@ -57,22 +57,9 @@ REGEN = "REGEN"
 RESULTS = "run-ci"
 
 
-def find_root(start: Path) -> Path:
-    """The nearest directory at or above `start` holding configs/canvas_definitions.yaml; exits if none."""
-    for d in [start, *start.parents]:
-        if (d / "configs" / "canvas_definitions.yaml").is_file():
-            return d
-    sys.exit(f"No configs/canvas_definitions.yaml above {start}")
-
-
 def png_set(folder: Path) -> set:
-    """Every visible PNG under `folder`, as paths relative to it."""
-    if not folder.is_dir():
-        return set()
-    # Judge hidden-ness inside `folder` only: a dot-folder above it (a checkout
-    # under .claude/, say) used to hide every file and read as an empty fixture.
-    rels = (f.relative_to(folder) for f in folder.rglob("*.png"))
-    return {r for r in rels if not any(p.startswith(".") for p in r.parts)}
+    """Every visible PNG under `folder`, as paths relative to it (hidden judged inside `folder` only)."""
+    return {f.relative_to(folder) for f in pngs(folder)}
 
 
 def same_pixels(a: Path, b: Path) -> bool:
@@ -111,7 +98,7 @@ def build_project(root: Path, fixture: Path, tmp: Path) -> None:
 
 def check_compositions(root: Path, tmp: Path) -> list[str]:
     """golden_run.py --strict in the throwaway project; copies its results to golden/run-ci/, never golden/run/."""
-    proc = run([sys.executable, str(tmp / "scripts" / "golden" / "golden_run.py"), "--strict"], tmp)
+    proc = run([sys.executable, str(tmp / "scripts" / "golden" / "golden_run.py"), "--root", str(tmp), "--strict"], tmp)
     out = root / "golden" / RESULTS
     if (tmp / "golden" / "run").is_dir():
         shutil.rmtree(out, ignore_errors=True)
@@ -122,8 +109,9 @@ def check_compositions(root: Path, tmp: Path) -> list[str]:
 def check_helmets(tmp: Path, cfg: dict) -> list[str]:
     """Pad every fixture Marks helmet side again and compare with the generated copy; check era coverage."""
     fails, covered = [], {s: set() for s in SIDES}
-    tol = cfg.get("tolerance", 5)
-    sources = sorted(p for s in SIDES for p in (tmp / "Marks" / "Football").glob(f"*/Helmets {s}"))
+    tol = tolerance(cfg)
+    helmets = slot_dirs(cfg)["helmet"]
+    sources = sorted(p for s in SIDES for p in (tmp / "Marks" / "Football").glob(f"*/{helmets} {s}"))
     if not sources:
         return ["helmets: the fixture has no Marks/Football/*/Helmets Left|Right"]
     for src in sources:
@@ -175,7 +163,8 @@ def check_venues(tmp: Path, cfg: dict) -> list[str]:
         fails += compare(f"venues {c.relative_to(venues)}", c, expected / c.relative_to(tmp))
     sports = {r[1] for r in jobs_for(cfg, None) if r[0] == "OK"}
     for sport in sorted(sports):
-        if not any(c.relative_to(venues).parts[0] == sport.replace("_", " ").title() for c in crops):
+        # matched by slug: a sport directory need not be its title-cased slug
+        if not any(sport_slug(c.relative_to(venues).parts[0]) == sport for c in crops):
             fails.append(f"venues: the fixture has no cropped venue for {sport}")
     return fails
 
@@ -193,16 +182,16 @@ def summary(fails: list[str]) -> None:
 def main():
     """Build the throwaway project, run the three checks, report, and exit 1 on any failure."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--root")
+    add_root_arg(ap)
     ap.add_argument("--keep", action="store_true", help="keep the temporary project and print where it is")
     args = ap.parse_args()
 
-    root = Path(args.root).expanduser().resolve() if args.root else find_root(Path.cwd().resolve())
+    root = root_from(args)
     fixture = root / "golden" / "fixture"
     if not png_set(fixture):
         summary(["golden/fixture/ is empty: run scripts/golden/golden_fixture.py --apply on the Mac and commit it"])
         sys.exit(1)
-    cfg = yaml.safe_load((root / "configs" / "canvas_definitions.yaml").open())
+    cfg = load_config(root)
 
     base = Path(tempfile.mkdtemp(prefix="golden-"))
     tmp = base / "project"

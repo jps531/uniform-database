@@ -10,8 +10,13 @@ from real elements, for review before anything is rendered.
 Writes
     golden/inventory.json   every element, its era per viewpoint, its numbers,
                             and which sports it covers
-    golden/manifest.yaml    the examples — EDIT THIS, then run golden_run.py
-    golden/PLAN.md          the same, readable, with a coverage matrix
+    golden/manifest.yaml    the examples, then run golden_run.py. Edits
+                            here last until the next plan, which
+                            OVERWRITES it; durable knowledge (uniforms worn
+                            together) goes in golden/pairings.yaml
+    golden/PLAN.md          the same, readable: per template, a table of
+                            its examples and the eras each covers, then any
+                            era targets it could not cover
 
 --sport (repeatable) re-plans ONLY those sports: their entries in the
 existing manifest.yaml and their sections of PLAN.md are replaced, and every
@@ -36,7 +41,8 @@ Each example is single-team — compose works one team at a time — so an era
 that only one program has (Nike N2 jerseys, say) is covered by that program.
 
 Eras are measured from the STANDARDIZED files, which are post-correction, so
-they are matched against each era's size AFTER its scale factor.
+they are matched against each era's size AFTER its scale factor: the
+CLOSEST within the config's `tolerance`, as every script matches eras.
 
 Some templates constrain which eras may appear. Those rules are in
 CONSTRAINTS below and are printed in PLAN.md so you can check them.
@@ -51,36 +57,40 @@ from pathlib import Path
 
 try:
     import yaml
-    from PIL import Image, ImageOps
 except ImportError:
     sys.exit("Missing dependencies: run `uv sync`")
 
 # Filenames are parsed exactly as compose parses them, so the planner never
 # asks for a number compose would not find.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "pipeline"))
+from common import (  # noqa: E402
+    add_root_arg,
+    content_size,
+    known_colorways,
+    load_config,
+    load_yaml,
+    longest_first,
+    match_era,
+    pngs,
+    root_from,
+    slot_dirs,
+    sport_dir,
+    tolerance,
+)
 from compose import load_vocab, split_tail  # noqa: E402
 
-SLOT_DIR = {
-    "helmet": "Helmets",
-    "jersey": "Jerseys",
-    "pants": "Pants",
-    "hat": "Hats",
-    "shorts": "Shorts",
-}
-TOL = 5
+# The header golden/manifest.yaml is written with. A re-plan reproduces it,
+# warning included.
+MANIFEST_HEADER = """\
+# Golden example suite. Set `approved: false` on any example to skip
+# it, edit elements or numbers freely, or add your own entries.
+# Then: uv run scripts/golden/golden_run.py
+#
+# WARNING: golden_plan.py OVERWRITES this file. Edits here last only until
+# the next plan; uniforms known to be worn together belong in
+# golden/pairings.yaml, which the planner reads.
 
-
-def slug(s):
-    """Directory name -> config key: lowercase, apostrophes dropped, spaces to underscores."""
-    return s.lower().replace("\u2019", "").replace("'", "").replace(" ", "_")
-
-
-def find_root():
-    """The nearest directory at or above the cwd holding configs/view_templates.yaml; exits if none."""
-    for d in [Path.cwd(), *Path.cwd().parents]:
-        if (d / "configs" / "view_templates.yaml").is_file():
-            return d
-    sys.exit("No configs/view_templates.yaml above the current directory.")
+"""
 
 
 # --------------------------------------------------------------------------
@@ -141,27 +151,16 @@ def describe(c):
 # Inventory
 # --------------------------------------------------------------------------
 def era_for(cfg, sport, slot, vp, size):
-    """The era whose POST-scale size is closest to `size` within TOL, or None.
+    """The era whose POST-scale size is closest to `size` within the config's tolerance, or None.
 
     Post-scale because the inventory measures standardized files, whose
-    correction is already baked in.
+    correction is already baked in. A fully transparent file has no size
+    (None) and no era.
     """
-    best, dist = None, None
-    for e in cfg["profiles"].get(f"{sport}-{slot}-{vp}", []):
-        s = e.get("scale", 1)
-        w, h = round(e["size"][0] * s), round(e["size"][1] * s)
-        if abs(w - size[0]) <= TOL and abs(h - size[1]) <= TOL:
-            d = abs(w - size[0]) + abs(h - size[1])
-            if dist is None or d < dist:
-                best, dist = e["era"], d
-    return best
-
-
-def content_size(path):
-    """[width, height] of the file's opaque bounding box; the full image size if it is fully transparent."""
-    with ImageOps.exif_transpose(Image.open(path)).convert("RGBA") as im:
-        b = im.getchannel("A").getbbox()
-        return [b[2] - b[0], b[3] - b[1]] if b else list(im.size)
+    if size is None:
+        return None
+    e = match_era(cfg["profiles"].get(f"{sport}-{slot}-{vp}"), size, tolerance(cfg), post_scale=True)
+    return e["era"] if e else None
 
 
 def numbers_in(stems, element, vocab_tokens):
@@ -182,18 +181,17 @@ def build_inventory(root, cfg, sports):
     exists). Returns {sport: {team: {slot: {element: record}}}}.
     """
     inv = {}
-    dirs = {slug(d.name): d for d in root.iterdir() if d.is_dir()}
     for sport in sports:
-        sd = dirs.get(sport)
+        sd = sport_dir(root, sport)
         if not sd:
             continue
         vocab = load_vocab(root, sport)[0]
         for team_dir in sorted(p for p in sd.iterdir() if p.is_dir()):
-            for slot, sdir in SLOT_DIR.items():
+            for slot, sdir in slot_dirs(cfg).items():
                 for vp_dir in sorted(team_dir.glob(f"{sdir} *")):
                     vp = vp_dir.name.split()[-1].lower()
                     for el_dir in sorted(p for p in vp_dir.iterdir() if p.is_dir()):
-                        files = sorted(f for f in el_dir.glob("*.png") if not f.name.startswith("."))
+                        files = pngs(el_dir, recursive=False)
                         if not files:
                             continue
                         el = el_dir.name
@@ -202,6 +200,7 @@ def build_inventory(root, cfg, sports):
                         plain = [f for f in files if f.stem == el]
                         sample = (plain or files)[0]
                         size = content_size(sample)
+                        size = list(size) if size else None  # as JSON stores it
                         rec = (
                             inv.setdefault(sport, {})
                             .setdefault(team_dir.name, {})
@@ -227,26 +226,45 @@ def build_inventory(root, cfg, sports):
 # --------------------------------------------------------------------------
 # Planning
 # --------------------------------------------------------------------------
-COLORWAYS = []
-PAIRINGS = {}  # (sport, team, element) -> {slot: element} worn together
 
 
-def colorway(el):
-    """'2026 Blue Keeper' -> 'blue'. Longest match first, so 'Vegas Gold'
+def load_pairings(root):
+    """golden/pairings.yaml as {(sport, team, element): {slot: element}}: what each element was worn with.
+
+    Empty when the file is missing. Prints how many uniforms it holds.
+    """
+    pairings = {}
+    pp = root / "golden" / "pairings.yaml"
+    if pp.is_file():
+        n = 0
+        for sport_, teams_ in (load_yaml(pp) or {}).items():
+            for team_, groups in (teams_ or {}).items():
+                for g in groups or []:
+                    for slot_, el_ in g.items():
+                        pairings[(sport_, team_, el_)] = {k: v for k, v in g.items() if k != slot_}
+                    n += 1
+        print(f"pairings: {n} known uniform{'s' if n != 1 else ''} from golden/pairings.yaml")
+    return pairings
+
+
+def colorway(el, colorways):
+    """'2026 Blue Keeper' -> 'blue', given the known colorways longest first, so 'Vegas Gold'
     is not read as 'Gold'."""
     rest = el[5:] if el[:4].isdigit() else el
-    for c in COLORWAYS:
+    for c in colorways:
         if rest.lower() == c or rest.lower().startswith(c + " "):
             return c
     return rest.split()[0].lower() if rest else ""
 
 
-def plan_template(tpl, names, inv, _cfg):
+def plan_template(tpl, names, inv, pairings, colorways):
     """Choose the examples that cover every era of every viewpoint one template places.
 
     Greedy: each round anchors on the first uncovered target and builds the
-    most realistic uniform around it from one team. Returns (examples,
-    explicit extras, coverage targets, uncoverable targets, constraints).
+    most realistic uniform around it from one team. `pairings` is
+    load_pairings()'s, `colorways` the known colorways longest first. Returns
+    (examples, explicit extras, coverage targets, uncoverable targets,
+    constraints).
     """
     sport, view = tpl["sport"], tpl["view_kind"]
     cons = constraints(view, sport, names)
@@ -373,7 +391,7 @@ def plan_template(tpl, names, inv, _cfg):
         # A KNOWN pairing beats every heuristic. Filenames cannot say that the
         # 2015 wool fauxback was worn with the "2015 Maroon Fauxback" hat —
         # different words, no shared token — so golden/pairings.yaml does.
-        paired = 1 if ref and PAIRINGS.get((sport, team, ref), {}).get(slot) == el else 0
+        paired = 1 if ref and pairings.get((sport, team, ref), {}).get(slot) == el else 0
         ref_year = teams[team][slot].get(ref, {}).get("year") if ref and ref in teams[team][slot] else None
         if ref and ref_year is None:
             for sl in teams[team]:
@@ -383,7 +401,7 @@ def plan_template(tpl, names, inv, _cfg):
         gap = abs((rec["year"] or 0) - (ref_year or year or 0)) if (ref_year or year) else 0
         # same colourway counts only within a few seasons — a 2026 jersey with
         # 1990 shorts of the same colour is still a costume, not a uniform
-        hue = 1 if ref and colorway(el) == colorway(ref) and gap <= 3 else 0
+        hue = 1 if ref and colorway(el, colorways) == colorway(ref, colorways) and gap <= 3 else 0
         return (paired, same_name, -same, hue, -gap, new, numbered, rec["year"] or 0)
 
     while targets - covered:
@@ -415,7 +433,7 @@ def plan_template(tpl, names, inv, _cfg):
             same = sum(
                 1
                 for (u, sl), v in ((k, v) for k, v in chosen.items() if isinstance(k, tuple))
-                if lead.get(u) and (v == lead[u] or PAIRINGS.get((sport, team, lead[u]), {}).get(sl) == v)
+                if lead.get(u) and (v == lead[u] or pairings.get((sport, team, lead[u]), {}).get(sl) == v)
             )
             # every candidate covers the anchor, so choose the most REAL uniform
             # first and the most extra coverage second
@@ -551,35 +569,16 @@ def main():
     replaced; every other sport's are kept.
     """
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    add_root_arg(ap)
     ap.add_argument("--rescan", action="store_true")
     ap.add_argument("--sport", action="append", help="limit to these sports (repeatable)")
     args = ap.parse_args()
 
-    root = find_root()
-    cfg = yaml.safe_load((root / "configs/canvas_definitions.yaml").open())
-    gp = root / "configs/slots_global.yaml"
-    if gp.is_file():
-        g = yaml.safe_load(gp.open()) or {}
-        names_ = set()
-        for k, v in (g.get("colorways") or {}).items():
-            names_.add(str(k).replace("_", " ").lower())
-            if isinstance(v, dict):
-                for alt in (v.get("token"), v.get("label")):
-                    if alt:
-                        names_.add(alt.lower())
-        COLORWAYS[:] = sorted(names_, key=len, reverse=True)
-
-    pp = root / "golden" / "pairings.yaml"
-    if pp.is_file():
-        n = 0
-        for sport_, teams_ in (yaml.safe_load(pp.open()) or {}).items():
-            for team_, groups in (teams_ or {}).items():
-                for g in groups or []:
-                    for slot_, el_ in g.items():
-                        PAIRINGS[(sport_, team_, el_)] = {k: v for k, v in g.items() if k != slot_}
-                    n += 1
-        print(f"pairings: {n} known uniform{'s' if n != 1 else ''} from golden/pairings.yaml")
-    tpls = yaml.safe_load((root / "configs/view_templates.yaml").open())["templates"]
+    root = root_from(args)
+    cfg = load_config(root)
+    colorways = longest_first(known_colorways(root))
+    pairings = load_pairings(root)
+    tpls = load_yaml(root / "configs/view_templates.yaml")["templates"]
     all_sports = sorted({t["sport"] for t in tpls})
     if args.sport:
         unknown = sorted(set(args.sport) - set(all_sports))
@@ -605,7 +604,7 @@ def main():
         plan_md.append(f"\n## {sport_title(sport)}\n")
         for tpl in by_sport[sport]:
             view = tpl["view_kind"]
-            examples, extras, _targets, unmatched, cons = plan_template(tpl, names, inv, cfg)
+            examples, extras, _targets, unmatched, cons = plan_template(tpl, names, inv, pairings, colorways)
             teams = inv.get(sport, {})
             need_vps = defaultdict(list)
             for p in tpl["placements"]:
@@ -675,7 +674,7 @@ def main():
     kept_examples = []
     if args.sport:
         mp, pp_ = out / "manifest.yaml", out / "PLAN.md"
-        old = (yaml.safe_load(mp.read_text()) or []) if mp.is_file() else []
+        old = (load_yaml(mp) or []) if mp.is_file() else []
         kept_examples = [m for m in old if m.get("sport") not in sports]
         others = set(all_sports) - set(sports)
         # Split on EVERY sport's heading, so a kept section never swallows
@@ -701,12 +700,7 @@ def main():
         empty += e
         gaps_total += g
 
-    (out / "manifest.yaml").write_text(
-        "# Golden example suite. Set `approved: false` on any example to skip\n"
-        "# it, edit elements or numbers freely, or add your own entries.\n"
-        "# Then: uv run scripts/golden/golden_run.py\n\n"
-        + yaml.safe_dump(manifest, sort_keys=False, allow_unicode=True)
-    )
+    (out / "manifest.yaml").write_text(MANIFEST_HEADER + yaml.safe_dump(manifest, sort_keys=False, allow_unicode=True))
 
     head = [
         "# Golden example suite — plan",

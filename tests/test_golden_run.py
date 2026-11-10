@@ -240,7 +240,7 @@ def test_plainer_exists_reads_stems_outside_element(tmp_path):
 
 
 def test_vocab_tokens_extends_cycles_and_sequences(tmp_path):
-    """Vocabularies follow `extends`, a sport's own token wins, sequences are dropped, cycles and missing files stop."""
+    """Vocabularies follow `extends`, a sport's own token wins, sequences are dropped, cycles and missing files exit."""
     c = tmp_path / "configs"
     c.mkdir()
     (c / "modifiers_a.yaml").write_text(
@@ -255,14 +255,18 @@ def test_vocab_tokens_extends_cycles_and_sequences(tmp_path):
         )
     )
     (c / "modifiers_b.yaml").write_text(
-        yaml.safe_dump(
-            {"extends": "a", "tokens": {"x": {"token": "Old"}, "g": {"label": "Grad"}, "n": {"note": "no name"}}}
-        )
+        yaml.safe_dump({"tokens": {"x": {"token": "Old"}, "g": {"label": "Grad"}, "n": {"note": "no name"}}})
     )
     (c / "modifiers_c.yaml").write_text(yaml.safe_dump({"extends": "missing"}))
+    (c / "modifiers_d.yaml").write_text(yaml.safe_dump({"extends": "e"}))
+    (c / "modifiers_e.yaml").write_text(yaml.safe_dump({"extends": "d"}))
+    with pytest.raises(SystemExit, match="Circular `extends` reaching modifiers_d.yaml"):
+        gr.vocab_tokens(tmp_path, "d")
     assert gr.vocab_tokens(tmp_path, "a") == ["Long Sleeve", "Grad"]
-    assert gr.vocab_tokens(tmp_path, "c") == []
-    assert gr.vocab_tokens(tmp_path, "nope") == []
+    with pytest.raises(SystemExit, match="No vocabulary at configs/modifiers_missing.yaml"):
+        gr.vocab_tokens(tmp_path, "c")
+    with pytest.raises(SystemExit, match="No vocabulary at configs/modifiers_nope.yaml"):
+        gr.vocab_tokens(tmp_path, "nope")
 
 
 def test_vocab_tokens_real_shared():
@@ -293,8 +297,8 @@ def test_find_root_and_missing_manifest(tmp_path, project, monkeypatch):
     """No configs above the cwd exits; a project without a manifest exits telling you to plan first."""
     monkeypatch.chdir(tmp_path)
     with pytest.raises(SystemExit) as e:
-        gr.find_root()
-    assert "No configs/view_templates.yaml" in str(e.value)
+        run_main(monkeypatch)
+    assert "No configs/canvas_definitions.yaml" in str(e.value)
     monkeypatch.chdir(project)
     with pytest.raises(SystemExit) as e:
         run_main(monkeypatch)
@@ -623,3 +627,12 @@ def test_runs_as_a_script(project, monkeypatch, capsys):
     monkeypatch.setattr(sys, "argv", ["golden_run.py"])
     runpy.run_path(str(REPO / "scripts/golden/golden_run.py"), run_name="__main__")
     assert "0 rendered this run; report covers 0, 0 with defects" in capsys.readouterr().out
+
+
+def test_root_flag_from_outside_the_project(project, tmp_path, monkeypatch):
+    """--root names the project when run from elsewhere: its missing manifest is what's reported."""
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    with pytest.raises(SystemExit, match="No golden/manifest.yaml"):
+        run_main(monkeypatch, "--root", str(project))

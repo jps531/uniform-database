@@ -3,6 +3,7 @@
 import csv
 import sys
 
+import common
 import offsize
 import pytest
 from conftest import art, canvas_size, era
@@ -19,8 +20,8 @@ def run(monkeypatch, capsys, *argv) -> str:
 
 def test_content_size(tmp_path):
     """content_size is the alpha bbox size, or None for a blank image."""
-    assert offsize.content_size(art(tmp_path / "a.png", (30, 20), (7, 5), top=3)) == (7, 5)
-    assert offsize.content_size(art(tmp_path / "b.png", (9, 9), (0, 0))) is None
+    assert common.content_size(art(tmp_path / "a.png", (30, 20), (7, 5), top=3)) == (7, 5)
+    assert common.content_size(art(tmp_path / "b.png", (9, 9), (0, 0))) is None
 
 
 def test_exact_matches(project, cfg, monkeypatch, capsys):
@@ -159,8 +160,16 @@ def test_files_on_an_era_canvas_are_skipped_as_standardized(project, cfg, monkey
 def test_standard_canvases_mirror_pad(cfg):
     """standard_canvases is the slot canvas plus every era canvas override, leaving out `fills: fill` ones."""
     slot = cfg["assignments"]["soccer"]["jersey"]["front"]
-    got = offsize.standard_canvases(cfg, cfg["canvases"][slot], cfg["profiles"]["soccer-jersey-front"])
+    got = common.standard_canvases(cfg, cfg["canvases"][slot], cfg["profiles"]["soccer-jersey-front"])
     assert got == {canvas_size(cfg, slot), canvas_size(cfg, "soccer_jersey_ls")}
     sleeve = cfg["canvases"]["football_jersey_sleeve"]
     fill_era = [{"era": "x", "size": [1, 1], "canvas": "football_jersey_sleeve"}]
-    assert offsize.standard_canvases(cfg, sleeve, fill_era) == set()
+    assert common.standard_canvases(cfg, sleeve, fill_era) == set()
+
+
+def test_offsize_compares_with_the_closest_era(project, cfg, monkeypatch, capsys):
+    """671px sits in both the helmet back E and E2 windows; offsize measures it against E2, the closer one."""
+    e2 = era(cfg, "football-helmet-back", "E2")["size"]
+    art(project / "Football/T/Helmets Back/x/h.png", (e2[0] - 3, e2[1]))
+    out = run(monkeypatch, capsys, "Football")
+    assert f"football-helmet-back era E2: {e2[0] - 3}x{e2[1]} should be {e2[0]}x{e2[1]}  (-3, +0)" in out

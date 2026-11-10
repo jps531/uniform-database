@@ -3,6 +3,7 @@
 import json
 import sys
 
+import common
 import numpy as np
 import pytest
 import recanvas
@@ -22,12 +23,12 @@ def test_find_root(project, tmp_path):
     """find_root walks up from a subdirectory and exits when none is found."""
     sub = project / "x" / "y"
     sub.mkdir(parents=True)
-    assert recanvas.find_root(sub) == project
+    assert common.find_root(sub) == project
     lone = tmp_path / "lone"
     lone.mkdir()
     with pytest.raises(SystemExit) as e:
-        recanvas.find_root(lone)
-    assert "No configs/canvas_definitions.yaml above" in str(e.value)
+        common.find_root(lone)
+    assert "No configs/canvas_definitions.yaml in" in str(e.value)
 
 
 def test_dry_run_reports_and_writes_nothing(project, cfg, monkeypatch, capsys):

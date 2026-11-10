@@ -12,6 +12,8 @@ This reports them so the source artwork can be corrected instead.
     uv run scripts/migration/offsize.py "Football" --csv offsize.csv
 
 Walks any directory: a whole tree, one team, or one viewpoint. Read-only.
+Each file is compared with the CLOSEST era within the config's `tolerance`
+(smallest |dw| + |dh|), as every script matches eras.
 
 Skips generated trees (a .generated marker) and files already sitting on a
 standardized canvas — the slot canvas or any era's own `canvas:`, the set
@@ -26,42 +28,21 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-try:
-    import yaml
-    from PIL import Image, ImageOps
-except ImportError:
-    sys.exit("Missing dependencies: run `uv sync`")
-
 # Path -> (sport, team, slot, viewpoint) and the sport-qualified profile key
 # live in standardize.py. Reuse them: a private copy here built the key
 # without the sport, so every lookup missed and every file read as "exact".
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "pipeline"))
-from standardize import find_root, lookup, parse_dest
-
-
-def content_size(path: Path):
-    """Width and height of the non-transparent bbox, or None if empty."""
-    with ImageOps.exif_transpose(Image.open(path)).convert("RGBA") as im:
-        box = im.getchannel("A").getbbox()
-    return None if box is None else (box[2] - box[0], box[3] - box[1])
-
-
-def standard_canvases(cfg: dict, canvas, profile) -> set:
-    """Every (width, height) a standardized file of this slot can sit on: the slot canvas plus each era `canvas:` override.
-
-    The same set `standardize.py pad` refuses to re-pad from (`on_canvas` in
-    cmd_pad). `fills: fill` canvases are left out: there the canvas IS the
-    content, so authored source cropped to its content already sits on it and
-    canvas size can't tell source from output.
-    """
-    out = set()
-    if canvas and canvas.get("width") and canvas.get("fills") != "fill":
-        out.add((canvas["width"], canvas["height"]))
-    for e in profile:
-        oc = cfg["canvases"].get(e.get("canvas") or "") or {}
-        if oc.get("width") and oc.get("fills") != "fill":
-            out.add((oc["width"], oc["height"]))
-    return out
+from common import (
+    add_root_arg,
+    content_box,
+    load_config,
+    match_era,
+    pngs,
+    root_from,
+    standard_canvases,
+    tolerance,
+)
+from standardize import lookup, parse_dest
 
 
 def main():
@@ -72,17 +53,17 @@ def main():
     """
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("path")
-    ap.add_argument("--root")
+    add_root_arg(ap)
     ap.add_argument("--csv", help="also write a machine-readable list")
     args = ap.parse_args()
 
-    root = Path(args.root).expanduser().resolve() if args.root else find_root(Path.cwd().resolve())
+    root = root_from(args)
     target = (root / args.path).resolve()
     if not target.is_dir():
         sys.exit(f"Not a directory: {target}")
 
-    cfg = yaml.safe_load((root / "configs" / "canvas_definitions.yaml").open())
-    tol = cfg.get("tolerance", 5)
+    cfg = load_config(root)
+    tol = tolerance(cfg)
 
     # Generated trees hold POST-standardization sizes, which will never match
     # the pre-correction sizes in the profiles. Skip anything under a
@@ -96,10 +77,8 @@ def main():
     no_profile = defaultdict(int)  # profile key -> files
 
     rows, unmatched, checked = [], [], 0
-    for f in sorted(target.rglob("*.png")):
+    for f in pngs(target):
         rel = f.relative_to(root)
-        if any(p.startswith(".") for p in rel.parts):
-            continue
         if any(g in f.parents for g in generated):
             skipped_generated += 1
             continue
@@ -121,21 +100,16 @@ def main():
         # era's own `canvas:` — the same set standardize.py's guard uses.
         # Checking the slot canvas alone measured every long-sleeve keeper
         # on its era canvas as if it were source.
-        on_canvas = standard_canvases(cfg, canvas, profile)
-        if on_canvas:
-            with ImageOps.exif_transpose(Image.open(f)) as im:
-                if im.size in on_canvas:
-                    skipped_standardized += 1
-                    continue
-
-        cs = content_size(f)
-        if cs is None:
+        size, box = content_box(f)
+        if size in standard_canvases(cfg, canvas, profile):
+            skipped_standardized += 1
             continue
+
+        if box is None:
+            continue
+        cs = (box[2] - box[0], box[3] - box[1])
         checked += 1
-        entry = next(
-            (e for e in profile if abs(e["size"][0] - cs[0]) <= tol and abs(e["size"][1] - cs[1]) <= tol),
-            None,
-        )
+        entry = match_era(profile, cs, tol)
         if entry is None:
             unmatched.append((rel, cs, key))
             continue
