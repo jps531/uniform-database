@@ -1,0 +1,50 @@
+# Checks every pull request (Dependabot's included) and every push to main.
+#
+# The artwork isn't in git, so CI can't run the pipeline or the golden suite:
+# those run on the Mac that holds the iCloud folder (CONTRIBUTING.md). What
+# CI can check is the code and the config: lint, formatting, docstrings, and
+# that every YAML file still parses.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Read-only: nothing here writes to the repo.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      # Actions are pinned to commits (tags can be moved); Dependabot updates them.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: true  # keyed on uv.lock, so a cached install is the locked one
+      - name: Install (exactly as locked)
+        run: uv sync --frozen
+      - name: Lint
+        run: uv run --frozen ruff check .
+      - name: Formatting
+        run: uv run --frozen ruff format --check .
+      - name: Docstrings (every module and function)
+        run: uv run --frozen docstr-coverage scripts --skip-magic --skip-init --fail-under 100
+      - name: Config parses
+        run: |
+          uv run --frozen python - <<'PY'
+          import pathlib, yaml
+          files = sorted(pathlib.Path("configs").glob("*.yaml")) + sorted(pathlib.Path("golden").glob("*.yaml"))
+          for f in files:
+              yaml.safe_load(f.read_text())
+          print(f"{len(files)} YAML files parse")
+          PY

@@ -38,6 +38,7 @@ to this checkout, and is gitignored.
 | `scripts/` | The Python asset pipeline: DPI fixes, nesting, standardizing, cropping, composing, the golden suite |
 | `golden/` | The golden suite's approved plan (`manifest.yaml`, `PLAN.md`) and known pairings; renders go to `golden/run/`, which isn't tracked |
 | `docs/` | Longer how-tos ([golden_suite.md](docs/golden_suite.md)) |
+| `pyproject.toml`, `uv.lock` | Dependencies, managed with uv, and the ruff config |
 | `CLAUDE.md` | The full reference for the pipeline: naming grammar, invariants, eras and canvases, composition, and the mistakes not to repeat. Written for AI agents, and the most complete description of the project for people too |
 
 Not tracked, but expected beside the code when you run anything:
@@ -47,25 +48,26 @@ listings).
 
 ## Quick start
 
-Python 3.11 or later, from the folder that holds both this checkout and the
-artwork.
+Install [uv](https://docs.astral.sh/uv/), then, from the folder that holds
+both this checkout and the artwork:
 
 ```
-pip install -r requirements.txt
+uv sync                            # Python 3.13 and every dependency, into .venv
 
 # compose a uniform
-python3 scripts/compose.py --sport football --view full \
+uv run scripts/compose.py --sport football --view full \
     --team "Mississippi State" \
     --helmet "2025 Black" --jersey "2025 Black" --pants "2025 Black" --number 0
 
 # check every template still composes correctly
-python3 scripts/golden_plan.py
-python3 scripts/golden_run.py      # then open golden/run/index.html
+uv run scripts/golden_plan.py
+uv run scripts/golden_run.py       # then open golden/run/index.html
 ```
 
 Run the golden suite after any change to a template, canvas or era profile.
 Every script's own docstring explains its options, and CLAUDE.md's
-"Commands" section lists them all.
+"Commands" section lists them all. [CONTRIBUTING.md](CONTRIBUTING.md) has
+the checks CI runs, the tools, and what must change together.
 
 ## Before you change artwork
 
