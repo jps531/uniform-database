@@ -608,7 +608,8 @@ profiles:
     - { era: F, label: speedflex,    size: [2238, 1904], scale: 0.42 }
 
   # Face profiles. Top-centre anchored (the script default), so no `anchor`
-  # key is needed. Only leather is scaled; everything else is native.
+  # key is needed. No face era is scaled: every one is authored, and drawn,
+  # at the size it ships at.
   #
   # Note the BACK has FOUR entries to the front's six: plastic, double bar
   # and classic are indistinguishable from behind and share 611 x 716. So

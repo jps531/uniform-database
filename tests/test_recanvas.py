@@ -7,10 +7,12 @@ import common
 import numpy as np
 import pytest
 import recanvas
-from helpers import art, blank, canvas_size, era, main
+from helpers import art, blank, canvas_size, era, main, scaled
 from PIL import Image
 
 DEST = "Football/T/Helmets Front"
+# The helmet profiles are the only views whose eras still carry a scale.
+DEST_LEFT = "Football/T/Helmets Left"
 
 
 def test_find_root(project, tmp_path):
@@ -40,14 +42,13 @@ def test_dry_run_reports_and_writes_nothing(project, cfg, monkeypatch, capsys):
 
 def test_apply_moves_content_without_rescaling(project, cfg, monkeypatch, capsys):
     """--apply crops to content and places it top-centre, pixel-for-pixel, even for a scaled era's output."""
-    W, H = canvas_size(cfg, "football_helmet_face")
-    a = era(cfg, "football-helmet-front", "A")
-    post = (round(a["size"][0] * a["scale"]), round(a["size"][1] * a["scale"]))
+    W, H = canvas_size(cfg, "football_helmet_profile")
+    post = scaled(era(cfg, "football-helmet-left", "A"))
     src = art(project / "old" / "1960 White" / "h.png", (W + 30, H + 20), post, top=7, seed=2)
     art(project / "old" / "1960 White" / ".hidden.png", (5, 5))
     before = src.read_bytes()
-    main(monkeypatch, recanvas, "old", DEST, "--apply")
-    out_file = project / DEST / "1960 White" / "h.png"
+    main(monkeypatch, recanvas, "old", DEST_LEFT, "--apply")
+    out_file = project / DEST_LEFT / "1960 White" / "h.png"
     x = (W - post[0]) // 2
     with Image.open(src) as s, Image.open(out_file) as o:
         sx = ((W + 30) - post[0]) // 2
@@ -57,7 +58,7 @@ def test_apply_moves_content_without_rescaling(project, cfg, monkeypatch, capsys
         assert o.info["dpi"] == pytest.approx((300, 300), abs=0.01)
     assert np.array_equal(o_px[: post[1], x : x + post[0]], s_px)
     assert o_px[:, :, 3].sum() == s_px[:, :, 3].sum()
-    assert not (project / DEST / "1960 White" / ".hidden.png").exists()
+    assert not (project / DEST_LEFT / "1960 White" / ".hidden.png").exists()
     assert src.read_bytes() == before
     assert "Wrote 1 files. Source left intact." in capsys.readouterr().out
 

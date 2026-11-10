@@ -13,6 +13,8 @@ from helpers import art, bbox, blank, canvas_size, era, main, override_configs, 
 from PIL import Image
 
 HELMET_FRONT = "Football/T/Helmets Front"
+# The helmet profiles are the only views whose eras still carry a scale.
+HELMET_LEFT = "Football/T/Helmets Left"
 
 
 def size_line(size, n, tag) -> str:
@@ -155,15 +157,17 @@ def test_survey_reports_sizes_eras_and_margins(project, cfg, monkeypatch, capsys
 
 def test_survey_suggests_largest_post_scale_content_plus_the_margin(project, cfg, monkeypatch, capsys):
     """survey suggests a canvas sized by the 1px rule from post-scale content, not one with ~12% headroom."""
-    a = era(cfg, "football-jersey-front", "A")
-    b = era(cfg, "football-jersey-front", "B")["size"]
-    src = project / "Football/T/Jerseys Front"
-    art(src / "1950 White" / "j.png", a["size"])
-    art(src / "1970 White" / "j.png", b, seed=1)
-    main(monkeypatch, standardize, "survey", "Football/T/Jerseys Front")
+    a = era(cfg, "football-helmet-left", "A")
+    b = era(cfg, "football-helmet-left", "B")
+    src = project / "Football/T/Helmets Left"
+    art(src / "1940 White" / "h.png", a["size"])
+    art(src / "1970 White" / "h.png", b["size"], seed=1)
+    main(monkeypatch, standardize, "survey", "Football/T/Helmets Left")
     out = capsys.readouterr().out
-    post_w = max(scaled(a)[0], b[0])
-    post_h = max(scaled(a)[1], b[1])
+    post_w = max(scaled(a)[0], scaled(b)[0])
+    post_h = max(scaled(a)[1], scaled(b)[1])
+    # Both eras scale DOWN, so the suggestion is well under the raw content.
+    assert f"Largest content: {max(a['size'][0], b['size'][0])} x {max(a['size'][1], b['size'][1])}" in out
     assert f"Largest content after era scale: {post_w} x {post_h}" in out
     assert f"Suggested canvas: {post_w + 2} x {post_h}" in out
     assert "headroom" not in out
@@ -298,11 +302,11 @@ def test_survey_refuses_missing_or_empty_dirs(project, monkeypatch):
 
 def test_pad_bakes_scale_and_places_top_centre(project, cfg, monkeypatch, capsys):
     """pad crops to content, applies a scaled era's factor and places it top-centre on the slot canvas."""
-    a = era(cfg, "football-helmet-front", "A")
-    cv = canvas_size(cfg, "football_helmet_face")
+    a = era(cfg, "football-helmet-left", "A")
+    cv = canvas_size(cfg, "football_helmet_profile")
     art(project / "src" / "1960 White" / "helmet.png", (a["size"][0] + 20, a["size"][1] + 9), a["size"], top=4)
-    main(monkeypatch, standardize, "pad", "src", HELMET_FRONT)
-    out_file = project / HELMET_FRONT / "1960 White" / "helmet.png"
+    main(monkeypatch, standardize, "pad", "src", HELMET_LEFT)
+    out_file = project / HELMET_LEFT / "1960 White" / "helmet.png"
     w, h = scaled(a)
     size, box = bbox(out_file)
     assert size == cv
@@ -492,17 +496,18 @@ def test_pad_allows_unmarked_destination_without_pngs(project, cfg, monkeypatch)
 
 def test_pad_refuses_post_correction_input(project, cfg, monkeypatch):
     """Content matching what a scaled era PRODUCES is refused, and none of the batch is written."""
-    a = era(cfg, "football-helmet-front", "A")
-    b = era(cfg, "football-helmet-front", "B")["size"]
+    a = era(cfg, "football-helmet-left", "A")
+    b = era(cfg, "football-helmet-left", "B")["size"]
     tol = cfg["tolerance"]
-    w, h = scaled(a)
-    art(project / "src" / "1960 White" / "h.png", (w + tol, h - tol))
+    # tol px off era A's post-scale size on each axis: the window is inclusive.
+    w, h = (v + tol for v in scaled(a))
+    art(project / "src" / "1960 White" / "h.png", (w, h))
     art(project / "src" / "2000 White" / "h.png", b)
     with pytest.raises(SystemExit, match=r"REFUSING: 1 of 2 files are ALREADY POST-CORRECTION \(era A\)") as e:
-        main(monkeypatch, standardize, "pad", "src", HELMET_FRONT)
-    assert f"{w + tol}x{h - tol}  era A  1960 White/h.png" in str(e.value)
+        main(monkeypatch, standardize, "pad", "src", HELMET_LEFT)
+    assert f"{w}x{h}  era A  1960 White/h.png" in str(e.value)
     assert "Nothing written" in str(e.value)
-    assert not (project / HELMET_FRONT).exists()
+    assert not (project / HELMET_LEFT).exists()
 
 
 def test_pad_refuses_input_already_on_canvas(project, cfg, monkeypatch):
