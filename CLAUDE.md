@@ -41,17 +41,27 @@ a place in the golden suite.
 ## Stack
 
 Python for the asset pipeline (`scripts/`), YAML for all pipeline config.
-`pip install -r requirements.txt` (Pillow, PyYAML; numpy only for
-`compose.py --diff`).
+Dependencies via uv (`pyproject.toml`, `uv.lock`): `uv sync`, then
+`uv run scripts/…`. ruff lints and formats; every function has a docstring.
+CONTRIBUTING.md has the checks CI runs and what must change together.
 Site: Next.js, Node, Postgres with Drizzle, Cloudflare R2 for images. Assets
 live in iCloud Drive.
+
+**Git holds code and config only.** The artwork trees (`{Sport}/`, `Marks/`,
+`Venues/`), `temp/`, `surveys/` and the golden suite's renders are
+gitignored. A checkout without the iCloud folder — a cloud session, say — can
+lint and read config but can't run the pipeline or the golden suite; say so
+rather than guessing at results.
 
 ## Layout
 
 ```
 Uniform Database/
+├── README.md                 orientation for people; this file is for agents
+├── CONTRIBUTING.md           PR rules, tools, what must change together
 ├── CLAUDE.md
-├── requirements.txt
+├── LICENSE                   source-available; all rights reserved
+├── pyproject.toml, uv.lock   dependencies and ruff config
 ├── docs/golden_suite.md
 ├── configs/
 │   canvas_definitions.yaml   canvases, era profiles, assignments
@@ -65,7 +75,7 @@ Uniform Database/
 ├── Marks/Baseball/{Team}/Hats Front/…             on canvas, 41 teams
 ├── Venues/{Sport}/{Team}/{Fields|Courts} {Full|Cropped}/…
 ├── golden/                   golden suite: manifest, plan, pairings, run/
-├── surveys/                  point-in-time listings
+├── surveys/                  point-in-time listings; local only, not in git
 └── temp/                     staging; cleared after nesting
 ```
 
@@ -283,8 +293,8 @@ Icons can exist with no matching element and vice versa.
 Every template, every era, from real elements. See `docs/golden_suite.md`.
 
 ```
-python3 scripts/golden_plan.py     # → golden/PLAN.md + manifest.yaml
-python3 scripts/golden_run.py      # → golden/run/index.html + REPORT.md
+uv run scripts/golden_plan.py     # → golden/PLAN.md + manifest.yaml
+uv run scripts/golden_run.py      # → golden/run/index.html + REPORT.md
 ```
 
 **Run it after ANY change to a template, canvas or profile.** It has caught
@@ -383,6 +393,11 @@ sport trees.
   set them before exporting or scales round to integers.
 
 ## Known gaps
+
+Near-misses: an early `offsize.py` run listed ~100 football files 1–3px
+off their profile — within tolerance, so they standardize fine. 17 are the
+Nike/Adidas jersey-back overlap above. That list is stale; re-run
+`offsize.py` on the authored source for the current one (see Gotchas).
 
 Coverage, not correctness: Ole Miss `1979 Navy` helmet has no icon; five
 Southern Miss pants (1987 Black/Gold/White, 1988 Gold, 1997 White) have an

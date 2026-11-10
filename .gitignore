@@ -16,3 +16,10 @@ golden/inventory.json
 /Volleyball/
 /Marks/
 /Venues/
+# point-in-time listings (find, survey, offsize output): local only
+surveys/
+*.whl
+
+# python tooling
+.venv/
+.ruff_cache/

@@ -14,12 +14,12 @@ exist in more than one shell, and omitting it on singletons would make naming
 inconsistent inside the same folder. It also gives era a second, independent
 signal alongside content size.
 
-    python3 scripts/migrate_marks.py            # dry run — prints the plan
-    python3 scripts/migrate_marks.py --apply    # copies files
+    uv run scripts/migrate_marks.py            # dry run — prints the plan
+    uv run scripts/migrate_marks.py --apply    # copies files
 
 COPIES, never moves. The source tree stays intact until you have verified.
 
-    pip install pyyaml
+    uv sync
 """
 
 import argparse
@@ -37,7 +37,7 @@ except ImportError:
 try:
     import yaml
 except ImportError:
-    sys.exit("pip install pyyaml")
+    sys.exit("Missing dependencies: run `uv sync`")
 
 SIDE_TO_VIEWPOINT = {"1": "Right", "2": "Left"}
 
@@ -123,11 +123,7 @@ def shell_by_era(root: Path) -> dict:
     if not p.is_file():
         return {}
     cfg = yaml.safe_load(p.open()) or {}
-    return {
-        v["era"]: v["label"]
-        for v in (cfg.get("tokens") or {}).values()
-        if v.get("kind") == "shell" and "era" in v
-    }
+    return {v["era"]: v["label"] for v in (cfg.get("tokens") or {}).values() if v.get("kind") == "shell" and "era" in v}
 
 
 def content_size(path: Path):
@@ -143,7 +139,7 @@ def plan_nested(src_root: Path, dest_root: Path, team: str, root: Path):
     """Source already in element-folder shape; derive the shell token from
     content size where the filename does not already carry one."""
     if Image is None:
-        sys.exit("pip install pillow  (nested mode reads image sizes)")
+        sys.exit("Missing dependencies: run `uv sync` (nested mode reads image sizes)")
     # Path parsing and the sport-qualified profile key are shared with `pad`.
     # Imported here because standardize.py requires Pillow and the flat
     # modes do not.
@@ -178,9 +174,7 @@ def plan_nested(src_root: Path, dest_root: Path, team: str, root: Path):
         # a key, and every viewpoint was skipped as having no profile.
         parsed = parse_dest(dest_root / team / view_dir.name, root, cfg)
         if parsed is None:
-            skipped_dirs.append(
-                (view_dir.name, f"dest {dest_root} is not a sport tree")
-            )
+            skipped_dirs.append((view_dir.name, f"dest {dest_root} is not a sport tree"))
             continue
         sport, _team, slot, vp = parsed
         _canvas, profile, (_canvas_name, key) = lookup(cfg, sport, slot, vp)
@@ -213,20 +207,13 @@ def plan_nested(src_root: Path, dest_root: Path, team: str, root: Path):
                     rest = rest[len(shell) :].strip()
                 number = rest if re.fullmatch(r"\d{1,2}", rest) else None
                 if rest and number is None:
-                    problems.append(
-                        ("unrecognised trailing token", f"{element}/{f.name}", rest)
-                    )
+                    problems.append(("unrecognised trailing token", f"{element}/{f.name}", rest))
                     continue
 
                 if shell is None:
                     cs = content_size(f)
                     entry = next(
-                        (
-                            e
-                            for e in profile
-                            if abs(e["size"][0] - cs[0]) <= tol
-                            and abs(e["size"][1] - cs[1]) <= tol
-                        ),
+                        (e for e in profile if abs(e["size"][0] - cs[0]) <= tol and abs(e["size"][1] - cs[1]) <= tol),
                         None,
                     )
                     if entry is None:
@@ -250,13 +237,7 @@ def plan_nested(src_root: Path, dest_root: Path, team: str, root: Path):
                         continue
 
                 parts = [element, shell] + ([number] if number else [])
-                dest = (
-                    dest_root
-                    / team
-                    / f"Helmets {viewpoint}"
-                    / element
-                    / (" ".join(parts) + ".png")
-                )
+                dest = dest_root / team / f"Helmets {viewpoint}" / element / (" ".join(parts) + ".png")
                 moves.append((f, dest))
 
     if skipped_dirs:
@@ -325,17 +306,13 @@ def plan(src_root: Path, dest_root: Path, colorways: set):
 
             colour = rest.split()[0].lower() if rest else ""
             if colorways and colour not in colorways:
-                problems.append(
-                    ("unknown colorway", colour, f"{shell_dir.name}/{f.name}")
-                )
+                problems.append(("unknown colorway", colour, f"{shell_dir.name}/{f.name}"))
     return moves, problems
 
 
 def main():
     """Plan the migration for the chosen mode, report it, and copy on --apply."""
-    ap = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--root", help="project root (default: auto-detect)")
     ap.add_argument("--src", default="Marks/Temp")
     ap.add_argument("--dest", default="Marks/Football")
@@ -344,9 +321,7 @@ def main():
         default="Hats",
         help="flat-noyear: directory name for the slot (Hats)",
     )
-    ap.add_argument(
-        "--viewpoint", default="Front", help="flat-noyear: viewpoint directory suffix"
-    )
+    ap.add_argument("--viewpoint", default="Front", help="flat-noyear: viewpoint directory suffix")
     ap.add_argument(
         "--mode",
         choices=["flat", "nested", "flat-noyear"],
@@ -365,11 +340,7 @@ def main():
     )
     args = ap.parse_args()
 
-    root = (
-        Path(args.root).expanduser().resolve()
-        if args.root
-        else find_root(Path.cwd().resolve())
-    )
+    root = Path(args.root).expanduser().resolve() if args.root else find_root(Path.cwd().resolve())
     src_root, dest_root = root / args.src, root / args.dest
     if not src_root.is_dir():
         sys.exit(f"Source not found: {src_root}")
@@ -417,10 +388,7 @@ def main():
 
     if by_kind.get("unknown colorway"):
         counts = Counter(a for a, _ in by_kind["unknown colorway"])
-        print(
-            f"!! {len(counts)} colorways not in slots_global.yaml "
-            f"({sum(counts.values())} files):"
-        )
+        print(f"!! {len(counts)} colorways not in slots_global.yaml ({sum(counts.values())} files):")
         for c, n in counts.most_common():
             example = next(b for a, b in by_kind["unknown colorway"] if a == c)
             print(f"     {c:<14} {n:>4} files   e.g. {example}")
@@ -429,10 +397,7 @@ def main():
     collisions = Counter(d for _, d in moves)
     dupes = {d: n for d, n in collisions.items() if n > 1}
     if dupes:
-        print(
-            f"!! {len(dupes)} destination collisions — two sources would "
-            f"write the same file:"
-        )
+        print(f"!! {len(dupes)} destination collisions — two sources would write the same file:")
         for d, n in list(dupes.items())[:10]:
             print(f"     {d.relative_to(dest_root)} ({n} sources)")
         print()
@@ -458,18 +423,14 @@ def main():
         or dupes
     )
     if not args.apply:
-        print(f"\nDRY RUN — nothing written. Re-run with --apply to copy.")
+        print("\nDRY RUN — nothing written. Re-run with --apply to copy.")
         if blocking:
-            print(
-                "Resolve the flagged items first; unknown colorways are a "
-                "warning, not a blocker."
-            )
+            print("Resolve the flagged items first; unknown colorways are a warning, not a blocker.")
         return
 
     if blocking:
         sys.exit(
-            "\nRefusing to apply while unparsed files, unknown shell "
-            "directories, or destination collisions remain."
+            "\nRefusing to apply while unparsed files, unknown shell directories, or destination collisions remain."
         )
 
     written = 0

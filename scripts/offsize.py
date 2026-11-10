@@ -5,11 +5,11 @@ List files whose content size is not an EXACT match for their profile entry.
 `standardize.py` matches within a tolerance, so near-misses pass silently.
 This reports them so the source artwork can be corrected instead.
 
-    pip install pillow pyyaml
+    uv sync
 
-    python3 scripts/offsize.py "Football"
-    python3 scripts/offsize.py "Football/Southern Miss/Pants Front"
-    python3 scripts/offsize.py "Football" --csv offsize.csv
+    uv run scripts/offsize.py "Football"
+    uv run scripts/offsize.py "Football/Southern Miss/Pants Front"
+    uv run scripts/offsize.py "Football" --csv offsize.csv
 
 Walks any directory: a whole tree, one team, or one viewpoint. Read-only.
 """
@@ -24,7 +24,7 @@ try:
     import yaml
     from PIL import Image, ImageOps
 except ImportError:
-    sys.exit("pip install pillow pyyaml")
+    sys.exit("Missing dependencies: run `uv sync`")
 
 # Path -> (sport, team, slot, viewpoint) and the sport-qualified profile key
 # live in standardize.py. Reuse them: a private copy here built the key
@@ -41,19 +41,13 @@ def content_size(path: Path):
 
 def main():
     """Walk the target and report near-miss and unmatched content sizes."""
-    ap = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("path")
     ap.add_argument("--root")
     ap.add_argument("--csv", help="also write a machine-readable list")
     args = ap.parse_args()
 
-    root = (
-        Path(args.root).expanduser().resolve()
-        if args.root
-        else find_root(Path.cwd().resolve())
-    )
+    root = Path(args.root).expanduser().resolve() if args.root else find_root(Path.cwd().resolve())
     target = (root / args.path).resolve()
     if not target.is_dir():
         sys.exit(f"Not a directory: {target}")
@@ -107,11 +101,7 @@ def main():
             continue
         checked += 1
         entry = next(
-            (
-                e
-                for e in profile
-                if abs(e["size"][0] - cs[0]) <= tol and abs(e["size"][1] - cs[1]) <= tol
-            ),
+            (e for e in profile if abs(e["size"][0] - cs[0]) <= tol and abs(e["size"][1] - cs[1]) <= tol),
             None,
         )
         if entry is None:
@@ -133,26 +123,15 @@ def main():
 
     print(f"checked {checked} files under {target.relative_to(root)}")
     if skipped_generated:
-        print(
-            f"skipped {skipped_generated} files in {len(generated)} "
-            f"generated directories"
-        )
+        print(f"skipped {skipped_generated} files in {len(generated)} generated directories")
     if skipped_standardized:
-        print(
-            f"skipped {skipped_standardized} files already on their standardized canvas"
-        )
+        print(f"skipped {skipped_standardized} files already on their standardized canvas")
     if unparsed:
-        print(
-            f"!! skipped {sum(unparsed.values())} files whose path is not "
-            f"{{Sport}}/{{Team}}/{{Slot}} {{Viewpoint}}:"
-        )
+        print(f"!! skipped {sum(unparsed.values())} files whose path is not {{Sport}}/{{Team}}/{{Slot}} {{Viewpoint}}:")
         for d, n in sorted(unparsed.items()):
             print(f"     {d}  ({n} files)")
     if no_profile:
-        print(
-            f"!! skipped {sum(no_profile.values())} files whose profile "
-            f"is not in canvas_definitions.yaml:"
-        )
+        print(f"!! skipped {sum(no_profile.values())} files whose profile is not in canvas_definitions.yaml:")
         for key, n in sorted(no_profile.items()):
             print(f"     {key}  ({n} files)")
     print()
@@ -170,9 +149,7 @@ def main():
         groups = defaultdict(list)
         for rel, cs, want, dw, dh, key, era in rows:
             groups[(key, era, cs, want, dw, dh)].append(rel)
-        for (key, era, cs, want, dw, dh), items in sorted(
-            groups.items(), key=lambda kv: -len(kv[1])
-        ):
+        for (key, era, cs, want, dw, dh), items in sorted(groups.items(), key=lambda kv: -len(kv[1])):
             print(
                 f"  {key} era {era}: {cs[0]}x{cs[1]} should be "
                 f"{want[0]}x{want[1]}  ({dw:+d}, {dh:+d})  "
@@ -183,10 +160,7 @@ def main():
             print()
 
     if unmatched:
-        print(
-            f"{len(unmatched)} files match NO profile entry even within "
-            f"tolerance {tol}:"
-        )
+        print(f"{len(unmatched)} files match NO profile entry even within tolerance {tol}:")
         for rel, cs, key in unmatched:
             print(f"  {cs[0]}x{cs[1]}  [{key}]  {rel}")
 

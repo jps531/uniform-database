@@ -1,0 +1,31 @@
+# Dependabot: monthly and bundled, one PR for Python packages and one for
+# GitHub Actions. Security fixes arrive as soon as an advisory is published
+# (turn on "Dependabot security updates" in Settings -> Code security).
+#
+# Python updates are lockfile-only: Dependabot stays inside the ranges in
+# pyproject.toml and never rewrites them. Raising a range is a change a
+# person makes. Every PR runs CI; merge only when it's green.
+version: 2
+
+updates:
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    versioning-strategy: "lockfile-only"
+    open-pull-requests-limit: 3
+    groups:
+      python-packages:
+        applies-to: version-updates
+        patterns: ["*"]
+      python-security:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    groups:
+      actions:
+        patterns: ["*"]
