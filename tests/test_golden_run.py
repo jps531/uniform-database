@@ -194,6 +194,29 @@ def test_check_extra_token(tmp_path):
     assert gr.check(ex, res, None, {}, vocab) == ([], [])
 
 
+def test_check_number_ignores_patch_tokens_ending_in_digits(tmp_path):
+    """With 21 asked for, CWS21 is a patch token, not number 21, so placing the unnumbered file is not a NUMBER defect."""
+    vocab = gr.vocab_tokens(REPO, "baseball")
+    d = tmp_path / "2021 White"
+    plain = opaque_png(d / "2021 White.png")
+    opaque_png(d / "2021 White CWS21.png")
+    res = {"placements": [placed(plain, "2021 White", number_requested="21")]}
+    assert gr.check({"sport": "baseball"}, res, None, {}, vocab) == ([], [])
+    opaque_png(d / "2021 White 21 CWS21.png")
+    assert gr.check({"sport": "baseball"}, res, None, {}, vocab)[0] == [
+        "NUMBER jersey/icon: asked for 21, a file exists, placed unnumbered"
+    ]
+
+
+def test_plainer_exists_ignores_patch_tokens_ending_in_digits(tmp_path):
+    """An unnumbered SEC75 file is plainer than an unnumbered Grad NCAA one: SEC75 is a token, not number 75."""
+    vocab = gr.vocab_tokens(REPO, "football")
+    d = tmp_path / "2020 Maroon"
+    both = opaque_png(d / "2020 Maroon Grad NCAA.png")
+    opaque_png(d / "2020 Maroon SEC75.png")
+    assert gr.plainer_exists(placed(both, tokens_found=["Grad", "NCAA"]), vocab) == "2020 Maroon SEC75.png"
+
+
 def test_plainer_exists_reads_stems_outside_element(tmp_path):
     """A file whose stem does not start with the element name is still parsed for tokens and number."""
     d = tmp_path / "2020 Maroon"
@@ -312,7 +335,7 @@ def test_end_to_end_failed_placement(project, cfg, monkeypatch, capsys):
     manifest(project, [entry("football--icons-horizontal--01", uniform1=els)])
     with pytest.raises(SystemExit) as e:
         run_main(monkeypatch, "--strict")
-    assert str(e.value) == "STRICT: 1 with defects, 0 with notes, 0 without a result"
+    assert str(e.value) == "STRICT: 1 with defects, 0 with notes"
     out = capsys.readouterr().out
     assert "DEFECT football--icons-horizontal--01" in out
     assert "- FAILED jersey/icon: no file under Jerseys Icon/1999 Nothing" in out
@@ -369,11 +392,14 @@ def suite(project, monkeypatch, tmp_path):
 
 
 def test_every_outcome_reported(project, monkeypatch, tmp_path, capsys):
-    """Each outcome is printed, reported in REPORT.md, sheeted, and --strict counts defects, notes and missing results."""
+    """Each outcome is printed, reported in REPORT.md, sheeted, and --strict counts defects and notes.
+
+    A compose that wrote no result is a FAILED defect of this run, so it is in the report too.
+    """
     fake = suite(project, monkeypatch, tmp_path)
     with pytest.raises(SystemExit) as e:
         run_main(monkeypatch, "--strict")
-    assert str(e.value) == "STRICT: 3 with defects, 1 with notes, 3 without a result"
+    assert str(e.value) == "STRICT: 6 with defects, 1 with notes"
     out = capsys.readouterr().out
     assert "9 examples to render (1 not approved, skipped)" in out
     assert "[  1/9] ok     fb--a--01" in out
@@ -384,9 +410,9 @@ def test_every_outcome_reported(project, monkeypatch, tmp_path, capsys):
     assert "- FAILED compose: ValueError: boom" in out
     assert "- FAILED compose: no output" in out
     for x in ("fb--b--03", "fb--b--04", "fb--b--05"):
-        assert f"!! no result for {x}" in out
+        assert f"DEFECT {x}" in out
     assert "fb--b--06" not in out
-    assert "9 rendered this run; report covers 6, 3 with defects" in out
+    assert "9 rendered this run; report covers 9, 6 with defects" in out
 
     # the command carries every manifest field compose needs
     sc = next(c for c in fake.calls if "sc--c--01.png" in c[c.index("--out") + 1])
@@ -396,20 +422,21 @@ def test_every_outcome_reported(project, monkeypatch, tmp_path, capsys):
     assert "--helmet-left" in sc and sc[sc.index("--team") + 1] == MSU
 
     r = report(project)
-    assert "**6 examples, 3 with defects.**" in r
+    assert "**9 examples, 6 with defects.**" in r
     assert "### `fb--a--03` — Mississippi State\n- CLIPPED jersey/icon T5px" in r
     assert "### `fb--b--01`" in r and "### `fb--b--02`" in r and "- EMPTY output" in r
     assert "## Notes (not defects)\n\n- `fb--a--02`: clip (rounding) jersey/icon T2px" in r
-    assert "fb--b--03" not in r and "fb--b--06" not in r
+    assert "### `fb--b--03` — Mississippi State\n- FAILED compose: ValueError: boom" in r
+    assert "### `fb--b--05`" in r and "fb--b--06" not in r
     assert "| football | `a` | 3 | 1 | [sheet](sheets/football--a.png) |" in r
-    assert "| football | `b` | 2 | 2 | [sheet](sheets/football--b.png) |" in r
+    assert "| football | `b` | 5 | 5 | [sheet](sheets/football--b.png) |" in r
     assert "| soccer | `c` | 1 |  | [sheet](sheets/soccer--c.png) |" in r
     sheets = sorted(p.name for p in (project / "golden/run/sheets").iterdir())
     assert sheets == ["football--a.png", "football--b.png", "soccer--c.png"]
     html = (project / "golden/run/index.html").read_text()
-    assert "<b class=bad>3 with defects</b>" in html
+    assert "<b class=bad>6 with defects</b>" in html
     assert "<h2 class=bad>football / a — 1 defect</h2>" in html
-    assert "<h2 class=bad>football / b — 2 defects</h2>" in html
+    assert "<h2 class=bad>football / b — 5 defects</h2>" in html
 
 
 def test_strict_counts_a_note_alone(project, monkeypatch, tmp_path, capsys):
@@ -417,7 +444,7 @@ def test_strict_counts_a_note_alone(project, monkeypatch, tmp_path, capsys):
     suite(project, monkeypatch, tmp_path)
     with pytest.raises(SystemExit) as e:
         run_main(monkeypatch, "--strict", "--only", "fb--a--02")
-    assert str(e.value) == "STRICT: 0 with defects, 1 with notes, 0 without a result"
+    assert str(e.value) == "STRICT: 0 with defects, 1 with notes"
     assert "1 examples to render" in capsys.readouterr().out
 
 
@@ -431,7 +458,7 @@ def test_only_refreshes_one_and_reports_all(project, monkeypatch, tmp_path, caps
     with pytest.raises(SystemExit) as e:
         run_main(monkeypatch, "--only", "fb--a--03", "--strict")
     # --strict judges every result on disk, not only this run's
-    assert str(e.value) == "STRICT: 2 with defects, 1 with notes, 0 without a result"
+    assert str(e.value) == "STRICT: 2 with defects, 1 with notes"
     out = capsys.readouterr().out
     assert len(fake.calls) == 1 and "fb--a--03.png" in fake.calls[0][fake.calls[0].index("--out") + 1]
     assert "1 rendered this run; report covers 6, 2 with defects" in out
@@ -471,6 +498,62 @@ def test_stale_png_removed_before_compose(project, monkeypatch, tmp_path, capsys
     assert "### `fb--b--01`" in report(project)
 
 
+def test_stale_json_not_read_as_ok(project, monkeypatch, tmp_path, capsys):
+    """A compose that writes no JSON is FAILED with its last error line, never the previous run's result."""
+    fake = suite(project, monkeypatch, tmp_path)
+    run_main(monkeypatch, "--only", "fb--a--01", "--strict")
+    js = project / "golden/run/football/a/fb--a--01.json"
+    assert js.is_file()
+    capsys.readouterr()
+    fake.behaviours["fb--a--01"] = (None, None, "Unknown token(s): Bogus\nNot in configs/modifiers_football.yaml\n")
+    with pytest.raises(SystemExit) as e:
+        run_main(monkeypatch, "--only", "fb--a--01", "--strict")
+    assert str(e.value).startswith("STRICT: 1 with defects")
+    out = capsys.readouterr().out
+    assert "DEFECT fb--a--01" in out and "- FAILED compose: Not in configs/modifiers_football.yaml" in out
+    assert not js.exists() and not js.with_suffix(".png").exists()
+    r = report(project)
+    assert "### `fb--a--01` — Mississippi State\n- FAILED compose: Not in configs/modifiers_football.yaml" in r
+
+
+def test_end_to_end_unknown_token_after_ok_run(project, cfg, monkeypatch, capsys):
+    """With a real compose: an ok example given `with: [Bogus]` fails --strict instead of reusing its old result."""
+    draw_icons(project, cfg)
+    els = {"helmet": "2020 Maroon", "jersey": "2020 Maroon", "pants": "2020 Maroon"}
+    ex = entry("football--icons-horizontal--01", uniform1=els)
+    manifest(project, [ex])
+    run_main(monkeypatch, "--strict")
+    capsys.readouterr()
+    manifest(project, [{**ex, "with": ["Bogus"]}])
+    with pytest.raises(SystemExit) as e:
+        run_main(monkeypatch, "--strict")
+    assert str(e.value).startswith("STRICT: 1 with defects")
+    out = capsys.readouterr().out
+    assert "DEFECT football--icons-horizontal--01" in out and "- FAILED compose: " in out
+    assert not (project / "golden/run/football/icons-horizontal/football--icons-horizontal--01.png").exists()
+
+
+@pytest.mark.parametrize(
+    "entries, argv",
+    [
+        ([], []),
+        ([entry("fb--a--01", view="a", approved=False)], []),
+        ([entry("fb--a--01", view="a")], ["--sport", "soccer"]),
+    ],
+    ids=["empty manifest", "none approved", "sport with no entries"],
+)
+def test_nothing_selected_reports_zero(project, monkeypatch, capsys, entries, argv):
+    """With no example selected, golden/run/ is created and the report says 0 examples; --strict then fails."""
+    manifest(project, entries)
+    run_main(monkeypatch, *argv)
+    assert "**0 examples, 0 with defects.**" in report(project)
+    assert "0 rendered" in (project / "golden/run/index.html").read_text()
+    assert "0 rendered this run; report covers 0" in capsys.readouterr().out
+    with pytest.raises(SystemExit) as e:
+        run_main(monkeypatch, *argv, "--strict")
+    assert str(e.value) == "STRICT: no approved example matched the selection, so nothing was checked"
+
+
 def test_contact_sheet_labels_and_outline(tmp_path):
     """Defect rows are outlined in red and an unrendered row says NOT RENDERED; more than four rows wrap."""
     good = opaque_png(tmp_path / "g.png", (800, 400))
@@ -489,7 +572,6 @@ def test_runs_as_a_script(project, monkeypatch, capsys):
     import runpy
 
     manifest(project, [])
-    (project / "golden/run").mkdir()  # as left by an earlier run
-    monkeypatch.setattr(sys, "argv", ["golden_run.py", "--strict"])
+    monkeypatch.setattr(sys, "argv", ["golden_run.py"])
     runpy.run_path(str(REPO / "scripts/golden/golden_run.py"), run_name="__main__")
-    assert "STRICT: every example is ok" in capsys.readouterr().out
+    assert "0 rendered this run; report covers 0, 0 with defects" in capsys.readouterr().out

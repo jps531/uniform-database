@@ -197,3 +197,33 @@ def test_runs_as_a_script(monkeypatch):
     with pytest.raises(SystemExit) as e:
         runpy.run_path(str(REPO / "scripts" / "pipeline" / "derive_crops.py"), run_name="__main__")
     assert e.value.code == 0
+
+
+def test_markers_count_each_teams_own_files(project, monkeypatch, capsys):
+    """Each team's marker counts that team's files; a later team with nothing written gets no marker."""
+    cfg = small_configs(project)
+    a = full(project, cfg, team="Alpha", seed=1)
+    b = full(project, cfg, team="Beta", seed=2)
+    empty = project / "Venues/Football/Gamma/Fields Full"
+    empty.mkdir(parents=True)
+    run_main(monkeypatch, project, "--sport", "football", "--apply")
+    assert "Wrote 2 files." in capsys.readouterr().out
+    for f in (a, b):
+        assert json.loads((cropped_of(f).parents[1] / ".generated").read_text())["files_written"] == 1
+    assert not (empty.parent / "Fields Cropped").exists()
+
+
+def test_a_rotated_file_is_reported_off_canvas(project, monkeypatch, capsys):
+    """A file stored at canvas size but tagged EXIF orientation 6 is checked as rotated, and blocks --apply."""
+    cfg = small_configs(project)
+    W, H = canvas_size(cfg, "football_field_full")
+    f = full(project, cfg)
+    with Image.open(f) as im:
+        exif = im.getexif()
+        exif[0x0112] = 6
+        im.save(f, exif=exif, dpi=(300, 300))
+    with pytest.raises(SystemExit) as e:
+        run_main(monkeypatch, project, "--sport", "football", "--apply")
+    assert e.value.code == "Refusing to apply while problems remain."
+    assert f"{f.relative_to(project)}  ({H}x{W}, expected {W}x{H})" in capsys.readouterr().out
+    assert not cropped_of(f).exists()

@@ -132,10 +132,10 @@ result on disk.
 
 | Check | Means |
 |---|---|
-| `FAILED` | a required placement couldn't be resolved |
+| `FAILED` | a required placement couldn't be resolved, or compose exited without writing a result (its last error line is shown; the previous run's result is never reused) |
 | `CLIPPED` | opaque **artwork** runs past the canvas by more than 2px. Transparent padding overhang is not a defect; 1–2px is reported as a note |
 | `WRONG ERA` | the placed file isn't the era planned — e.g. a short sleeve in a `-ls` view |
-| `NUMBER` | a number was asked for and a file with it exists, but another was placed |
+| `NUMBER` | a number was asked for and a file with it exists, but another was placed. Filenames are parsed as compose parses them — tokens first, so `CWS21` is a patch, not number 21 |
 | `EXTRA TOKEN` | the placed file carries unrequested tokens while a plainer one with the same number exists — a ranking bug |
 | `EMPTY` | the output has no opaque pixels |
 
@@ -176,7 +176,7 @@ of these:
 
 | Check | Fails when |
 |---|---|
-| Compositions | `golden_run.py --strict` finds a defect, a note (1–2px clipping), or an example with no result |
+| Compositions | `golden_run.py --strict` finds a defect, a note (1–2px clipping), or no approved example to check |
 | Helmets | a re-padded mark is missing, extra, or differs by a single pixel from the fixture's generated helmet, or an era isn't covered |
 | Venues | a re-derived crop is missing, extra, or differs, or a sport with `derived_from` canvases has no venue in the fixture |
 

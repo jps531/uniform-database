@@ -40,6 +40,11 @@ try:
 except ImportError:
     sys.exit("Missing dependencies: run `uv sync`")
 
+# Filenames are parsed exactly as compose parses them, so the planner never
+# asks for a number compose would not find.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "pipeline"))
+from compose import load_vocab, split_tail  # noqa: E402
+
 SLOT_DIR = {
     "helmet": "Helmets",
     "jersey": "Jerseys",
@@ -144,14 +149,14 @@ def content_size(path):
         return [b[2] - b[0], b[3] - b[1]] if b else list(im.size)
 
 
-def numbers_in(stems, element):
-    """Every 1-2 digit number in the stems after the element name, as strings, shortest then lexical."""
-    out = set()
-    for s in stems:
-        tail = s[len(element) :] if s.startswith(element) else s
-        for m in re.finditer(r"(?<![\d])(\d{1,2})(?![\d])", tail):
-            out.add(m.group(1))
-    return sorted(out, key=lambda n: (len(n), n))
+def numbers_in(stems, element, vocab_tokens):
+    """The number in each stem, parsed as compose does, as strings, shortest then lexical.
+
+    Vocabulary tokens are stripped before the number is read, so a patch
+    token ending in digits (CWS21, SEC75) is not taken for number 21 or 75.
+    """
+    nums = {split_tail(s, element, vocab_tokens)[1] for s in stems}
+    return sorted(nums - {None}, key=lambda n: (len(n), n))
 
 
 def build_inventory(root, cfg, sports):
@@ -167,6 +172,7 @@ def build_inventory(root, cfg, sports):
         sd = dirs.get(sport)
         if not sd:
             continue
+        vocab = load_vocab(root, sport)[0]
         for team_dir in sorted(p for p in sd.iterdir() if p.is_dir()):
             for slot, sdir in SLOT_DIR.items():
                 for vp_dir in sorted(team_dir.glob(f"{sdir} *")):
@@ -177,7 +183,7 @@ def build_inventory(root, cfg, sports):
                             continue
                         el = el_dir.name
                         stems = [f.stem for f in files]
-                        nums = numbers_in(stems, el)
+                        nums = numbers_in(stems, el, vocab)
                         plain = [f for f in files if f.stem == el]
                         sample = (plain or files)[0]
                         size = content_size(sample)

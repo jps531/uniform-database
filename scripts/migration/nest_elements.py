@@ -7,6 +7,10 @@ Dest:    {Sport}/{Team}/{Slot} {Viewpoint}/{Element}/{filename}.png
 
 Filenames are NOT changed — only the folder they sit in.
 
+{Sport} is found by matching the --sport slug against existing directories
+(mens_basketball -> "Men's Basketball"). With no matching destination tree,
+it refuses rather than invent a name: pass --dest.
+
 THE RULE: the element folder is the filename minus everything that is not
 part of the design.
 
@@ -50,6 +54,9 @@ try:
 except ImportError:
     sys.exit("Missing dependencies: run `uv sync`")
 
+# Sport slug -> directory is compose's: it lives in scripts/pipeline/.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "pipeline"))
+from compose import sport_dir as find_sport_dir  # noqa: E402
 
 # Physical form variants that select a canvas: helmet shell, jersey cut, hat
 # style. Different domain words, identical handling — all are file-level and
@@ -208,7 +215,8 @@ def main():
     """Print the nesting plan for a sport's staging tree, and copy the files with --apply.
 
     Refuses to apply while any file is unassigned or two sources would land on
-    the same destination.
+    the same destination, and exits without --dest when no directory matches
+    the sport slug.
     """
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--root")
@@ -220,13 +228,23 @@ def main():
     args = ap.parse_args()
 
     root = Path(args.root).expanduser().resolve() if args.root else find_root(Path.cwd().resolve())
-    sport_dir = args.sport.replace("_", " ").title()
-    src_root = root / (
-        args.src if args.src else (f"temp/{sport_dir}" if (root / "temp" / sport_dir).is_dir() else "temp")
-    )
-    dest_root = root / (args.dest or sport_dir)
+    # Match directories on the sport slug, never `.title()` the slug: that
+    # turns mens_basketball into "Mens Basketball" and nests a whole sport
+    # into a new, wrongly named tree beside "Men's Basketball".
+    temp = root / "temp"
+    staged = find_sport_dir(temp, args.sport) if temp.is_dir() else None
+    src_root = root / args.src if args.src else (staged if staged and staged.is_dir() else temp)
     if not src_root.is_dir():
         sys.exit(f"Source not found: {src_root}")
+    if args.dest:
+        dest_root = root / args.dest
+    else:
+        dest_root = find_sport_dir(root, args.sport)
+        if not dest_root.is_dir():
+            sys.exit(
+                f"No directory for sport '{args.sport}' under {root}. "
+                "Pass --dest to name it rather than have one guessed."
+            )
 
     vocab = load_vocab(root, args.sport)
     print(

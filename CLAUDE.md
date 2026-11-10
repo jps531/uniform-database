@@ -318,8 +318,9 @@ in 16 templates.
 - `golden_plan.py` OVERWRITES the manifest. Durable knowledge goes in
   `golden/pairings.yaml` (uniforms known to be worn together).
 - **CI** runs `golden_ci.py` on `golden/fixture/`: `golden_run.py --strict`
-  (a note fails too), every fixture Marks helmet re-padded and compared
-  pixel for pixel with its generated copy (all eras A–F, both sides), and
+  (a note fails too, and so does selecting nothing), every fixture Marks
+  helmet re-padded and compared pixel for pixel with its generated copy
+  (all eras A–F, both sides), and
   every cropped venue re-derived and compared. After any re-plan, or any
   change to artwork the fixture copies, run a full `golden_run.py`, then
   `golden_fixture.py --apply`, and commit the fixture. CI can't see a stale
