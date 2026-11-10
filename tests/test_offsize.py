@@ -6,7 +6,7 @@ import sys
 import common
 import offsize
 import pytest
-from conftest import art, canvas_size, era
+from helpers import art, canvas_size, era
 
 VIEW = "Football/T/Helmets Front"
 

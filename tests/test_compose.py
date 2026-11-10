@@ -1,7 +1,6 @@
 """Tests for scripts/pipeline/compose.py: candidate ranking, placement resolution, pasting, --json and --diff."""
 
 import json
-import os
 import runpy
 import sys
 
@@ -9,8 +8,7 @@ import common
 import compose
 import numpy as np
 import pytest
-import yaml
-from conftest import REPO, art, canvas_size
+from helpers import REPO, art, canvas_size, override_configs, pixels
 from PIL import Image
 
 SCRIPT = str(REPO / "scripts" / "pipeline" / "compose.py")
@@ -50,13 +48,7 @@ def rank(folder, element, vocab, number=None, want=(), player=None):
 
 def mini(project, *templates):
     """Replace the project's view templates with these, keeping every other real config file."""
-    d = project / "configs"
-    d.unlink()
-    d.mkdir()
-    for f in (REPO / "configs").iterdir():
-        if f.name != "view_templates.yaml":
-            os.symlink(f, d / f.name)
-    (d / "view_templates.yaml").write_text(yaml.safe_dump({"templates": list(templates)}))
+    override_configs(project, {"view_templates.yaml": {"templates": list(templates)}})
 
 
 def tpl(view, placements, w=200, h=120, sport="football"):
@@ -88,12 +80,6 @@ def by_label(result):
     return {p["label"]: p for p in result["placements"]}
 
 
-def pixels(path):
-    """An image's RGBA pixels as an array."""
-    with Image.open(path) as im:
-        return np.array(im.convert("RGBA"))
-
-
 # --- vocabulary and tail parsing ----------------------------------------------
 
 
@@ -112,12 +98,15 @@ def test_vocab_excludes_sequences_and_marks_default_forms(fvocab, bvocab):
 
 def test_vocab_exits_on_loops_and_missing_files_and_skips_unlabelled_tokens(project):
     """Circular extends and a missing vocabulary exit naming the file; a token with no name is skipped."""
-    mini(project)
-    d = project / "configs"
-    (d / "modifiers_a.yaml").write_text(yaml.safe_dump({"extends": "b", "tokens": {"x": {"label": "Xtra"}}}))
-    (d / "modifiers_b.yaml").write_text(yaml.safe_dump({"extends": "a", "tokens": {"y": {"scope": "patch"}}}))
-    (d / "modifiers_c.yaml").write_text(yaml.safe_dump({"extends": "nope", "tokens": {"z": {"label": "Zed"}}}))
-    (d / "modifiers_e.yaml").write_text(yaml.safe_dump({"tokens": {"x": {"label": "Xtra"}, "y": {"scope": "patch"}}}))
+    override_configs(
+        project,
+        {
+            "modifiers_a.yaml": {"extends": "b", "tokens": {"x": {"label": "Xtra"}}},
+            "modifiers_b.yaml": {"extends": "a", "tokens": {"y": {"scope": "patch"}}},
+            "modifiers_c.yaml": {"extends": "nope", "tokens": {"z": {"label": "Zed"}}},
+            "modifiers_e.yaml": {"tokens": {"x": {"label": "Xtra"}, "y": {"scope": "patch"}}},
+        },
+    )
     with pytest.raises(SystemExit, match="Circular `extends` reaching modifiers_a.yaml"):
         compose.load_vocab(project, "a")
     with pytest.raises(SystemExit, match="No vocabulary at configs/modifiers_nope.yaml"):

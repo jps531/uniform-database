@@ -1,6 +1,6 @@
 """Smoke test for the shared fixtures in conftest.py."""
 
-from conftest import art, canvas_size
+from helpers import art, canvas_size
 
 
 def test_art_draws_content_at_the_requested_size(project, cfg):

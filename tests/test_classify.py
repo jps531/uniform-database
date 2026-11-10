@@ -4,8 +4,7 @@ import sys
 
 import classify
 import pytest
-from conftest import art, canvas_size, era
-from test_golden_fixture import small_configs
+from helpers import art, canvas_size, era, scaled, small_configs
 
 VIEW = "Football/T/Helmets Front"
 
@@ -20,11 +19,6 @@ def run(monkeypatch, capsys, *argv) -> str:
 def row(n, where, content, how, flag="") -> str:
     """One count line, formatted as classify prints it."""
     return f"   {n:>4}  {where:<9} content {content:<12} {how}{flag}"
-
-
-def scaled(e: dict) -> tuple:
-    """The content size an era's scale produces from its listed size."""
-    return round(e["size"][0] * e["scale"]), round(e["size"][1] * e["scale"])
 
 
 def test_near_uses_tolerance():

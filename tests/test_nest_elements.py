@@ -7,8 +7,7 @@ import sys
 import common
 import nest_elements as ne
 import pytest
-import yaml
-from conftest import REPO, art
+from helpers import REPO, art, override_configs
 
 
 @pytest.fixture(scope="module")
@@ -27,18 +26,6 @@ def nest(stem, vocab):
     """element_for() on one stem with a loaded vocabulary."""
     strip, design, form, _seq, known = vocab
     return ne.element_for(stem, strip, design, form, known)
-
-
-def custom_configs(project, files):
-    """Replace the project's configs link with a directory linking the real files plus `files` (name -> dict)."""
-    d = project / "configs"
-    d.unlink()
-    d.mkdir()
-    for f in (REPO / "configs").iterdir():
-        if f.name not in files:
-            os.symlink(f, d / f.name)
-    for name, data in files.items():
-        (d / name).write_text(yaml.safe_dump(data))
 
 
 def run(monkeypatch, *argv):
@@ -69,7 +56,7 @@ def test_vocab_sorts_tokens_by_scope_and_kind(football):
 
 def test_sport_token_overrides_shared_and_colorways_inherit(project):
     """A token redefined in a sport's file wins over shared, and a sport without colorways inherits shared's."""
-    custom_configs(
+    override_configs(
         project,
         {"modifiers_mine.yaml": {"extends": "shared", "tokens": {"grad": {"label": "Grad", "scope": "design"}}}},
     )
@@ -86,7 +73,7 @@ def test_sport_token_overrides_shared_and_colorways_inherit(project):
 
 def test_token_of_unexpected_kind_is_kept_and_unlabelled_one_ignored(project):
     """A token with no recognised scope or kind is KEPT in the name; an entry with no token or label is skipped."""
-    custom_configs(
+    override_configs(
         project,
         {
             "modifiers_mine.yaml": {
@@ -103,7 +90,7 @@ def test_token_of_unexpected_kind_is_kept_and_unlabelled_one_ignored(project):
 
 def test_circular_extends_exits(project):
     """Vocabularies that extend each other in a loop exit rather than recursing forever."""
-    custom_configs(project, {"modifiers_a.yaml": {"extends": "b"}, "modifiers_b.yaml": {"extends": "a"}})
+    override_configs(project, {"modifiers_a.yaml": {"extends": "b"}, "modifiers_b.yaml": {"extends": "a"}})
     with pytest.raises(SystemExit, match="Circular `extends` reaching modifiers_a.yaml"):
         common.load_vocabulary(project, "a")
 
@@ -116,9 +103,7 @@ def test_missing_vocabulary_exits(project):
 
 def test_empty_vocabulary_file_is_allowed(project):
     """An empty modifiers file loads as no tokens and no colorways."""
-    (project / "configs").unlink()
-    (project / "configs").mkdir()
-    (project / "configs" / "modifiers_blank.yaml").write_text("")
+    override_configs(project, {"modifiers_blank.yaml": ""})
     assert common.load_vocabulary(project, "blank") == common.Vocabulary({}, [])
 
 

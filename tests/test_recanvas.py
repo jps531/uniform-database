@@ -7,7 +7,7 @@ import common
 import numpy as np
 import pytest
 import recanvas
-from conftest import art, canvas_size, era
+from helpers import art, canvas_size, era
 from PIL import Image
 
 DEST = "Football/T/Helmets Front"

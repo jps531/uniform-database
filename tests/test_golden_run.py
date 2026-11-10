@@ -8,7 +8,7 @@ from pathlib import Path
 import golden_run as gr
 import pytest
 import yaml
-from conftest import REPO, art, canvas_size, era
+from helpers import REPO, art, blank, canvas_size, era, placed
 from PIL import Image
 
 MSU = "Mississippi State"
@@ -30,26 +30,6 @@ def entry(id_, sport="football", view="icons-horizontal", **kw):
     return e
 
 
-def placed(file, element="2020 Maroon", slot="jersey", vp="icon", u=1, **kw):
-    """One compose placement record with status 'placed'."""
-    p = {
-        "label": f"{slot}/{vp}" + (f" #{u}" if u != 1 else ""),
-        "slot": slot,
-        "viewpoint": vp,
-        "uniform": u,
-        "element": element,
-        "file": str(file),
-        "status": "placed",
-        "number_requested": None,
-        "number_found": None,
-        "tokens_requested": [],
-        "tokens_found": [],
-        "clipped": {},
-    }
-    p.update(kw)
-    return p
-
-
 def opaque_png(path, size=(20, 20)):
     """A small fully opaque composition."""
     return art(path, size)
@@ -57,9 +37,7 @@ def opaque_png(path, size=(20, 20)):
 
 def empty_png(path, size=(20, 20)):
     """A composition with no opaque pixels."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    Image.new("RGBA", size, (0, 0, 0, 0)).save(path)
-    return path
+    return blank(path, size)
 
 
 class FakeCompose:
@@ -135,7 +113,7 @@ def test_check_wrong_era(tmp_path, cfg):
     odd = art(tmp_path / "c" / "2000 White.png", W, (10, 10))
     blank = empty_png(tmp_path / "d" / "2000 White.png")
     ex = {"sport": "mens_basketball", "expect_eras": {"1/shorts/left": "a", "1/shorts/right": None}}
-    P = lambda f: {"placements": [placed(f, "2000 White", "shorts", "left")]}  # noqa: E731
+    P = lambda f: {"placements": [placed(f, "shorts", "left", "2000 White")]}  # noqa: E731
     assert gr.check(ex, P(a), None, cfg, []) == ([], [])
     assert gr.check(ex, P(b), None, cfg, []) == (["WRONG ERA shorts/left: planned a, placed b"], [])
     assert gr.check(ex, P(odd), None, cfg, [])[0] == ["WRONG ERA shorts/left: planned a, placed unrecognised size"]
@@ -144,9 +122,9 @@ def test_check_wrong_era(tmp_path, cfg):
     e = era(cfg, "football-helmet-back", "E")["size"]
     near = art(tmp_path / "e" / "2000 White.png", (700, 800), (e[0] + 3, e[1]))
     hb = {"sport": "football", "expect_eras": {"1/helmet/back": "E"}}
-    assert gr.check(hb, {"placements": [placed(near, "2000 White", "helmet", "back")]}, None, cfg, []) == ([], [])
+    assert gr.check(hb, {"placements": [placed(near, "helmet", "back", "2000 White")]}, None, cfg, []) == ([], [])
     # a viewpoint whose expected era is empty is not checked
-    r = {"placements": [placed(odd, "2000 White", "shorts", "right")]}
+    r = {"placements": [placed(odd, "shorts", "right", "2000 White")]}
     assert gr.check(ex, r, None, cfg, []) == ([], [])
 
 
@@ -155,7 +133,7 @@ def test_check_number(tmp_path):
     d = tmp_path / "2020 Maroon"
     plain = opaque_png(d / "2020 Maroon.png")
     ex = {"sport": "football"}
-    res = {"placements": [placed(plain, number_requested="7")]}
+    res = {"placements": [placed(plain, number="7")]}
     assert gr.check(ex, res, None, {}, []) == ([], [])
     opaque_png(d / "2020 Maroon 17.png")
     opaque_png(d / "2020 Maroon 07.png")
@@ -165,7 +143,7 @@ def test_check_number(tmp_path):
         ["NUMBER jersey/icon: asked for 7, a file exists, placed unnumbered"],
         [],
     )
-    res = {"placements": [placed(d / "2020 Maroon 17.png", number_requested="7", number_found="17")]}
+    res = {"placements": [placed(d / "2020 Maroon 17.png", number="7", number_found="17")]}
     assert gr.check(ex, res, None, {}, [])[0] == [
         "NUMBER jersey/icon: asked for 7, placed 17: another number is never used"
     ]
@@ -174,7 +152,7 @@ def test_check_number(tmp_path):
         "NUMBER jersey/icon: asked for 7, placed 17: another number is never used"
     ]
     opaque_png(d / "2020 Maroon 7 Grad.png")
-    res = {"placements": [placed(d / "2020 Maroon 7 Grad.png", number_requested="7", number_found="7")]}
+    res = {"placements": [placed(d / "2020 Maroon 7 Grad.png", number="7", number_found="7")]}
     assert gr.check(ex, res, None, {}, []) == ([], [])
 
 
@@ -208,7 +186,7 @@ def test_check_number_ignores_patch_tokens_ending_in_digits(tmp_path):
     d = tmp_path / "2021 White"
     plain = opaque_png(d / "2021 White.png")
     opaque_png(d / "2021 White CWS21.png")
-    res = {"placements": [placed(plain, "2021 White", number_requested="21")]}
+    res = {"placements": [placed(plain, element="2021 White", number="21")]}
     assert gr.check({"sport": "baseball"}, res, None, {}, vocab) == ([], [])
     opaque_png(d / "2021 White 21 CWS21.png")
     assert gr.check({"sport": "baseball"}, res, None, {}, vocab)[0] == [

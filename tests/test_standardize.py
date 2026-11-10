@@ -2,7 +2,6 @@
 
 import copy
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -10,10 +9,8 @@ import common
 import numpy as np
 import pytest
 import standardize
-import yaml
-from conftest import art, canvas_size, era
+from helpers import art, bbox, canvas_size, era, override_configs, scaled, small_configs
 from PIL import Image
-from test_golden_fixture import small_configs
 
 HELMET_FRONT = "Football/T/Helmets Front"
 
@@ -24,34 +21,16 @@ def run(monkeypatch, *argv):
     standardize.main()
 
 
-def bbox(path: Path):
-    """(size, alpha bbox) of a PNG."""
-    with Image.open(path) as im:
-        return im.size, im.getchannel("A").getbbox()
-
-
 def size_line(size, n, tag) -> str:
     """One line of survey's size table, formatted as survey prints it."""
     return f"  {size[0]:>5} x {size[1]:<5}  {n:>4} files{tag}"
 
 
-def scaled(e: dict) -> tuple:
-    """The content size an era's scale produces from its listed size."""
-    s = e.get("scale", 1)
-    return round(e["size"][0] * s), round(e["size"][1] * s)
-
-
 def custom_config(project: Path, cfg: dict, mutate) -> dict:
-    """Replace the project's configs link with a copy whose canvas_definitions.yaml is mutate(copy of cfg)."""
-    real = Path(os.readlink(project / "configs"))
-    (project / "configs").unlink()
-    (project / "configs").mkdir()
-    for f in real.iterdir():
-        if f.name != "canvas_definitions.yaml":
-            os.symlink(f, project / "configs" / f.name)
+    """Write mutate(copy of cfg) as the project's canvas_definitions.yaml; returns the new cfg."""
     new = copy.deepcopy(cfg)
     mutate(new)
-    (project / "configs" / "canvas_definitions.yaml").write_text(yaml.safe_dump(new))
+    override_configs(project, {"canvas_definitions.yaml": new})
     return new
 
 

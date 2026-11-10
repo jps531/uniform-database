@@ -8,8 +8,7 @@ from pathlib import Path
 import common
 import migrate_marks as mm
 import pytest
-from conftest import REPO, art, era
-from test_golden_fixture import small_configs
+from helpers import REPO, art, era, override_configs, small_configs
 
 T = Path("Marks/Temp")
 D = Path("Marks/Football")
@@ -84,11 +83,9 @@ def test_known_colorways_accepts_keys_tokens_and_labels(project):
 
 def test_known_colorways_and_shells_with_missing_or_odd_config(project):
     """A missing slots_global gives no colorways and a missing vocabulary exits; a colorway with no mapping counts by key."""
-    small_configs(project)
-    (project / "configs/slots_global.yaml").write_text("colorways:\n  plain:\n  fancy: {label: Fancy Red}\n")
+    override_configs(project, {"slots_global.yaml": "colorways:\n  plain:\n  fancy: {label: Fancy Red}\n"})
     assert mm.known_colorways(project) == {"plain", "fancy", "fancy red"}
-    (project / "configs/slots_global.yaml").unlink()
-    (project / "configs/modifiers_football.yaml").unlink()
+    override_configs(project, {"slots_global.yaml": None, "modifiers_football.yaml": None})
     assert mm.known_colorways(project) == set()
     with pytest.raises(SystemExit, match="No vocabulary at configs/modifiers_football.yaml"):
         mm.shell_by_era(project)
@@ -375,8 +372,7 @@ def test_plan_flat_noyear_reports_reversed_and_unknown_names(project):
 
 def test_plan_flat_noyear_without_colorways(project):
     """With no colorway list, flat-noyear plans nothing and says why."""
-    small_configs(project)
-    (project / "configs/slots_global.yaml").unlink()
+    override_configs(project, {"slots_global.yaml": None})
     assert mm.plan_flat_noyear(project / T, project, "Hats", "Front", project) == (
         [],
         [("no colorways", "configs/slots_global.yaml", "")],
@@ -422,8 +418,7 @@ def test_main_flat_noyear_prints_problems_and_refuses(project, monkeypatch, caps
 
 def test_main_flat_noyear_without_colorways_refuses(project, monkeypatch, capsys):
     """With no colorway list, main() says so and refuses --apply."""
-    small_configs(project)
-    (project / "configs/slots_global.yaml").unlink()
+    override_configs(project, {"slots_global.yaml": None})
     touch(project, T / "Auburn Navy A.png")
     with pytest.raises(SystemExit):
         run_main(monkeypatch, project, "--mode", "flat-noyear", "--dest", "Marks/Baseball", "--apply")

@@ -8,22 +8,13 @@ import common
 import derive_crops as dc
 import numpy as np
 import pytest
-from conftest import REPO, art, canvas_size
+from helpers import REPO, TEAM, art, canvas_size, cropped_of, small_configs, venue
 from PIL import Image
-from test_golden_fixture import TEAM, small_configs
 
 
-def full(root, cfg, sport="football", element="2020 Grass", seed=0, size=None, team=TEAM, tree="Venues"):
-    """Draw one Full playing surface for `sport` on its canvas (or `size`); returns the path."""
-    slot = "court" if sport == "basketball" else "field"
-    sdir = "Courts" if slot == "court" else "Fields"
-    path = root / tree / sport.title() / team / f"{sdir} Full" / element / f"{element}.png"
-    return art(path, size or canvas_size(cfg, f"{sport}_{slot}_full"), seed=seed)
-
-
-def cropped_of(path):
-    """The Cropped sibling of a Full file."""
-    return path.parents[2] / path.parents[1].name.replace(" Full", " Cropped") / path.parent.name / path.name
+def full(root, cfg, sport="football", element="2020 Grass", **kw):
+    """Draw one Full playing surface (helpers.venue), football's 2020 Grass unless told otherwise; returns the path."""
+    return venue(root, cfg, sport, element, **kw)
 
 
 def run_main(monkeypatch, root, *flags):

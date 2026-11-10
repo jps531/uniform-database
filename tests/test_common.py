@@ -7,8 +7,7 @@ import sys
 
 import common
 import pytest
-import yaml
-from conftest import REPO, art, era
+from helpers import REPO, art, era, override_configs
 from PIL import Image
 
 # --- the project -------------------------------------------------------------
@@ -93,12 +92,8 @@ def test_sport_dir_matches_by_slug_under_any_parent(tmp_path):
 
 
 def vocab_files(project, files: dict):
-    """Replace the project's configs link with a directory holding only these modifiers files (name -> dict)."""
-    d = project / "configs"
-    d.unlink()
-    d.mkdir()
-    for name, data in files.items():
-        (d / f"modifiers_{name}.yaml").write_text(yaml.safe_dump(data) if data is not None else "")
+    """Write these modifiers files (vocabulary name -> dict, or None for an empty file) into the project's configs."""
+    override_configs(project, {f"modifiers_{name}.yaml": "" if data is None else data for name, data in files.items()})
 
 
 def test_vocabulary_follows_the_extends_chain_and_merges_colorways(project):
@@ -155,10 +150,9 @@ def test_known_colorways_reads_keys_tokens_and_labels(project):
     """known_colorways() holds every key (underscores as spaces), token and label, lowercased; empty with no file."""
     c = common.known_colorways(project)
     assert {"maroon", "dark gray", "powder", "powder blue"} <= c
-    (project / "configs").unlink()
-    (project / "configs").mkdir()
+    override_configs(project, {"slots_global.yaml": None})
     assert common.known_colorways(project) == set()
-    (project / "configs" / "slots_global.yaml").write_text("colorways:\n  red:\n  vegas_gold: {label: Old Gold}\n")
+    override_configs(project, {"slots_global.yaml": "colorways:\n  red:\n  vegas_gold: {label: Old Gold}\n"})
     assert common.known_colorways(project) == {"red", "vegas gold", "old gold"}
 
 

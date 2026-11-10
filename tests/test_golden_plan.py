@@ -2,14 +2,13 @@
 
 import argparse
 import json
-import os
 import sys
 
 import common
 import golden_plan as gp
 import pytest
 import yaml
-from conftest import REPO, art, canvas_size, era
+from helpers import REPO, art, canvas_size, era, override_configs, scaled
 
 # --------------------------------------------------------------------------
 # helpers
@@ -22,9 +21,7 @@ COLORWAYS = ["vegas gold", "maroon", "white", "gold", "gray", "blue", "natural"]
 
 def post(cfg, key, name):
     """The POST-scale [w, h] of one era of a profile."""
-    e = era(cfg, key, name)
-    s = e.get("scale", 1)
-    return [round(e["size"][0] * s), round(e["size"][1] * s)]
+    return list(scaled(era(cfg, key, name)))
 
 
 def rec(cfg, sport, slot, name, vps, numbers=None):
@@ -58,17 +55,10 @@ def picks(examples):
     return [(team, dict(chosen)) for team, chosen, _ in examples]
 
 
-def reduced_configs(project, templates, views):
-    """Replace the project's configs link with a copy holding only the named templates."""
-    (project / "configs").unlink()
-    d = project / "configs"
-    d.mkdir()
-    for f in (REPO / "configs").iterdir():
-        if f.name != "view_templates.yaml":
-            os.symlink(f, d / f.name)
+def reduced_configs(project, templates, views, **files):
+    """Keep only the named templates in the project's configs, and override any other `files` (helpers.override_configs)."""
     keep = [t for t in templates if t["view_kind"] in views]
-    (d / "view_templates.yaml").write_text(yaml.safe_dump({"templates": keep}))
-    return d
+    override_configs(project, {"view_templates.yaml": {"templates": keep}, **files})
 
 
 def run_main(monkeypatch, *argv):
@@ -661,8 +651,7 @@ def test_main_combo_explicit_constraints_gaps_and_pairings(project, cfg, templat
 
 def test_main_sport_filter_and_plural_pairings(project, cfg, templates, monkeypatch, capsys):
     """--sport limits the plan, an empty pairings file counts zero, and missing slots_global is tolerated."""
-    d = reduced_configs(project, templates, {"wbk-shorts", "condensed", "jersey-full"})
-    (d / "slots_global.yaml").unlink()
+    reduced_configs(project, templates, {"wbk-shorts", "condensed", "jersey-full"}, **{"slots_global.yaml": None})
     (project / "golden/pairings.yaml").write_text("")
     (project / "golden/inventory.json").write_text(json.dumps(football_inv(cfg)))
     run_main(monkeypatch, "--sport", "football")
@@ -678,19 +667,12 @@ def test_main_sport_filter_and_plural_pairings(project, cfg, templates, monkeypa
 
 def test_main_reads_colorway_tokens_and_labels(project, templates, monkeypatch, capsys):
     """Colourways are read from slots_global.yaml keys, tokens and labels, longest first."""
-    d = reduced_configs(project, templates, {"wbk-shorts"})
-    (d / "slots_global.yaml").unlink()
-    (d / "slots_global.yaml").write_text(
-        yaml.safe_dump(
-            {
-                "colorways": {
-                    "vegas_gold": {"token": "Vegas Gold", "label": "Old Gold"},
-                    "red": None,
-                    "powder": {"label": "Powder Blue"},
-                }
-            }
-        )
-    )
+    colorways = {
+        "vegas_gold": {"token": "Vegas Gold", "label": "Old Gold"},
+        "red": None,
+        "powder": {"label": "Powder Blue"},
+    }
+    reduced_configs(project, templates, {"wbk-shorts"}, **{"slots_global.yaml": {"colorways": colorways}})
     (project / "golden/inventory.json").write_text("{}")
     seen, real = [], gp.plan_template
     monkeypatch.setattr(gp, "plan_template", lambda *a: seen.append(a[4]) or real(*a))

@@ -6,7 +6,7 @@ import sys
 import fix_dpi
 import numpy as np
 import pytest
-from conftest import REPO, art
+from helpers import REPO, art
 from PIL import Image, ImageCms, ImageOps, PngImagePlugin
 
 SCRIPT = str(REPO / "scripts" / "migration" / "fix_dpi.py")

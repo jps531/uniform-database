@@ -5,7 +5,7 @@ import compose
 import nest_elements
 import pytest
 import yaml
-from conftest import REPO
+from helpers import REPO
 
 
 def sports() -> list[str]:

@@ -1,9 +1,4 @@
-"""Tests for scripts/golden/golden_fixture.py: what the fixture copies, every refusal, dry run vs --apply.
-
-Also holds `small_configs()`, shared with test_golden_ci.py and test_derive_crops.py:
-a copy of the real configs with the helmet and venue canvases scaled down, so
-synthetic artwork stays a few hundred pixels instead of a few thousand.
-"""
+"""Tests for scripts/golden/golden_fixture.py: what the fixture copies, every refusal, dry run vs --apply."""
 
 import json
 import os
@@ -15,53 +10,19 @@ from pathlib import Path
 import common
 import golden_fixture as gf
 import pytest
-import yaml
-from conftest import REPO, art, canvas_size, era
-
-TEAM = "Testers"
-HELMET_DIV = 8
-VENUE_DIV = {"football": 16, "baseball": 16, "basketball": 32}
-ERAS = ("A", "B", "C", "D", "E", "F")
-
-
-def small_configs(root: Path, mutate=None) -> dict:
-    """Replace root/configs with a copy whose helmet and venue canvases and eras are scaled down; returns the cfg."""
-    link = root / "configs"
-    if link.is_symlink():
-        link.unlink()
-        shutil.copytree(REPO / "configs", link)
-    path = link / "canvas_definitions.yaml"
-    cfg = yaml.safe_load(path.read_text())
-    for vp in ("left", "right", "front", "back"):
-        for e in cfg["profiles"][f"football-helmet-{vp}"]:
-            e["size"] = [round(v / HELMET_DIV) for v in e["size"]]
-    post = [
-        (round(e["size"][0] * e.get("scale", 1)), round(e["size"][1] * e.get("scale", 1)))
-        for e in cfg["profiles"]["football-helmet-left"]
-    ]
-    cfg["canvases"]["football_helmet_profile"].update(
-        width=max(w for w, _ in post) + 2, height=max(h for _, h in post) + 2
-    )
-    face = cfg["canvases"]["football_helmet_face"]
-    face.update(width=round(face["width"] / HELMET_DIV), height=round(face["height"] / HELMET_DIV))
-    for sport, k in VENUE_DIV.items():
-        slot = "court" if sport == "basketball" else "field"
-        for kind in ("full", "cropped"):
-            c = cfg["canvases"][f"{sport}_{slot}_{kind}"]
-            c.update(width=c["width"] // k, height=c["height"] // k)
-            if "derived_from" in c:
-                c["derived_from"]["crop_at"] = [v // k for v in c["derived_from"]["crop_at"]]
-    if mutate:
-        mutate(cfg)
-    path.write_text(yaml.safe_dump(cfg, sort_keys=False))
-    return cfg
-
-
-def mark(root: Path, cfg: dict, side: str, element: str, era_name: str, team=TEAM, name=None, seed=0) -> Path:
-    """Draw a Marks helmet file whose content is exactly the pre-scale size of `era_name` on `side`."""
-    w, h = era(cfg, f"football-helmet-{side.lower()}", era_name)["size"]
-    f = root / "Marks" / "Football" / team / f"Helmets {side}" / element / f"{name or element}.png"
-    return art(f, (w + 4, h + 4), (w, h), top=2, seed=seed)
+from helpers import (
+    ERAS,
+    REPO,
+    TEAM,
+    art,
+    canvas_size,
+    cropped_of,
+    mark,
+    placed,
+    venue,
+    venue_dirs,
+    write_manifest,
+)
 
 
 def generated(root: Path, side: str, element: str, team=TEAM, name=None) -> Path:
@@ -70,23 +31,14 @@ def generated(root: Path, side: str, element: str, team=TEAM, name=None) -> Path
     return art(f, (8, 8), (4, 4))
 
 
-def venue(root: Path, cfg: dict, sport: str, element: str, cropped=True, seed=0) -> tuple:
+def venue_pair(root: Path, cfg: dict, sport: str, element: str, cropped=True, seed=0) -> tuple:
     """Draw a Full venue file (and, if asked, a stand-in cropped copy); returns the two relative paths."""
-    slot = "court" if sport == "basketball" else "field"
-    sdir = "Courts" if slot == "court" else "Fields"
-    base = root / "Venues" / sport.title() / TEAM
-    full = art(base / f"{sdir} Full" / element / f"{element}.png", canvas_size(cfg, f"{sport}_{slot}_full"), seed=seed)
-    crop = base / f"{sdir} Cropped" / element / f"{element}.png"
+    slot, _ = venue_dirs(sport)
+    full = venue(root, cfg, sport, element, seed=seed)
+    crop = cropped_of(full)
     if cropped:
         art(crop, canvas_size(cfg, f"{sport}_{slot}_cropped"), seed=seed)
     return full.relative_to(root), crop.relative_to(root)
-
-
-def write_manifest(root: Path, examples: list) -> None:
-    """Write golden/manifest.yaml and push its mtime into the past, so results written later are newer."""
-    p = root / "golden" / "manifest.yaml"
-    p.write_text(yaml.safe_dump(examples, sort_keys=False))
-    os.utime(p, (1_000_000, 1_000_000))
 
 
 def write_result(root: Path, ex: dict, placements: list) -> Path:
@@ -95,18 +47,6 @@ def write_result(root: Path, ex: dict, placements: list) -> Path:
     js.parent.mkdir(parents=True, exist_ok=True)
     js.write_text(json.dumps({"placements": placements, "missing": []}))
     return js
-
-
-def placed(file: Path | None, slot: str, vp: str, element: str, number=None, status="placed") -> dict:
-    """One placement record as compose writes it; a skipped placement has no file, as in compose's JSON."""
-    return {
-        "file": str(file) if file else None,
-        "slot": slot,
-        "viewpoint": vp,
-        "element": element,
-        "number_requested": number,
-        "status": status,
-    }
 
 
 def scene(root: Path, cfg: dict) -> dict:
@@ -148,11 +88,11 @@ def scene(root: Path, cfg: dict) -> dict:
 
     # Venues: three football fields (first and last kept), baseball without a
     # Cropped tree, and an empty basketball Full folder with a Cropped sibling.
-    a = venue(root, cfg, "football", "2020 Grass")
-    venue(root, cfg, "football", "2021 Grass", seed=1)
-    c = venue(root, cfg, "football", "2022 Grass", seed=2)
+    a = venue_pair(root, cfg, "football", "2020 Grass")
+    venue_pair(root, cfg, "football", "2021 Grass", seed=1)
+    c = venue_pair(root, cfg, "football", "2022 Grass", seed=2)
     want |= {*a, *c}
-    venue(root, cfg, "baseball", "2020 Dirt", cropped=False)
+    venue_pair(root, cfg, "baseball", "2020 Dirt", cropped=False)
     (root / "Venues/Basketball" / TEAM / "Courts Full").mkdir(parents=True)
     (root / "Venues/Basketball" / TEAM / "Courts Cropped").mkdir(parents=True)
 
@@ -181,12 +121,6 @@ def scene(root: Path, cfg: dict) -> dict:
         ],
     )
     return {"want": want, "ex": [ex1, ex2, ex3]}
-
-
-@pytest.fixture
-def small(project) -> dict:
-    """The test project switched to the scaled-down configs."""
-    return small_configs(project)
 
 
 def run_main(monkeypatch, root: Path, *flags):

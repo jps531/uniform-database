@@ -20,9 +20,8 @@ import golden_fixture
 import golden_run
 import pytest
 import standardize
-from conftest import REPO, art, canvas_size, era
+from helpers import ERAS, REPO, TEAM, art, canvas_size, era, make_project, mark, small_configs, write_manifest
 from PIL import Image
-from test_golden_fixture import ERAS, TEAM, mark, small_configs, write_manifest
 
 ELEMENTS = dict(zip(ERAS, ("1950 White", "1960 White", "1970 White", "1980 White", "1990 White", "2020 Maroon")))
 VENUES = (
@@ -44,11 +43,7 @@ def call(mp, module, *argv):
 @pytest.fixture(scope="module")
 def base(tmp_path_factory) -> Path:
     """A project built end to end once: artwork, padded helmets, crops, a golden run and an applied fixture."""
-    root = tmp_path_factory.mktemp("ci") / "project"
-    root.mkdir()
-    for name in ("configs", "scripts"):
-        os.symlink(REPO / name, root / name)
-    (root / "golden").mkdir()
+    root = make_project(tmp_path_factory.mktemp("ci") / "project")
     cfg = small_configs(root)
     for side in ("Left", "Right"):
         for i, (e, el) in enumerate(ELEMENTS.items()):
