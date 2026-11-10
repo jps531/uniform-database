@@ -38,7 +38,7 @@ the artwork folders inside it alongside the code, and git ignores them.
 | `scripts/` | The Python asset pipeline: DPI fixes, nesting, standardizing, cropping, composing, the golden suite |
 | `golden/` | The golden suite's approved plan (`manifest.yaml`, `PLAN.md`) and known pairings; renders go to `golden/run/`, which isn't tracked |
 | `docs/` | Longer how-tos ([golden_suite.md](docs/golden_suite.md)) |
-| `requirements.txt` | The pipeline's Python dependencies |
+| `pyproject.toml`, `uv.lock` | Dependencies, managed with uv, and the ruff config |
 | `CLAUDE.md` | The full reference for the pipeline: naming grammar, invariants, eras and canvases, composition, and the mistakes not to repeat. Written for AI agents, and the most complete description of the project for people too |
 
 Not tracked, but expected in the same folder when you run anything:
@@ -48,11 +48,11 @@ listings).
 
 ## Setup
 
-Python 3.11 or later. Once, from the project folder (the one holding
-`configs/` and the artwork):
+Install [uv](https://docs.astral.sh/uv/). Then, once, from the project
+folder (the one holding `configs/` and the artwork):
 
 ```
-pip install -r requirements.txt
+uv sync          # Python 3.13 and every dependency, into .venv
 ```
 
 Run every command below from that same folder. Every script prints its full
@@ -66,7 +66,7 @@ options with `--help`, and CLAUDE.md's "Commands" section lists them all.
 `2012 White Egg Bowl`.
 
 ```
-python3 scripts/compose.py --sport football --view full \
+uv run scripts/compose.py --sport football --view full \
     --team "Mississippi State" \
     --helmet "2025 Black" --jersey "2025 Black" --pants "2025 Black" \
     --number 0 \
@@ -101,7 +101,7 @@ soccer kits, and the volleyball condensed combos name each kit's sleeve
 flag. In soccer the second uniform is always the keeper:
 
 ```
-python3 scripts/compose.py --sport soccer --view soccer-combo \
+uv run scripts/compose.py --sport soccer --view soccer-combo \
     --jersey "2026 White" --shorts "2026 White" --number 4 \
     --jersey2 "2026 Blue Keeper" --shorts2 "2026 Blue" --number2 0
 ```
@@ -129,8 +129,8 @@ helmet canvas.
 One team:
 
 ```
-python3 scripts/standardize.py pad "Marks/Football/Mississippi State/Helmets Left"  "Football/Mississippi State/Helmets Left"
-python3 scripts/standardize.py pad "Marks/Football/Mississippi State/Helmets Right" "Football/Mississippi State/Helmets Right"
+uv run scripts/standardize.py pad "Marks/Football/Mississippi State/Helmets Left"  "Football/Mississippi State/Helmets Left"
+uv run scripts/standardize.py pad "Marks/Football/Mississippi State/Helmets Right" "Football/Mississippi State/Helmets Right"
 ```
 
 Every team with uniform data. Marks for teams without a `Football/` folder
@@ -141,7 +141,7 @@ for d in Marks/Football/*/; do
   team=$(basename "$d")
   [ -d "Football/$team" ] || continue
   for side in Left Right; do
-    python3 scripts/standardize.py pad "Marks/Football/$team/Helmets $side" "Football/$team/Helmets $side"
+    uv run scripts/standardize.py pad "Marks/Football/$team/Helmets $side" "Football/$team/Helmets $side"
   done
 done
 ```
@@ -170,9 +170,9 @@ per sport in `configs/canvas_definitions.yaml` (`derived_from`).
 `derive_crops.py` does a dry run until you pass `--apply`:
 
 ```
-python3 scripts/derive_crops.py                          # dry run, every sport
-python3 scripts/derive_crops.py --apply                  # write
-python3 scripts/derive_crops.py --sport football --apply # one sport: football, baseball or basketball
+uv run scripts/derive_crops.py                          # dry run, every sport
+uv run scripts/derive_crops.py --apply                  # write
+uv run scripts/derive_crops.py --sport football --apply # one sport: football, baseball or basketball
 ```
 
 It reads only the `… Full` folders, writes the `… Cropped` ones with a
@@ -183,17 +183,20 @@ sport is `basketball`. Edit the Full artwork, never the cropped copy.
 ## Check everything still composes: the golden suite
 
 ```
-python3 scripts/golden_plan.py      # plan: golden/PLAN.md, golden/manifest.yaml
-python3 scripts/golden_run.py       # render and check: open golden/run/index.html
+uv run scripts/golden_plan.py      # plan: golden/PLAN.md, golden/manifest.yaml
+uv run scripts/golden_run.py       # render and check: open golden/run/index.html
 ```
 
 Run it after any change to a template, canvas or era profile, and after
 regenerating helmets or crops. The plan caches each element's measurements
 in `golden/inventory.json`, so after artwork changes plan with
-`python3 scripts/golden_plan.py --rescan`. It renders every template at every era from
+`uv run scripts/golden_plan.py --rescan`. It renders every template at every era from
 real elements and lists every defect in `golden/run/REPORT.md`.
 [docs/golden_suite.md](docs/golden_suite.md) explains the plan, what it
 checks, and how to fix a bad pairing.
+
+[CONTRIBUTING.md](CONTRIBUTING.md) has the checks CI runs, the tools, and
+what must change together.
 
 ## Before you change artwork
 

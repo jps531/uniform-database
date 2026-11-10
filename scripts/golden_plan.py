@@ -3,8 +3,8 @@
 Plan the GOLDEN EXAMPLE SUITE: one composition per template per era, drawn
 from real elements, for review before anything is rendered.
 
-    python3 scripts/golden_plan.py            # inventory + manifest + PLAN.md
-    python3 scripts/golden_plan.py --rescan   # re-measure every element
+    uv run scripts/golden_plan.py            # inventory + manifest + PLAN.md
+    uv run scripts/golden_plan.py --rescan   # re-measure every element
 
 Writes
     golden/inventory.json   every element, its era per viewpoint, its numbers
@@ -38,7 +38,7 @@ try:
     import yaml
     from PIL import Image, ImageOps
 except ImportError:
-    sys.exit("pip install pillow pyyaml")
+    sys.exit("Missing dependencies: run `uv sync`")
 
 SLOT_DIR = {
     "helmet": "Helmets",
@@ -51,10 +51,12 @@ TOL = 5
 
 
 def slug(s):
+    """Directory name -> config key: lowercase, apostrophes dropped, spaces to underscores."""
     return s.lower().replace("\u2019", "").replace("'", "").replace(" ", "_")
 
 
 def find_root():
+    """The nearest directory at or above the cwd holding configs/view_templates.yaml; exits if none."""
     for d in [Path.cwd(), *Path.cwd().parents]:
         if (d / "configs" / "view_templates.yaml").is_file():
             return d
@@ -68,6 +70,11 @@ def find_root():
 #   keeper: True = a Keeper element, False = a field element
 # --------------------------------------------------------------------------
 def constraints(view, sport, names):
+    """Era rules a template imposes, as {uniform: {rule: value}} (see the table above).
+
+    `names` is every template name for the sport: a view whose `-tq` or `-ls`
+    sibling exists must leave that cut to the sibling.
+    """
     c = defaultdict(dict)
     if sport in ("baseball", "softball"):
         if view.endswith("-tq"):
@@ -95,6 +102,7 @@ def constraints(view, sport, names):
 
 
 def describe(c):
+    """One readable line of a template's constraints, for PLAN.md; empty when there are none."""
     out = []
     for u in sorted(c):
         bits = []
@@ -113,6 +121,11 @@ def describe(c):
 # Inventory
 # --------------------------------------------------------------------------
 def era_for(cfg, sport, slot, vp, size):
+    """The era whose POST-scale size is closest to `size` within TOL, or None.
+
+    Post-scale because the inventory measures standardized files, whose
+    correction is already baked in.
+    """
     best, dist = None, None
     for e in cfg["profiles"].get(f"{sport}-{slot}-{vp}", []):
         s = e.get("scale", 1)
@@ -125,12 +138,14 @@ def era_for(cfg, sport, slot, vp, size):
 
 
 def content_size(path):
+    """[width, height] of the file's opaque bounding box; the full image size if it is fully transparent."""
     with ImageOps.exif_transpose(Image.open(path)).convert("RGBA") as im:
         b = im.getchannel("A").getbbox()
         return [b[2] - b[0], b[3] - b[1]] if b else list(im.size)
 
 
 def numbers_in(stems, element):
+    """Every 1-2 digit number in the stems after the element name, as strings, shortest then lexical."""
     out = set()
     for s in stems:
         tail = s[len(element) :] if s.startswith(element) else s
@@ -140,6 +155,12 @@ def numbers_in(stems, element):
 
 
 def build_inventory(root, cfg, sports):
+    """Measure every element of the given sports: its year, whether it is a keeper, and per viewpoint
+    the era, content size, numbers and file count.
+
+    Reads one file per element per viewpoint (the unnumbered one when it
+    exists). Returns {sport: {team: {slot: {element: record}}}}.
+    """
     inv = {}
     dirs = {slug(d.name): d for d in root.iterdir() if d.is_dir()}
     for sport in sports:
@@ -151,11 +172,7 @@ def build_inventory(root, cfg, sports):
                 for vp_dir in sorted(team_dir.glob(f"{sdir} *")):
                     vp = vp_dir.name.split()[-1].lower()
                     for el_dir in sorted(p for p in vp_dir.iterdir() if p.is_dir()):
-                        files = sorted(
-                            f
-                            for f in el_dir.glob("*.png")
-                            if not f.name.startswith(".")
-                        )
+                        files = sorted(f for f in el_dir.glob("*.png") if not f.name.startswith("."))
                         if not files:
                             continue
                         el = el_dir.name
@@ -204,6 +221,12 @@ def colorway(el):
 
 
 def plan_template(tpl, names, inv, cfg):
+    """Choose the examples that cover every era of every viewpoint one template places.
+
+    Greedy: each round anchors on the first uncovered target and builds the
+    most realistic uniform around it from one team. Returns (examples,
+    explicit extras, coverage targets, uncoverable targets, constraints).
+    """
     sport, view = tpl["sport"], tpl["view_kind"]
     cons = constraints(view, sport, names)
     # (uniform, slot) -> viewpoints this template places. REQUIRED ones decide
@@ -227,6 +250,7 @@ def plan_template(tpl, names, inv, cfg):
     teams = inv.get(sport, {})
 
     def allowed(team, u, slot, el):
+        """Whether an element may fill this (uniform, slot): it has every required viewpoint and meets the template's constraints."""
         rec = teams[team][slot][el]
         if any(vp not in rec["vps"] for vp in need[(u, slot)]):
             return False
@@ -269,8 +293,7 @@ def plan_template(tpl, names, inv, cfg):
                 c = cons.get(u, {})
                 eras = {rec["vps"][v]["era"] for v in vps if v in rec["vps"]}
                 if slot == "jersey" and (
-                    ("cut" in c and not eras <= c["cut"])
-                    or ("no_cut" in c and eras & c["no_cut"])
+                    ("cut" in c and not eras <= c["cut"]) or ("no_cut" in c and eras & c["no_cut"])
                 ):
                     continue
                 if "keeper" in c and slot == "jersey" and rec["keeper"] != c["keeper"]:
@@ -285,22 +308,22 @@ def plan_template(tpl, names, inv, cfg):
     targets = {t for t in targets if t[3] is not None}
 
     def covers(team, u, slot, el):
+        """The (uniform, slot, viewpoint, era) targets this element would cover."""
         rec = teams[team][slot][el]
         return {
-            (u, slot, vp, rec["vps"][vp]["era"])
-            for vp in need[(u, slot)] + optional[(u, slot)]
-            if vp in rec["vps"]
+            (u, slot, vp, rec["vps"][vp]["era"]) for vp in need[(u, slot)] + optional[(u, slot)] if vp in rec["vps"]
         }
 
     def score(team, u, slot, el, year, chosen=None):
+        """Sort key for an element in a slot, higher better: realism (known pairing, same name, same colour
+        and year) before new coverage, then numbered files.
+        """
         rec = teams[team][slot][el]
         new = len(covers(team, u, slot, el) - covered)
         # uniform 2 should differ from uniform 1, or a combo shows one kit twice
         same = 1 if (u == 2 and chosen and chosen.get((1, slot)) == el) else 0
         vps_here = need[(u, slot)] + optional[(u, slot)]
-        probe = rec["vps"].get("back") or next(
-            (rec["vps"][v] for v in vps_here if v in rec["vps"]), None
-        )
+        probe = rec["vps"].get("back") or next((rec["vps"][v] for v in vps_here if v in rec["vps"]), None)
         numbered = 1 if probe and probe["numbers"] else 0
         # REALISM FIRST, coverage second. Ranking on coverage first built
         # uniforms nobody wore — a 1958 jersey under a 2025 helmet — which test
@@ -321,11 +344,7 @@ def plan_template(tpl, names, inv, cfg):
                 a_el
                 if a_u == u
                 else next(
-                    (
-                        v
-                        for k, v in chosen.items()
-                        if isinstance(k, tuple) and k[0] == u
-                    ),
+                    (v for k, v in chosen.items() if isinstance(k, tuple) and k[0] == u),
                     None,
                 )
             )
@@ -333,24 +352,14 @@ def plan_template(tpl, names, inv, cfg):
         # A KNOWN pairing beats every heuristic. Filenames cannot say that the
         # 2015 wool fauxback was worn with the "2015 Maroon Fauxback" hat —
         # different words, no shared token — so golden/pairings.yaml does.
-        paired = (
-            1 if ref and PAIRINGS.get((sport, team, ref), {}).get(slot) == el else 0
-        )
-        ref_year = (
-            teams[team][slot].get(ref, {}).get("year")
-            if ref and ref in teams[team][slot]
-            else None
-        )
+        paired = 1 if ref and PAIRINGS.get((sport, team, ref), {}).get(slot) == el else 0
+        ref_year = teams[team][slot].get(ref, {}).get("year") if ref and ref in teams[team][slot] else None
         if ref and ref_year is None:
             for sl in teams[team]:
                 if ref in teams[team][sl]:
                     ref_year = teams[team][sl][ref]["year"]
                     break
-        gap = (
-            abs((rec["year"] or 0) - (ref_year or year or 0))
-            if (ref_year or year)
-            else 0
-        )
+        gap = abs((rec["year"] or 0) - (ref_year or year or 0)) if (ref_year or year) else 0
         # same colourway counts only within a few seasons — a 2026 jersey with
         # 1990 shorts of the same colour is still a costume, not a uniform
         hue = 1 if ref and colorway(el) == colorway(ref) and gap <= 3 else 0
@@ -368,17 +377,11 @@ def plan_template(tpl, names, inv, cfg):
                 if (u, slot) == (u0, slot0):
                     pick = el
                 else:
-                    cands = [
-                        e
-                        for e in teams[team].get(slot, {})
-                        if allowed(team, u, slot, e)
-                    ]
+                    cands = [e for e in teams[team].get(slot, {}) if allowed(team, u, slot, e)]
                     if not cands:
                         ok = False
                         break
-                    pick = max(
-                        cands, key=lambda e: score(team, u, slot, e, year, chosen)
-                    )
+                    pick = max(cands, key=lambda e: score(team, u, slot, e, year, chosen))
                 chosen[(u, slot)] = pick
                 gained |= covers(team, u, slot, pick)
             if not ok:
@@ -389,14 +392,8 @@ def plan_template(tpl, names, inv, cfg):
             lead = {u: chosen.get((u, "jersey")) for u, _ in need}
             same = sum(
                 1
-                for (u, sl), v in (
-                    (k, v) for k, v in chosen.items() if isinstance(k, tuple)
-                )
-                if lead.get(u)
-                and (
-                    v == lead[u]
-                    or PAIRINGS.get((sport, team, lead[u]), {}).get(sl) == v
-                )
+                for (u, sl), v in ((k, v) for k, v in chosen.items() if isinstance(k, tuple))
+                if lead.get(u) and (v == lead[u] or PAIRINGS.get((sport, team, lead[u]), {}).get(sl) == v)
             )
             # every candidate covers the anchor, so choose the most REAL uniform
             # first and the most extra coverage second
@@ -432,6 +429,7 @@ def plan_template(tpl, names, inv, cfg):
 
 
 def pick_number(rec, need_vps):
+    """A number to request for this element: the first one on the back view, else on a needed viewpoint, else None."""
     for vp in ("back", *need_vps):
         if vp in rec["vps"] and rec["vps"][vp]["numbers"]:
             return rec["vps"][vp]["numbers"][0]
@@ -439,13 +437,13 @@ def pick_number(rec, need_vps):
 
 
 def main():
-    ap = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
+    """Build or reuse the inventory, plan every template, and write golden/manifest.yaml and golden/PLAN.md.
+
+    Overwrites the manifest; durable choices belong in golden/pairings.yaml.
+    """
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--rescan", action="store_true")
-    ap.add_argument(
-        "--sport", action="append", help="limit to these sports (repeatable)"
-    )
+    ap.add_argument("--sport", action="append", help="limit to these sports (repeatable)")
     args = ap.parse_args()
 
     root = find_root()
@@ -469,14 +467,9 @@ def main():
             for team_, groups in (teams_ or {}).items():
                 for g in groups or []:
                     for slot_, el_ in g.items():
-                        PAIRINGS[(sport_, team_, el_)] = {
-                            k: v for k, v in g.items() if k != slot_
-                        }
+                        PAIRINGS[(sport_, team_, el_)] = {k: v for k, v in g.items() if k != slot_}
                     n += 1
-        print(
-            f"pairings: {n} known uniform{'s' if n != 1 else ''} from "
-            f"golden/pairings.yaml"
-        )
+        print(f"pairings: {n} known uniform{'s' if n != 1 else ''} from golden/pairings.yaml")
     tpls = yaml.safe_load((root / "configs/view_templates.yaml").open())["templates"]
     if args.sport:
         tpls = [t for t in tpls if t["sport"] in args.sport]
@@ -525,9 +518,7 @@ def main():
         plan_md.append(f"\n## {sport.replace('_', ' ').title()}\n")
         for tpl in by_sport[sport]:
             view = tpl["view_kind"]
-            examples, extras, targets, unmatched, cons = plan_template(
-                tpl, names, inv, cfg
-            )
+            examples, extras, targets, unmatched, cons = plan_template(tpl, names, inv, cfg)
             teams = inv.get(sport, {})
             need_vps = defaultdict(list)
             for p in tpl["placements"]:
@@ -537,8 +528,7 @@ def main():
                 empty.append(f"{sport} / {view}")
             plan_md.append(
                 f"### `{view}` — {len(examples)} example"
-                f"{'s' if len(examples) != 1 else ''}"
-                + (f" + {len(extras)} explicit" if extras else "")
+                f"{'s' if len(examples) != 1 else ''}" + (f" + {len(extras)} explicit" if extras else "")
             )
             if describe(cons):
                 plan_md.append(f"_Constraint: {describe(cons)}_\n")
@@ -572,47 +562,32 @@ def main():
                     entry["number2"] = number[2]
                 if is_extra:
                     entry["helmet_left"] = True
-                    entry["note"] = (
-                        f"exercises the explicit {gained['explicit']} placement"
-                    )
+                    entry["note"] = f"exercises the explicit {gained['explicit']} placement"
                 else:
-                    entry["covers"] = sorted(
-                        f"#{u} {s}/{v} {e}" for u, s, v, e in gained
-                    )
+                    entry["covers"] = sorted(f"#{u} {s}/{v} {e}" for u, s, v, e in gained)
                 manifest.append(entry)
 
                 desc = "<br>".join(
-                    f"{'#2 ' if u == 2 else ''}{s}: {el}"
-                    + (f" **{number[u]}**" if s == "jersey" and number[u] else "")
+                    f"{'#2 ' if u == 2 else ''}{s}: {el}" + (f" **{number[u]}**" if s == "jersey" and number[u] else "")
                     for (u, s), el in sorted(chosen.items())
                 )
                 cov = (
                     ("_explicit: " + gained["explicit"] + "_")
                     if is_extra
-                    else ", ".join(
-                        f"{'#2 ' if u == 2 else ''}{s} {v} **{e}**"
-                        for u, s, v, e in sorted(gained)
-                    )
+                    else ", ".join(f"{'#2 ' if u == 2 else ''}{s} {v} **{e}**" for u, s, v, e in sorted(gained))
                 )
                 plan_md.append(f"| {i} | {team} | {desc} | {cov} |")
             if unmatched:
                 gaps_total += len(unmatched)
-                plan_md.append(
-                    "\n**Not coverable** — no team has an element that "
-                    "fits every slot of this template:"
-                )
+                plan_md.append("\n**Not coverable** — no team has an element that fits every slot of this template:")
                 for u, s, v, e in unmatched:
-                    plan_md.append(
-                        f"- {'#2 ' if u == 2 else ''}{s}/{v} era "
-                        f"`{e or 'UNMATCHED SIZE'}`"
-                    )
+                    plan_md.append(f"- {'#2 ' if u == 2 else ''}{s}/{v} era `{e or 'UNMATCHED SIZE'}`")
             plan_md.append("")
 
     (out / "manifest.yaml").write_text(
         "# Golden example suite. Set `approved: false` on any example to skip\n"
         "# it, edit elements or numbers freely, or add your own entries.\n"
-        "# Then: python3 scripts/golden_run.py\n\n"
-        + yaml.safe_dump(manifest, sort_keys=False, allow_unicode=True)
+        "# Then: python3 scripts/golden_run.py\n\n" + yaml.safe_dump(manifest, sort_keys=False, allow_unicode=True)
     )
 
     n_tpl = len(tpls)
@@ -638,11 +613,9 @@ def main():
     if empty:
         head += [
             "",
-            f"## ⚠ {len(empty)} template{'s' if len(empty) != 1 else ''} "
-            "have NO examples",
+            f"## ⚠ {len(empty)} template{'s' if len(empty) != 1 else ''} have NO examples",
             "",
-            "Nothing in these will be rendered or checked. Usually a template "
-            "constraint no element satisfies:",
+            "Nothing in these will be rendered or checked. Usually a template constraint no element satisfies:",
             "",
         ] + [f"- `{e}`" for e in empty]
     if gaps_total:
@@ -664,10 +637,7 @@ def main():
         print(f"\n!! {len(empty)} templates have NO examples: " + ", ".join(empty))
     if gaps_total:
         print(f"\n!! {gaps_total} era targets not coverable — see golden/PLAN.md")
-    print(
-        f"\nWrote golden/manifest.yaml and golden/PLAN.md — review, then "
-        f"python3 scripts/golden_run.py"
-    )
+    print("\nWrote golden/manifest.yaml and golden/PLAN.md — review, then python3 scripts/golden_run.py")
 
 
 if __name__ == "__main__":

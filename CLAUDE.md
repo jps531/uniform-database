@@ -41,8 +41,9 @@ a place in the golden suite.
 ## Stack
 
 Python for the asset pipeline (`scripts/`), YAML for all pipeline config.
-`pip install -r requirements.txt` (Pillow, PyYAML; numpy only for
-`compose.py --diff`).
+Dependencies via uv (`pyproject.toml`, `uv.lock`): `uv sync`, then
+`uv run scripts/…`. ruff lints and formats; every function has a docstring.
+CONTRIBUTING.md has the checks CI runs and what must change together.
 Site: Next.js, Node, Postgres with Drizzle, Cloudflare R2 for images. Assets
 live in iCloud Drive.
 
@@ -57,9 +58,10 @@ rather than guessing at results.
 ```
 Uniform Database/
 ├── README.md                 orientation for people; this file is for agents
+├── CONTRIBUTING.md           PR rules, tools, what must change together
 ├── CLAUDE.md
 ├── LICENSE                   source-available; all rights reserved
-├── requirements.txt
+├── pyproject.toml, uv.lock   dependencies and ruff config
 ├── docs/golden_suite.md
 ├── configs/
 │   canvas_definitions.yaml   canvases, era profiles, assignments
@@ -291,8 +293,8 @@ Icons can exist with no matching element and vice versa.
 Every template, every era, from real elements. See `docs/golden_suite.md`.
 
 ```
-python3 scripts/golden_plan.py     # → golden/PLAN.md + manifest.yaml
-python3 scripts/golden_run.py      # → golden/run/index.html + REPORT.md
+uv run scripts/golden_plan.py     # → golden/PLAN.md + manifest.yaml
+uv run scripts/golden_run.py      # → golden/run/index.html + REPORT.md
 ```
 
 **Run it after ANY change to a template, canvas or profile.** It has caught

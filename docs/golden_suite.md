@@ -7,9 +7,9 @@ on it.
 ## The workflow
 
 ```
-python3 scripts/golden_plan.py       # 1. plan
+uv run scripts/golden_plan.py       # 1. plan
 #    review golden/PLAN.md, edit golden/manifest.yaml
-python3 scripts/golden_run.py        # 2. run
+uv run scripts/golden_run.py        # 2. run
 #    review golden/run/index.html and golden/run/REPORT.md
 ```
 
@@ -113,9 +113,9 @@ a different era, or delete the key to skip that check.
 ## 2. Run — `golden_run.py`
 
 ```
-python3 scripts/golden_run.py                       # everything approved
-python3 scripts/golden_run.py --sport soccer
-python3 scripts/golden_run.py --only football--full--05
+uv run scripts/golden_run.py                       # everything approved
+uv run scripts/golden_run.py --sport soccer
+uv run scripts/golden_run.py --only football--full--05
 ```
 
 `--only` re-renders one example; the report and sheets still cover every

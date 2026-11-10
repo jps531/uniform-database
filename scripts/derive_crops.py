@@ -16,11 +16,11 @@ The source VIEWPOINT is resolved from `assignments` by finding which
 viewpoint of the same sport+slot uses the source canvas. So adding
 basketball_court_cropped or baseball_field_cropped needs no code change.
 
-    pip install pillow pyyaml
+    uv sync
 
-    python3 scripts/derive_crops.py                 # dry run, all sports
-    python3 scripts/derive_crops.py --apply
-    python3 scripts/derive_crops.py --sport football --apply
+    uv run scripts/derive_crops.py                 # dry run, all sports
+    uv run scripts/derive_crops.py --apply
+    uv run scripts/derive_crops.py --sport football --apply
 
 Reads from the AUTHORED tree (e.g. Fields Full) and writes the derived one
 (Fields Cropped) with a .generated marker. Never reads from temp/ — staging
@@ -30,20 +30,20 @@ gets cleared, and this must stay re-runnable.
 import argparse
 import json
 import sys
-from collections import Counter
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 try:
     import yaml
     from PIL import Image, ImageOps
 except ImportError:
-    sys.exit("pip install pillow pyyaml")
+    sys.exit("Missing dependencies: run `uv sync`")
 
 DPI = 300
 
 
 def find_root(start: Path) -> Path:
+    """The nearest directory at or above `start` holding configs/canvas_definitions.yaml; exits if none."""
     for d in [start, *start.parents]:
         if (d / "configs" / "canvas_definitions.yaml").is_file():
             return d
@@ -86,19 +86,18 @@ def jobs_for(cfg, sport_filter):
 
 
 def main():
-    ap = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
+    """Plan every crop from the config, then write the cropped files with --apply.
+
+    Writes each derived tree with a .generated marker. Refuses to apply while
+    any source file is off its canvas or a crop box falls outside it.
+    """
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--root")
     ap.add_argument("--sport")
     ap.add_argument("--apply", action="store_true")
     args = ap.parse_args()
 
-    root = (
-        Path(args.root).expanduser().resolve()
-        if args.root
-        else find_root(Path.cwd().resolve())
-    )
+    root = Path(args.root).expanduser().resolve() if args.root else find_root(Path.cwd().resolve())
     cfg = yaml.safe_load((root / "configs" / "canvas_definitions.yaml").open())
     dir_for_slot = {v: k for k, v in cfg["directory_slots"].items()}
 
@@ -109,9 +108,7 @@ def main():
         print(f"!! {sport}/{slot}/{vp}: {why}")
     if not rules:
         sys.exit(
-            "No canvases carry a `derived_from` block"
-            + (f" for sport '{args.sport}'" if args.sport else "")
-            + "."
+            "No canvases carry a `derived_from` block" + (f" for sport '{args.sport}'" if args.sport else "") + "."
         )
 
     total, problems, per_rule = [], [], []
@@ -129,9 +126,7 @@ def main():
         cw, ch = cdst["width"], cdst["height"]
         sw, sh = csrc["width"], csrc["height"]
         if cx + cw > sw or cy + ch > sh:
-            problems.append(
-                (f"{sport}/{slot}/{dst_vp}", "crop box falls outside the source canvas")
-            )
+            problems.append((f"{sport}/{slot}/{dst_vp}", "crop box falls outside the source canvas"))
             continue
         print(f"{sport}/{slot}: {sdir} {src_vp.title()} -> {sdir} {dst_vp.title()}")
         print(
@@ -188,12 +183,9 @@ def main():
             json.dumps(
                 {
                     "generated_by": "scripts/derive_crops.py",
-                    "generated_at": datetime.now(timezone.utc).isoformat(
-                        timespec="seconds"
-                    ),
+                    "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
                     "files_written": n,
-                    "note": "Generated output. Regenerate from the source viewpoint "
-                    "rather than editing by hand.",
+                    "note": "Generated output. Regenerate from the source viewpoint rather than editing by hand.",
                 },
                 indent=2,
             )

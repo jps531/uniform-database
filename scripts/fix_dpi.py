@@ -7,10 +7,10 @@ A 965px-tall PNG tagged 72 DPI places into a 300 DPI PSD at 4020px
 (965 / 72 * 300), which makes transform percentages meaningless across
 files. Tagging everything 300 DPI makes placement 1:1.
 
-    pip install pillow
+    uv sync
 
-    python3 scripts/fix_dpi.py check "Football/Mississippi State"
-    python3 scripts/fix_dpi.py set   "Football/Mississippi State" 300
+    uv run scripts/fix_dpi.py check "Football/Mississippi State"
+    uv run scripts/fix_dpi.py set   "Football/Mississippi State" 300
 
 `check` is read-only. Run it first.
 """
@@ -22,10 +22,11 @@ from pathlib import Path
 try:
     from PIL import Image
 except ImportError:
-    sys.exit("pip install pillow")
+    sys.exit("Missing dependencies: run `uv sync`")
 
 
 def pngs(root: Path):
+    """Yield every PNG under root, sorted, skipping anything inside a hidden directory or hidden itself."""
     for p in sorted(root.rglob("*.png")):
         if any(part.startswith(".") for part in p.relative_to(root).parts):
             continue
@@ -33,12 +34,14 @@ def pngs(root: Path):
 
 
 def read_dpi(path: Path):
+    """The file's horizontal DPI tag, rounded, or None if it has no tag."""
     with Image.open(path) as im:
         d = im.info.get("dpi")
         return round(d[0]) if d else None
 
 
 def cmd_check(root: Path):
+    """Report how many PNGs under root carry each DPI tag. Read-only."""
     files = list(pngs(root))
     if not files:
         sys.exit(f"No PNGs under {root}")
@@ -63,6 +66,11 @@ def cmd_check(root: Path):
 
 
 def cmd_set(root: Path, target: int):
+    """Re-save every PNG under root not already at `target` DPI with that tag.
+
+    Rewrites files in place. Aborts if any file's pixel dimensions change,
+    which would mean the save did more than retag it.
+    """
     files = list(pngs(root))
     if not files:
         sys.exit(f"No PNGs under {root}")

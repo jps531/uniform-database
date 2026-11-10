@@ -5,11 +5,11 @@ List files whose content size is not an EXACT match for their profile entry.
 `standardize.py` matches within a tolerance, so near-misses pass silently.
 This reports them so the source artwork can be corrected instead.
 
-    pip install pillow pyyaml
+    uv sync
 
-    python3 scripts/offsize.py "Football"
-    python3 scripts/offsize.py "Football/Southern Miss/Pants Front"
-    python3 scripts/offsize.py "Football" --csv offsize.csv
+    uv run scripts/offsize.py "Football"
+    uv run scripts/offsize.py "Football/Southern Miss/Pants Front"
+    uv run scripts/offsize.py "Football" --csv offsize.csv
 
 Walks any directory: a whole tree, one team, or one viewpoint. Read-only.
 """
@@ -24,7 +24,7 @@ try:
     import yaml
     from PIL import Image, ImageOps
 except ImportError:
-    sys.exit("pip install pillow pyyaml")
+    sys.exit("Missing dependencies: run `uv sync`")
 
 
 def sport_slug(name: str) -> str:
@@ -33,6 +33,7 @@ def sport_slug(name: str) -> str:
 
 
 def find_root(start: Path) -> Path:
+    """The nearest directory at or above `start` holding configs/canvas_definitions.yaml; exits if none."""
     for d in [start, *start.parents]:
         if (d / "configs" / "canvas_definitions.yaml").is_file():
             return d
@@ -40,25 +41,26 @@ def find_root(start: Path) -> Path:
 
 
 def content_size(path: Path):
+    """(width, height) of the file's opaque bounding box, or None if it is fully transparent."""
     with ImageOps.exif_transpose(Image.open(path)).convert("RGBA") as im:
         box = im.getchannel("A").getbbox()
     return None if box is None else (box[2] - box[0], box[3] - box[1])
 
 
 def main():
-    ap = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
+    """Report files under PATH whose content is within tolerance of a profile size but not exact.
+
+    Skips generated trees and files already on their padded canvas, since
+    both hold post-correction sizes that profiles don't list. Read-only apart
+    from the optional --csv.
+    """
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("path")
     ap.add_argument("--root")
     ap.add_argument("--csv", help="also write a machine-readable list")
     args = ap.parse_args()
 
-    root = (
-        Path(args.root).expanduser().resolve()
-        if args.root
-        else find_root(Path.cwd().resolve())
-    )
+    root = Path(args.root).expanduser().resolve() if args.root else find_root(Path.cwd().resolve())
     target = (root / args.path).resolve()
     if not target.is_dir():
         sys.exit(f"Not a directory: {target}")
@@ -72,11 +74,7 @@ def main():
 
     def padded_canvas(rel_parts, slot, viewpoint):
         """Configured canvas for this path, only if it is `fills: pad`."""
-        parts = (
-            rel_parts[1:]
-            if rel_parts and rel_parts[0] in ("Marks", "Venues")
-            else rel_parts
-        )
+        parts = rel_parts[1:] if rel_parts and rel_parts[0] in ("Marks", "Venues") else rel_parts
         if not parts:
             return None
             # Apostrophes must go: "Men's Basketball" -> mens_basketball, the
@@ -106,11 +104,7 @@ def main():
             continue
         # find the "{Slot} {Viewpoint}" segment anywhere in the path
         seg = next(
-            (
-                p
-                for p in rel.parts
-                if p.split() and p.split()[0] in dir_slots and len(p.split()) >= 2
-            ),
+            (p for p in rel.parts if p.split() and p.split()[0] in dir_slots and len(p.split()) >= 2),
             None,
         )
         if seg is None:
@@ -137,11 +131,7 @@ def main():
             continue
         checked += 1
         entry = next(
-            (
-                e
-                for e in profile
-                if abs(e["size"][0] - cs[0]) <= tol and abs(e["size"][1] - cs[1]) <= tol
-            ),
+            (e for e in profile if abs(e["size"][0] - cs[0]) <= tol and abs(e["size"][1] - cs[1]) <= tol),
             None,
         )
         if entry is None:
@@ -163,14 +153,9 @@ def main():
 
     print(f"checked {checked} files under {target.relative_to(root)}")
     if skipped_generated:
-        print(
-            f"skipped {skipped_generated} files in {len(generated)} "
-            f"generated directories"
-        )
+        print(f"skipped {skipped_generated} files in {len(generated)} generated directories")
     if skipped_standardized:
-        print(
-            f"skipped {skipped_standardized} files already on their standardized canvas"
-        )
+        print(f"skipped {skipped_standardized} files already on their standardized canvas")
     print()
 
     if not rows and not unmatched:
@@ -182,9 +167,7 @@ def main():
         groups = defaultdict(list)
         for rel, cs, want, dw, dh, key, era in rows:
             groups[(key, era, cs, want, dw, dh)].append(rel)
-        for (key, era, cs, want, dw, dh), items in sorted(
-            groups.items(), key=lambda kv: -len(kv[1])
-        ):
+        for (key, era, cs, want, dw, dh), items in sorted(groups.items(), key=lambda kv: -len(kv[1])):
             print(
                 f"  {key} era {era}: {cs[0]}x{cs[1]} should be "
                 f"{want[0]}x{want[1]}  ({dw:+d}, {dh:+d})  "
@@ -195,10 +178,7 @@ def main():
             print()
 
     if unmatched:
-        print(
-            f"{len(unmatched)} files match NO profile entry even within "
-            f"tolerance {tol}:"
-        )
+        print(f"{len(unmatched)} files match NO profile entry even within tolerance {tol}:")
         for rel, cs, key in unmatched:
             print(f"  {cs[0]}x{cs[1]}  [{key}]  {rel}")
 

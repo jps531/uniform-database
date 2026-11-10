@@ -2,9 +2,9 @@
 """
 Run the GOLDEN EXAMPLE SUITE planned by golden_plan.py.
 
-    python3 scripts/golden_run.py                   # every approved example
-    python3 scripts/golden_run.py --sport soccer
-    python3 scripts/golden_run.py --only football--full--03
+    uv run scripts/golden_run.py                   # every approved example
+    uv run scripts/golden_run.py --sport soccer
+    uv run scripts/golden_run.py --only football--full--03
 
 Writes, under golden/run/
     {sport}/{view}/{id}.png      every composition
@@ -47,13 +47,14 @@ try:
     import yaml
     from PIL import Image, ImageDraw, ImageFont, ImageOps
 except ImportError:
-    sys.exit("pip install pillow pyyaml")
+    sys.exit("Missing dependencies: run `uv sync`")
 
 CLIP_NOTE = 2  # px of clipping treated as rounding
 TOL = 5
 
 
 def find_root():
+    """The nearest directory at or above the cwd holding configs/view_templates.yaml; exits if none."""
     for d in [Path.cwd(), *Path.cwd().parents]:
         if (d / "configs" / "view_templates.yaml").is_file():
             return d
@@ -61,10 +62,9 @@ def find_root():
 
 
 def font(size, bold=False):
+    """A TrueType font for contact-sheet labels (Arial on macOS, DejaVu on Linux), else Pillow's default."""
     for f in (
-        "/System/Library/Fonts/Supplemental/Arial Bold.ttf"
-        if bold
-        else "/System/Library/Fonts/Supplemental/Arial.ttf",
+        "/System/Library/Fonts/Supplemental/Arial Bold.ttf" if bold else "/System/Library/Fonts/Supplemental/Arial.ttf",
         "/Library/Fonts/Arial.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
         if bold
@@ -78,6 +78,7 @@ def font(size, bold=False):
 
 
 def measure_era(cfg, sport, slot, vp, path):
+    """The era of a placed file, by its content size against each era's POST-scale size; None if unmatched or empty."""
     with ImageOps.exif_transpose(Image.open(path)).convert("RGBA") as im:
         b = im.getchannel("A").getbbox()
     if not b:
@@ -103,12 +104,9 @@ def plainer_exists(placed, vocab_tokens):
     num = placed["number_found"]
 
     def toks(stem):
+        """(tokens, number) found in a stem after the element name."""
         tail = stem[len(el) :] if stem.startswith(el) else stem
-        found = {
-            t
-            for t in vocab_tokens
-            if re.search(rf"(?:^|\s){re.escape(t)}(?:\s|$)", tail)
-        }
+        found = {t for t in vocab_tokens if re.search(rf"(?:^|\s){re.escape(t)}(?:\s|$)", tail)}
         n = re.search(r"(?<![\d])(\d{1,2})(?![\d])", tail)
         return found, (n.group(1) if n else None)
 
@@ -121,7 +119,10 @@ def plainer_exists(placed, vocab_tokens):
 
 
 def vocab_tokens(root, sport):
+    """Every non-sequence token for a sport, following `extends`, longest first."""
+
     def read(name, seen=frozenset()):
+        """Token dict for one vocabulary file, merged over the file it `extends`; a sport's own token wins."""
         p = root / "configs" / f"modifiers_{name}.yaml"
         if name in seen or not p.is_file():
             return {}
@@ -141,6 +142,11 @@ def vocab_tokens(root, sport):
 
 
 def check(example, result, png, cfg, vocab):
+    """Run the automatic checks on one composed example.
+
+    Returns (issues, notes): issues are defects (FAILED, EMPTY, CLIPPED, WRONG
+    ERA, NUMBER, EXTRA TOKEN); notes are clipping within rounding.
+    """
     issues, notes = [], []
     if result.get("missing"):
         for m in result["missing"]:
@@ -164,32 +170,21 @@ def check(example, result, png, cfg, vocab):
             )
         key = f"{p['uniform']}/{p['slot']}/{p['viewpoint']}"
         if key in expect and expect[key]:
-            got = measure_era(
-                cfg, example["sport"], p["slot"], p["viewpoint"], p["file"]
-            )
+            got = measure_era(cfg, example["sport"], p["slot"], p["viewpoint"], p["file"])
             if got != expect[key]:
-                issues.append(
-                    f"WRONG ERA {lab}: planned {expect[key]}, "
-                    f"placed {got or 'unrecognised size'}"
-                )
+                issues.append(f"WRONG ERA {lab}: planned {expect[key]}, placed {got or 'unrecognised size'}")
         req = p.get("number_requested")
         if req and p["number_found"] != req:
             folder = Path(p["file"]).parent
             pat = re.compile(rf"(?<![\d]){re.escape(req)}(?![\d])")
-            if any(
-                pat.search(f.stem[len(p["element"]) :]) for f in folder.glob("*.png")
-            ):
+            if any(pat.search(f.stem[len(p["element"]) :]) for f in folder.glob("*.png")):
                 issues.append(
-                    f"NUMBER {lab}: asked for {req}, a file exists, "
-                    f"placed {p['number_found'] or 'unnumbered'}"
+                    f"NUMBER {lab}: asked for {req}, a file exists, placed {p['number_found'] or 'unnumbered'}"
                 )
         if set(p["tokens_found"]) - set(p["tokens_requested"]):
             better = plainer_exists(p, vocab)
             if better:
-                issues.append(
-                    f"EXTRA TOKEN {lab}: placed {Path(p['file']).name} "
-                    f"but plainer {better} exists"
-                )
+                issues.append(f"EXTRA TOKEN {lab}: placed {Path(p['file']).name} but plainer {better} exists")
     return issues, notes
 
 
@@ -203,9 +198,7 @@ def contact_sheet(rows, out, title):
             im.thumbnail((TH, TH))
         else:
             im = Image.new("RGBA", (TH, int(TH * 0.6)), (0, 0, 0, 0))
-            ImageDraw.Draw(im).text(
-                (20, 20), "NOT RENDERED", font=font(36, True), fill=(180, 30, 30, 255)
-            )
+            ImageDraw.Draw(im).text((20, 20), "NOT RENDERED", font=font(36, True), fill=(180, 30, 30, 255))
         thumbs.append((im, lines, bad))
     cols = min(4, len(thumbs)) or 1
     cw = TH + PADX
@@ -237,9 +230,8 @@ def contact_sheet(rows, out, title):
 
 
 def main():
-    ap = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
+    """Compose every approved manifest example, check each, and write the sheets, REPORT.md and index.html under golden/run/."""
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--sport", action="append")
     ap.add_argument("--only", action="append", metavar="ID")
     args = ap.parse_args()
@@ -261,11 +253,7 @@ def main():
         and (not args.only or m["id"] in args.only)
     ]
     skipped = sum(1 for m in manifest if not m.get("approved", True))
-    print(
-        f"{len(todo)} examples to render"
-        + (f" ({skipped} not approved, skipped)" if skipped else "")
-        + "\n"
-    )
+    print(f"{len(todo)} examples to render" + (f" ({skipped} not approved, skipped)" if skipped else "") + "\n")
 
     vocab_cache, results = {}, []
     rendered = set()
@@ -357,6 +345,7 @@ def main():
             ee = ex.get("expect_eras") or {}
 
             def eras(u, slot):
+                """The planned eras for one slot of uniform `u`, joined with '/', for a contact-sheet label."""
                 got = []
                 for k, v in ee.items():
                     ku, ks, _ = k.split("/")
@@ -420,9 +409,7 @@ def main():
     ]
     for sport, view, sp, bad in sheets:
         n = len(by_tpl[(sport, view)])
-        lines.append(
-            f"| {sport} | `{view}` | {n} | {bad or ''} | [sheet](sheets/{sp.name}) |"
-        )
+        lines.append(f"| {sport} | `{view}` | {n} | {bad or ''} | [sheet](sheets/{sp.name}) |")
     (run / "REPORT.md").write_text("\n".join(lines) + "\n")
 
     page = [
@@ -443,11 +430,8 @@ def main():
         )
     (run / "index.html").write_text("\n".join(page))
 
-    print(
-        f"\n{len(rendered)} rendered this run; report covers {len(results)}, "
-        f"{n_bad} with defects"
-    )
-    print(f"Review: golden/run/index.html   Details: golden/run/REPORT.md")
+    print(f"\n{len(rendered)} rendered this run; report covers {len(results)}, {n_bad} with defects")
+    print("Review: golden/run/index.html   Details: golden/run/REPORT.md")
 
 
 if __name__ == "__main__":
