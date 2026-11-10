@@ -3,12 +3,23 @@
 # THREE SECTIONS
 #   canvases    — named output canvases, declared once, referenced by many
 #                 (sport, slot, viewpoint) combinations
-#   profiles    — per (slot, viewpoint) era tables telling standardize.py how
-#                 to correct each source size. Keyed `{slot}-{viewpoint}`.
+#   profiles    — per (sport, slot, viewpoint) era tables telling
+#                 standardize.py how to correct each source size. Keyed
+#                 `{sport}-{slot}-{viewpoint}`.
 #   assignments — which canvas each (sport, slot, viewpoint) uses
 #
 # Profiles are separate from canvases because jersey fronts and backs SHARE a
 # canvas but have DIFFERENT source dimensions (19px apart in eras B and C).
+#
+# CANVAS SIZE RULE. A `fills: pad` canvas is the largest POST-SCALE content
+# of every era assigned to it, plus 1px each side on the centred
+# (horizontal) axis and nothing on the anchored (top) axis: width = widest
+# + 2, height = tallest. Exceptions: football_helmet_profile is exactly its
+# content (940x854), and football_helmet_face is 4px wider than its content
+# (2px each side). A `fills: fill` canvas IS the content. Padding puts every
+# era at one placement and bakes in scale; it is not headroom. pad skips a
+# file that would fall outside its canvas and prints the smallest canvas
+# that would fit it.
 
 # Directory name -> slot key. Explicit because naive de-pluralization fails
 # ("Pants" -> "pant").
@@ -30,8 +41,11 @@ directory_slots:
 # EXPLICITLY so a genuinely new silhouette surfaces as unmatched rather than
 # being folded into a neighbour.
 #
-# Ceiling is 8. The closest distinct pair in any profile is jersey-back era D
-# (1414) against era E (1406). Anything above 7 would merge them.
+# The closest distinct pair in any profile is football helmet back era E
+# (667x774) against era E2 (674x774): 7px. Keep tolerance BELOW that gap.
+# At 5 their windows overlap for content 669-672px wide; a size there is
+# given the CLOSEST era, not the first one listed. (Next closest: 8px,
+# jersey-back D 1414 vs E 1406 and jersey-front D 2039 vs N1 2031 tall.)
 tolerance: 5
 
 canvases:
@@ -42,7 +56,10 @@ canvases:
     height: 2044
     fills: pad
     note: >
-      CONFIRMED. Serves jersey front AND back across five eras.
+      CONFIRMED. Serves jersey front AND back: nine front eras (Adidas A-E,
+      Nike N1-N3, Under Armour UA1) and eight back eras (no N1). 1790 wide
+      (era B front, the widest post-scale content) plus 1px each side; 2044
+      tall from Nike N2, with no vertical margin.
 
   football_jersey_sleeve:
     width: 749
@@ -113,15 +130,13 @@ canvases:
     height: 808
     fills: pad
     note: >
-      CONFIRMED. Serves helmet front AND back. Content must fit 676 x 808
-      (width from the speed back, height from the speed front), so this
-      carries ~10% headroom.
-
-      Headroom is deliberate here, UNLIKE football_helmet_profile which is
-      sized to exact content. Face views are top-CENTRE anchored, so growing
-      the canvas later shifts every element relative to its placement point.
-      The profile canvas is corner-anchored and can grow freely. Same reason
-      football_jersey carries headroom and the profile does not.
+      CONFIRMED. Serves helmet front AND back. The widest content is 674
+      (era E2, the wide speed back) and the tallest 808 (era E, the speed
+      front), so this canvas carries 2px each side horizontally and none
+      vertically: 1px more each side than the canvas rule, matching the
+      676px width the E2 back entry once recorded. Top-CENTRE anchored, like
+      every canvas; it carries no headroom (that approach, and corner
+      anchoring, were both reversed).
 
       Only the leather era needs scaling (716/935). Every other era renders
       at its native height, so scale 1.0 — a much flatter picture than the
@@ -147,9 +162,11 @@ canvases:
       facemask-less leather helmet showed 265px of visible emptiness to one
       side. Content balance beats shell alignment.
 
-      Consequence: because this is now centre-anchored, growing the canvas
-      later WOULD shift every element relative to its placement point. It is
-      sized tight, so treat the dimensions as fixed.
+      Consequence: with top-centre anchoring, resizing this canvas does not
+      move artwork relative to a placement point. Only the cropped football
+      views, whose canvases were derived from element extents, would need
+      recomputing. Unlike every other padded canvas it has no 1px margin:
+      the widest and tallest content each touch an edge.
 
       Every era scales DOWN to reach this canvas; nothing is interpolated up.
       The rendered range (675-940 wide) is correct and preserved: a leather
@@ -186,14 +203,12 @@ canvases:
       Height deliberately matches diamond_jersey, so a view swapping one for
       the other adjusts horizontally only.
 
-      Both canvases are sized TIGHT — about 11px of margin — rather than the
-      ~7% headroom football carries. Football kept gaining jersey eras (five
-      across three manufacturers), so reserving space paid off there. Baseball
-      has two measured eras and no manufacturer variation, and a genuinely new
-      era would need its own canvas anyway, exactly as three-quarter just did.
-      Tight is safe here only because content is CENTRED, so the ±1-3px export
-      drift distributes evenly. A file materially larger would be refused
-      rather than clipped.
+      Both canvases follow the canvas rule: 1px each side of the widest
+      content (2112 here, 1778 for diamond_jersey) and no vertical margin.
+      Content is top-centre anchored. A genuinely new era would need its own
+      canvas, exactly as three-quarter did; a file that would not fit is
+      skipped by pad, with the canvas size that would fit it, rather than
+      clipped.
   diamond_pants:
     width: 928
     height: 1940
@@ -201,7 +216,8 @@ canvases:
     note: >
       Serves baseball AND softball, left and right. Standard 926x1940;
       the BELTLESS era (elastic waistband, no belt loops) is 899x1934.
-      Sized tight — 12px of margin — for the same reason as diamond_jersey.
+      Canvas rule: 1px each side of the 926 standard width, 1940 tall with no
+      vertical margin.
   basketball_court_full:
     width: 8792
     height: 5042
@@ -281,10 +297,10 @@ canvases:
     height: 1931
     fills: pad
     note: >
-      Canvas is the LARGEST POST-SCALE content plus 1px each side. Padding
-      exists to put
-      every era at one placement and to absorb drift, not to reserve room —
-      headroom was trimmed from these once the eras were measured.
+      Canvas is the LARGEST POST-SCALE content plus 1px each side (width;
+      height is the content's). Padding exists to put every era at one
+      placement, not to reserve room — headroom was trimmed from these once
+      the eras were measured.
 
       Men's basketball jersey, front and back — identical content sizes in
       both viewpoints, unlike every other jersey in the archive, which split
@@ -328,18 +344,20 @@ canvases:
     height: 2852
     fills: pad
     note: >
-      SHORT-SLEEVE soccer jersey, front and back, 2268x2852. Deliberately
-      NOT shared with volleyball_jersey_ls, whose long sleeve lands 7px away
-      at 2785x2984: different garments, different manufacturers, different
-      schedules. Sharing on a 7px coincidence would couple them, and the
-      first template change on either side would unpick it.
+      SHORT-SLEEVE soccer jersey, front and back, 2268x2852.
 
   soccer_jersey_ls:
     width: 2780
     height: 2981
     fills: pad
     note: >
-      LONG-SLEEVE soccer jersey, 2778x2981. Three elements so far, all
+      LONG-SLEEVE soccer jersey, 2778x2981. Deliberately NOT shared with
+      volleyball_jersey_ls, whose long sleeve lands 7px wider and 3px taller
+      at 2785x2984: different garments, different manufacturers, different
+      schedules. Sharing on a 7px coincidence would couple them, and the
+      first template change on either side would unpick it.
+
+      Three elements so far, all
       KEEPER kits — 2018 Green Long Sleeve Keeper, 2019 Blue Keeper,
       2022 Green Keeper. Keeper alone does NOT predict the cut: 2017 Green
       Keeper and 2026 Pink Keeper are short-sleeved.
@@ -471,8 +489,11 @@ profiles:
     - { era: modern,  label: modern,  size: [2970, 2416] }
     - { era: classic, label: classic, size: [2970, 2357] }
 
-  # Softball reuses the baseball profiles via `softball` assignments below —
-  # same canvases, same eras, confirmed to the pixel.
+  # Softball's profiles are COPIES of baseball's entries, not references:
+  # profile keys carry the sport, so each sport needs its own. Same canvases
+  # (via the `softball` assignments below) and the same sizes, confirmed to
+  # the pixel. Softball has no three-quarter era, and adds pants-right.
+  # Change a size in one, change it in the other.
   softball-jersey-front:
     - { era: std, label: standard,       size: [1777, 1937] }
   softball-jersey-back:
@@ -538,7 +559,8 @@ profiles:
     - { era: b, label: mid,    size: [825, 754] }
     - { era: c, label: narrow, size: [800, 754] }
 
-  # Icons are drawn directly at final size — no era structure, no correction.
+  # Venues: one size each, no eras. `cropped` is generated from `full`
+  # (see `derived_from` on the cropped canvases).
   football-field-full:
     - { era: all, size: [3648, 2171] }
   football-field-cropped:
@@ -552,6 +574,7 @@ profiles:
   basketball-court-cropped:
     - { era: all, size: [8792, 4471] }
 
+  # Icons are drawn directly at final size — no era structure, no correction.
   football-helmet-icon:
     - { era: all, size: [750, 750] }
   football-jersey-icon:

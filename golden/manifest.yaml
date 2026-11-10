@@ -1,6 +1,10 @@
 # Golden example suite. Set `approved: false` on any example to skip
 # it, edit elements or numbers freely, or add your own entries.
 # Then: uv run scripts/golden/golden_run.py
+#
+# WARNING: golden_plan.py OVERWRITES this file. Edits here last only until
+# the next plan; uniforms known to be worn together belong in
+# golden/pairings.yaml, which the planner reads.
 
 - id: baseball--diamond-jersey--01
   approved: true
