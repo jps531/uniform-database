@@ -138,9 +138,11 @@ canvases:
       every canvas; it carries no headroom (that approach, and corner
       anchoring, were both reversed).
 
-      Only the leather era needs scaling (716/935). Every other era renders
-      at its native height, so scale 1.0 — a much flatter picture than the
-      profile views, where all six eras differed.
+      No era here carries a scale. The leather era used to be drawn at
+      830x935 and reduced by 716/935; that reduction is now PERMANENT — era A
+      is authored at its stored 636x716, so every face era is drawn at the
+      size it ships at. The profile views still scale every era, because their
+      source lives in Marks/ at native size.
 
   football_helmet_profile:
     width: 940
@@ -426,7 +428,7 @@ canvases:
 profiles:
 
   football-jersey-front:
-    - { era: A, years: "1935-1959", size: [1790, 2078], scale: 0.8958333 }
+    - { era: A, years: "1935-1959", size: [1604, 1862] }
     - { era: B, years: "1960-1988", size: [1790, 1887] }
     - { era: C, years: "1989-2011", size: [1570, 1887] }
     - { era: D, years: "2012-2023", size: [1414, 2039] }
@@ -439,11 +441,14 @@ profiles:
     - { era: N2, label: nike late,  years: "~2016-2020", size: [1388, 2044] }
     - { era: N3,  label: nike alt,      years: "~2015-2018", size: [1381, 2029] }
     - { era: UA1, label: under armour,  years: "~2017",      size: [1380, 2005] }
-    # era A scale = 21.5/24. The source art was drawn at the wrong master
-    # scale; every other era composes at 24%.
+    # Era A is authored at its stored 1604x1862, scale 1. The original art
+    # was drawn at the wrong master scale (1790x2078) and reduced by 21.5/24;
+    # that reduction is now PERMANENT, so new era A jerseys are drawn at the
+    # size every other era ships at. Pre-scale originals (1790x2078) no longer
+    # match any era — re-padding one fails loudly rather than mis-scaling.
 
   football-jersey-back:
-    - { era: A, years: "1935-1959", size: [1790, 2078], scale: 0.8958333 }
+    - { era: A, years: "1935-1959", size: [1604, 1862] }
     - { era: B, years: "1960-1988", size: [1789, 1868] }
     - { era: C, years: "1989-2011", size: [1570, 1868] }
     - { era: D, years: "2012-2023", size: [1414, 2039] }
@@ -611,7 +616,7 @@ profiles:
   # filename is the finer-grained signal. That is expected, not an error.
 
   football-helmet-front:
-    - { era: A, label: leather,     size: [830, 935], scale: 0.765775 }
+    - { era: A, label: leather,     size: [636, 716] }
     - { era: B, label: plastic,     size: [596, 644] }
     - { era: C, label: double bar,  size: [598, 731] }
     - { era: D, label: classic,     size: [636, 790] }
@@ -619,7 +624,7 @@ profiles:
     - { era: F, label: speedflex,   size: [663, 775] }
 
   football-helmet-back:
-    - { era: A,   label: leather,                     size: [830, 935], scale: 0.765775 }
+    - { era: A,   label: leather,                     size: [636, 716] }
     - { era: BCD, label: plastic/double bar/classic,  size: [611, 716] }
     # Speed backs come in TWO sizes. 667x774 is the norm (80 elements across
     # eight teams). 674x774 is three: MSU 2011 Maroon and its Egg Bowl
