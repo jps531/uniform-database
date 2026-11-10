@@ -37,7 +37,7 @@ just the artwork the golden suite uses, so CI can run it.
 | Path | What it is |
 |---|---|
 | `configs/` | Everything the pipeline knows, as YAML: canvases and era profiles, the 48 view templates, slots and colorways, and each sport's token vocabulary |
-| `scripts/` | The Python asset pipeline: DPI fixes, nesting, standardizing, cropping, composing, the golden suite |
+| `scripts/` | The Python asset pipeline, in three folders: `pipeline/` (standardize, crop, compose), `migration/` (bringing new artwork and marks in, and checking it), `golden/` (the golden suite) |
 | `golden/` | The golden suite's approved plan (`manifest.yaml`, `PLAN.md`), known pairings, and `fixture/`: a copy of the artwork the suite needs, so CI can run it. Renders go to `golden/run/`, which isn't tracked |
 | `tests/` | Unit tests for every script (pytest), on synthetic artwork |
 | `docs/` | Longer how-tos ([golden_suite.md](docs/golden_suite.md)) |
@@ -69,7 +69,7 @@ options with `--help`, and CLAUDE.md's "Commands" section lists them all.
 `2012 White Egg Bowl`.
 
 ```
-uv run scripts/compose.py --sport football --view full \
+uv run scripts/pipeline/compose.py --sport football --view full \
     --team "Mississippi State" \
     --helmet "2025 Black" --jersey "2025 Black" --pants "2025 Black" \
     --number 0 \
@@ -104,7 +104,7 @@ soccer kits, and the volleyball condensed combos name each kit's sleeve
 flag. In soccer the second uniform is always the keeper:
 
 ```
-uv run scripts/compose.py --sport soccer --view soccer-combo \
+uv run scripts/pipeline/compose.py --sport soccer --view soccer-combo \
     --jersey "2026 White" --shorts "2026 White" --number 4 \
     --jersey2 "2026 Blue Keeper" --shorts2 "2026 Blue" --number2 0
 ```
@@ -132,8 +132,8 @@ helmet canvas.
 One team:
 
 ```
-uv run scripts/standardize.py pad "Marks/Football/Mississippi State/Helmets Left"  "Football/Mississippi State/Helmets Left"
-uv run scripts/standardize.py pad "Marks/Football/Mississippi State/Helmets Right" "Football/Mississippi State/Helmets Right"
+uv run scripts/pipeline/standardize.py pad "Marks/Football/Mississippi State/Helmets Left"  "Football/Mississippi State/Helmets Left"
+uv run scripts/pipeline/standardize.py pad "Marks/Football/Mississippi State/Helmets Right" "Football/Mississippi State/Helmets Right"
 ```
 
 Every team with uniform data. Marks for teams without a `Football/` folder
@@ -144,7 +144,7 @@ for d in Marks/Football/*/; do
   team=$(basename "$d")
   [ -d "Football/$team" ] || continue
   for side in Left Right; do
-    uv run scripts/standardize.py pad "Marks/Football/$team/Helmets $side" "Football/$team/Helmets $side"
+    uv run scripts/pipeline/standardize.py pad "Marks/Football/$team/Helmets $side" "Football/$team/Helmets $side"
   done
 done
 ```
@@ -173,9 +173,9 @@ per sport in `configs/canvas_definitions.yaml` (`derived_from`).
 `derive_crops.py` does a dry run until you pass `--apply`:
 
 ```
-uv run scripts/derive_crops.py                          # dry run, every sport
-uv run scripts/derive_crops.py --apply                  # write
-uv run scripts/derive_crops.py --sport football --apply # one sport: football, baseball or basketball
+uv run scripts/pipeline/derive_crops.py                          # dry run, every sport
+uv run scripts/pipeline/derive_crops.py --apply                  # write
+uv run scripts/pipeline/derive_crops.py --sport football --apply # one sport: football, baseball or basketball
 ```
 
 It reads only the `… Full` folders, writes the `… Cropped` ones with a
@@ -186,14 +186,14 @@ sport is `basketball`. Edit the Full artwork, never the cropped copy.
 ## Check everything still composes: the golden suite
 
 ```
-uv run scripts/golden_plan.py      # plan: golden/PLAN.md, golden/manifest.yaml
-uv run scripts/golden_run.py       # render and check: open golden/run/index.html
+uv run scripts/golden/golden_plan.py      # plan: golden/PLAN.md, golden/manifest.yaml
+uv run scripts/golden/golden_run.py       # render and check: open golden/run/index.html
 ```
 
 Run it after any change to a template, canvas or era profile, and after
 regenerating helmets or crops. The plan caches each element's measurements
 in `golden/inventory.json`, so after artwork changes plan with
-`uv run scripts/golden_plan.py --rescan`. It renders every template at every era from
+`uv run scripts/golden/golden_plan.py --rescan`. It renders every template at every era from
 real elements and lists every defect in `golden/run/REPORT.md`.
 [docs/golden_suite.md](docs/golden_suite.md) explains the plan, what it
 checks, and how to fix a bad pairing.
@@ -205,9 +205,9 @@ re-crop identically. After a full run on the Mac, refresh the copy and
 commit it whenever the plan or any of that artwork changes:
 
 ```
-uv run scripts/golden_fixture.py            # dry run: what would change
-uv run scripts/golden_fixture.py --apply    # then commit golden/fixture/
-uv run scripts/golden_ci.py                 # the same check CI runs
+uv run scripts/golden/golden_fixture.py            # dry run: what would change
+uv run scripts/golden/golden_fixture.py --apply    # then commit golden/fixture/
+uv run scripts/golden/golden_ci.py                 # the same check CI runs
 ```
 
 Every script has unit tests in `tests/` (`uv run pytest -n auto`).

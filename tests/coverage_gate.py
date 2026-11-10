@@ -20,12 +20,12 @@ def main() -> int:
     """Print each script's coverage and return 1 if any is below the threshold or missing from the report."""
     data = json.loads((REPO / "coverage.json").read_text())
     files = {Path(k).as_posix(): v["summary"]["percent_covered"] for k, v in data["files"].items()}
-    scripts = sorted(p.relative_to(REPO).as_posix() for p in (REPO / "scripts").glob("*.py"))
+    scripts = sorted(p.relative_to(REPO).as_posix() for p in (REPO / "scripts").rglob("*.py"))
     low = []
     for s in scripts:
         pct = files.get(s)
         ok = pct is not None and pct >= THRESHOLD
-        print(f"{'ok ' if ok else 'LOW'} {s:<32} {'not measured' if pct is None else f'{pct:5.1f}%'}")
+        print(f"{'ok ' if ok else 'LOW'} {s:<42} {'not measured' if pct is None else f'{pct:5.1f}%'}")
         if not ok:
             low.append(s)
     if low:

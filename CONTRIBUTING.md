@@ -35,7 +35,7 @@ whatever its size:
   uv run docstr-coverage scripts tests --skip-magic --skip-init
   uv run pytest -n auto
   uv run python tests/coverage_gate.py
-  uv run scripts/golden_ci.py
+  uv run scripts/golden/golden_ci.py
   ```
 
   When `golden` fails, the job summary lists why, and the run's
@@ -48,9 +48,9 @@ whatever its size:
   calls for it, and refresh the fixture in the same PR:
 
   ```
-  uv run scripts/golden_plan.py     # if the plan should change
-  uv run scripts/golden_run.py      # full run; then golden/run/REPORT.md
-  uv run scripts/golden_fixture.py --apply
+  uv run scripts/golden/golden_plan.py     # if the plan should change
+  uv run scripts/golden/golden_run.py      # full run; then golden/run/REPORT.md
+  uv run scripts/golden/golden_fixture.py --apply
   ```
 
 - **Say what a change does to the files on disk** when it does more than

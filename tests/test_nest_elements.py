@@ -1,4 +1,4 @@
-"""Tests for scripts/nest_elements.py: element folder = filename minus non-design tokens; dry run, then copy."""
+"""Tests for scripts/migration/nest_elements.py: element folder = filename minus non-design tokens; dry run, then copy."""
 
 import os
 import runpy
@@ -318,7 +318,7 @@ def test_runs_as_a_script(project, monkeypatch, capsys):
     """Run as `__main__`, the script plans the default (football) sport."""
     stage(project, "temp/Football/EMCC/Helmets Right/2014 White A.png")
     monkeypatch.setattr(sys, "argv", ["nest_elements.py"])
-    runpy.run_path(str(REPO / "scripts" / "nest_elements.py"), run_name="__main__")
+    runpy.run_path(str(REPO / "scripts" / "migration" / "nest_elements.py"), run_name="__main__")
     assert "DRY RUN" in capsys.readouterr().out
 
 
@@ -326,4 +326,4 @@ def test_missing_pyyaml_exits_with_a_hint(monkeypatch):
     """Without PyYAML installed the script exits telling the user to run `uv sync`."""
     monkeypatch.setitem(sys.modules, "yaml", None)
     with pytest.raises(SystemExit, match="uv sync"):
-        runpy.run_path(str(REPO / "scripts" / "nest_elements.py"), run_name="nest_noimport")
+        runpy.run_path(str(REPO / "scripts" / "migration" / "nest_elements.py"), run_name="nest_noimport")

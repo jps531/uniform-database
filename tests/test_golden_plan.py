@@ -1,4 +1,4 @@
-"""Tests for scripts/golden_plan.py: inventory, era resolution, greedy coverage, constraints and outputs."""
+"""Tests for scripts/golden/golden_plan.py: inventory, era resolution, greedy coverage, constraints and outputs."""
 
 import json
 import os
@@ -667,5 +667,5 @@ def test_runs_as_a_script(project, monkeypatch, capsys):
 
     (project / "golden/inventory.json").write_text("{}")
     monkeypatch.setattr(sys, "argv", ["golden_plan.py", "--sport", "womens_basketball"])
-    runpy.run_path(str(REPO / "scripts/golden_plan.py"), run_name="__main__")
+    runpy.run_path(str(REPO / "scripts/golden/golden_plan.py"), run_name="__main__")
     assert "Wrote golden/manifest.yaml and golden/PLAN.md" in capsys.readouterr().out

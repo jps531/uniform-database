@@ -18,9 +18,9 @@ basketball_court_cropped or baseball_field_cropped needs no code change.
 
     uv sync
 
-    uv run scripts/derive_crops.py                 # dry run, all sports
-    uv run scripts/derive_crops.py --apply
-    uv run scripts/derive_crops.py --sport football --apply
+    uv run scripts/pipeline/derive_crops.py                 # dry run, all sports
+    uv run scripts/pipeline/derive_crops.py --apply
+    uv run scripts/pipeline/derive_crops.py --sport football --apply
 
 Reads from the AUTHORED tree (e.g. Fields Full) and writes the derived one
 (Fields Cropped) with a .generated marker. Never reads from temp/ — staging
@@ -182,7 +182,7 @@ def main():
         (dst / ".generated").write_text(
             json.dumps(
                 {
-                    "generated_by": "scripts/derive_crops.py",
+                    "generated_by": "scripts/pipeline/derive_crops.py",
                     "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
                     "files_written": n,
                     "note": "Generated output. Regenerate from the source viewpoint rather than editing by hand.",

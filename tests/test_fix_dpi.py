@@ -1,4 +1,4 @@
-"""Tests for scripts/fix_dpi.py: `check` reports DPI tags read-only, `set` retags without touching pixels."""
+"""Tests for scripts/migration/fix_dpi.py: `check` reports DPI tags read-only, `set` retags without touching pixels."""
 
 import runpy
 import sys
@@ -9,7 +9,7 @@ import pytest
 from conftest import REPO, art
 from PIL import Image
 
-SCRIPT = str(REPO / "scripts" / "fix_dpi.py")
+SCRIPT = str(REPO / "scripts" / "migration" / "fix_dpi.py")
 
 
 def run_script(monkeypatch, *argv):

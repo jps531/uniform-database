@@ -24,7 +24,7 @@ package = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["scripts", "tests"]
+pythonpath = ["scripts/pipeline", "scripts/migration", "scripts/golden", "tests"]
 addopts = "--cov --cov-report=term-missing --cov-report=json"
 
 [tool.coverage.run]

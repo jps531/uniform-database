@@ -1,4 +1,4 @@
-"""Tests for scripts/standardize.py: path parsing, era matching, survey, and pad's writes and refusals."""
+"""Tests for scripts/pipeline/standardize.py: path parsing, era matching, survey, and pad's writes and refusals."""
 
 import copy
 import json
@@ -309,7 +309,7 @@ def test_pad_writes_generated_marker(project, cfg, monkeypatch):
     art(project / "src" / "x" / "h.png", b)
     run(monkeypatch, "pad", "src", HELMET_FRONT)
     marker = json.loads((project / HELMET_FRONT / ".generated").read_text())
-    assert marker["generated_by"] == "scripts/standardize.py"
+    assert marker["generated_by"] == "scripts/pipeline/standardize.py"
     assert marker["source"] == str((project / "src").resolve())
     assert marker["canvas"] == f"{cv[0]}x{cv[1]}"
     assert marker["files_written"] == 1

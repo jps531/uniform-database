@@ -3,8 +3,8 @@
 Plan the GOLDEN EXAMPLE SUITE: one composition per template per era, drawn
 from real elements, for review before anything is rendered.
 
-    uv run scripts/golden_plan.py            # inventory + manifest + PLAN.md
-    uv run scripts/golden_plan.py --rescan   # re-measure every element
+    uv run scripts/golden/golden_plan.py            # inventory + manifest + PLAN.md
+    uv run scripts/golden/golden_plan.py --rescan   # re-measure every element
 
 Writes
     golden/inventory.json   every element, its era per viewpoint, its numbers
@@ -587,7 +587,8 @@ def main():
     (out / "manifest.yaml").write_text(
         "# Golden example suite. Set `approved: false` on any example to skip\n"
         "# it, edit elements or numbers freely, or add your own entries.\n"
-        "# Then: python3 scripts/golden_run.py\n\n" + yaml.safe_dump(manifest, sort_keys=False, allow_unicode=True)
+        "# Then: uv run scripts/golden/golden_run.py\n\n"
+        + yaml.safe_dump(manifest, sort_keys=False, allow_unicode=True)
     )
 
     n_tpl = len(tpls)
@@ -601,7 +602,7 @@ def main():
         "Review this, edit `golden/manifest.yaml` (set `approved: false` to "
         "skip an example, or change any element), then run:",
         "",
-        "    python3 scripts/golden_run.py",
+        "    uv run scripts/golden/golden_run.py",
         "",
         "How examples are chosen: greedily, so each one covers as many "
         "uncovered eras as possible; within a team, elements from the same "
@@ -637,7 +638,7 @@ def main():
         print(f"\n!! {len(empty)} templates have NO examples: " + ", ".join(empty))
     if gaps_total:
         print(f"\n!! {gaps_total} era targets not coverable — see golden/PLAN.md")
-    print("\nWrote golden/manifest.yaml and golden/PLAN.md — review, then python3 scripts/golden_run.py")
+    print("\nWrote golden/manifest.yaml and golden/PLAN.md — review, then uv run scripts/golden/golden_run.py")
 
 
 if __name__ == "__main__":

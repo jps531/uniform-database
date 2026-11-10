@@ -1,4 +1,4 @@
-"""Tests for scripts/offsize.py: near-misses, exact matches, and every kind of skipped or unmatched file."""
+"""Tests for scripts/migration/offsize.py: near-misses, exact matches, and every kind of skipped or unmatched file."""
 
 import csv
 import sys

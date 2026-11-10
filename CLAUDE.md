@@ -76,6 +76,10 @@ Uniform Database/
 │   slots_hailstateunis.yaml  what a combination picks from, per sport
 │   modifiers_{sport}.yaml    token vocabularies; all `extends: shared`
 ├── scripts/                  see "Commands" below
+│   pipeline/                 standardize, compose, derive_crops
+│   migration/                bringing artwork in: fix_dpi, nest_elements,
+│                             migrate_marks; recanvas, classify, offsize
+│   golden/                   golden_plan, golden_run, golden_fixture, golden_ci
 ├── tests/                    pytest: test_<script>.py, conftest.py, coverage_gate.py
 ├── {Sport}/{Team}/{Slot} {Viewpoint}/{Element}/{file}.png
 ├── Marks/Football/{Team}/Helmets {Left|Right}/…   native scale, 258 teams
@@ -301,8 +305,8 @@ Icons can exist with no matching element and vice versa.
 Every template, every era, from real elements. See `docs/golden_suite.md`.
 
 ```
-uv run scripts/golden_plan.py     # → golden/PLAN.md + manifest.yaml
-uv run scripts/golden_run.py      # → golden/run/index.html + REPORT.md
+uv run scripts/golden/golden_plan.py     # → golden/PLAN.md + manifest.yaml
+uv run scripts/golden/golden_run.py      # → golden/run/index.html + REPORT.md
 ```
 
 **Run it after ANY change to a template, canvas or profile.** It has caught
@@ -346,21 +350,27 @@ source, then verify output by checking each file equals its canvas.
 
 ## Commands
 
+Run as `uv run scripts/{folder}/{script}.py …`.
+
 ```
-fix_dpi.py check|set PATH [300]       always first; every file is 300 DPI
-nest_elements.py --sport S [--src] [--dest] [--apply]
-standardize.py survey PATH [--elements]
-standardize.py pad SRC DEST           canvas + profile from DEST path
-offsize.py PATH                       within tolerance but not exact
-classify.py PATH [--sport S]          provenance and scale state
-recanvas.py SRC DEST [--apply]
-derive_crops.py [--sport S] [--apply] cropped surfaces from `derived_from`
-migrate_marks.py --mode flat|nested|flat-noyear
-compose.py --sport S --view V --{slot} ELEMENT …
-golden_plan.py / golden_run.py [--strict]
-golden_fixture.py [--apply]           sync golden/fixture/ from the last full run
-golden_ci.py [--keep]                 what CI runs: the suite on the fixture
+pipeline/   standardize.py survey PATH [--elements]
+            standardize.py pad SRC DEST           canvas + profile from DEST path
+            derive_crops.py [--sport S] [--apply] cropped surfaces from `derived_from`
+            compose.py --sport S --view V --{slot} ELEMENT …
+migration/  fix_dpi.py check|set PATH [300]       always first; every file is 300 DPI
+            nest_elements.py --sport S [--src] [--dest] [--apply]
+            migrate_marks.py --mode flat|nested|flat-noyear
+            recanvas.py SRC DEST [--apply]
+            classify.py PATH [--sport S]          provenance and scale state
+            offsize.py PATH                       within tolerance but not exact
+golden/     golden_plan.py / golden_run.py [--strict]
+            golden_fixture.py [--apply]           sync golden/fixture/ from the last full run
+            golden_ci.py [--keep]                 what CI runs: the suite on the fixture
 ```
+
+Scripts import each other across folders by adding the sibling folder to
+`sys.path` (`offsize`, `migrate_marks`, `golden_fixture` and `golden_ci`
+use `pipeline/`). Tests get all three via `pythonpath` in `pyproject.toml`.
 
 `nest_elements`, `recanvas`, `derive_crops` and `migrate_marks` dry-run
 until `--apply` and copy rather than move. **`pad` writes immediately**, into

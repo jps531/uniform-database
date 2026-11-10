@@ -19,9 +19,9 @@ SCALED (see classify.py).
 
     uv sync
 
-    uv run scripts/recanvas.py "temp/Mississippi State/Jerseys Front" \\
+    uv run scripts/migration/recanvas.py "temp/Mississippi State/Jerseys Front" \\
                                 "Football/Mississippi State/Jerseys Front"
-    uv run scripts/recanvas.py SRC DEST --apply
+    uv run scripts/migration/recanvas.py SRC DEST --apply
 
 COPIES, never moves.
 """

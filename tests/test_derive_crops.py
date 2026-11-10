@@ -1,4 +1,4 @@
-"""Tests for scripts/derive_crops.py: rules from config, crop geometry, dry run vs --apply, markers and refusals."""
+"""Tests for scripts/pipeline/derive_crops.py: rules from config, crop geometry, dry run vs --apply, markers and refusals."""
 
 import json
 import runpy
@@ -85,7 +85,7 @@ def test_apply_crops_every_sport_at_its_geometry_and_writes_markers(project, mon
             assert np.array_equal(np.asarray(b.convert("RGBA")), want)
             assert round(b.info["dpi"][0]) == 300
         marker = json.loads((out.parents[1] / ".generated").read_text())
-        assert marker["generated_by"] == "scripts/derive_crops.py"
+        assert marker["generated_by"] == "scripts/pipeline/derive_crops.py"
         assert marker["files_written"] == 1
     assert not (cropped_of(sources[0]).parent / ".hidden.png").exists()
 
@@ -195,5 +195,5 @@ def test_runs_as_a_script(monkeypatch):
     """Run as a script, the module reaches main(); --help exits cleanly."""
     monkeypatch.setattr(sys, "argv", ["derive_crops.py", "--help"])
     with pytest.raises(SystemExit) as e:
-        runpy.run_path(str(REPO / "scripts" / "derive_crops.py"), run_name="__main__")
+        runpy.run_path(str(REPO / "scripts" / "pipeline" / "derive_crops.py"), run_name="__main__")
     assert e.value.code == 0

@@ -73,7 +73,7 @@ canvases:
       canvas: football_field_full
       crop_at: [108, 287]
     note: >
-      GENERATED from football_field_full by scripts/derive_crops.py. The crop
+      GENERATED from football_field_full by scripts/pipeline/derive_crops.py. The crop
       is exactly centred — 108px each side, 287px top and bottom — removing
       the caption text above and below the field.
 
@@ -220,7 +220,7 @@ canvases:
       canvas: basketball_court_full
       crop_at: [0, 0]
     note: >
-      GENERATED from basketball_court_full by scripts/derive_crops.py: full
+      GENERATED from basketball_court_full by scripts/pipeline/derive_crops.py: full
       width from the top, trimming 571px of caption from the bottom. Same
       shape as the baseball field crop, and unlike football's, which is
       centred because its caption sits above AND below.
@@ -241,7 +241,7 @@ canvases:
       canvas: baseball_field_full
       crop_at: [0, 0]
     note: >
-      GENERATED from baseball_field_full by scripts/derive_crops.py.
+      GENERATED from baseball_field_full by scripts/pipeline/derive_crops.py.
 
       Unlike football, this crop is NOT centred: it takes the full width from
       the top and trims 380px from the bottom, because baseball's caption text

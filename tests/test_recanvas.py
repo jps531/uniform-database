@@ -1,4 +1,4 @@
-"""Tests for scripts/recanvas.py: moving standardized files to a new canvas without ever rescaling."""
+"""Tests for scripts/migration/recanvas.py: moving standardized files to a new canvas without ever rescaling."""
 
 import sys
 

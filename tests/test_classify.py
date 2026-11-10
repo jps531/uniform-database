@@ -1,4 +1,4 @@
-"""Tests for scripts/classify.py: canvas provenance (RAW / OLD-STD / NEW-STD) and scale state (SCALED / UNSCALED)."""
+"""Tests for scripts/migration/classify.py: canvas provenance (RAW / OLD-STD / NEW-STD) and scale state (SCALED / UNSCALED)."""
 
 import sys
 

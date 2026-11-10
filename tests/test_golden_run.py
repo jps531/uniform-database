@@ -1,4 +1,4 @@
-"""Tests for scripts/golden_run.py: automatic checks, filtering, report, sheets and --strict."""
+"""Tests for scripts/golden/golden_run.py: automatic checks, filtering, report, sheets and --strict."""
 
 import json
 import sys
@@ -265,7 +265,7 @@ def test_find_root_and_missing_manifest(tmp_path, project, monkeypatch):
     monkeypatch.chdir(project)
     with pytest.raises(SystemExit) as e:
         run_main(monkeypatch)
-    assert "run scripts/golden_plan.py first" in str(e.value)
+    assert "run scripts/golden/golden_plan.py first" in str(e.value)
 
 
 # --------------------------------------------------------------------------
@@ -491,5 +491,5 @@ def test_runs_as_a_script(project, monkeypatch, capsys):
     manifest(project, [])
     (project / "golden/run").mkdir()  # as left by an earlier run
     monkeypatch.setattr(sys, "argv", ["golden_run.py", "--strict"])
-    runpy.run_path(str(REPO / "scripts/golden_run.py"), run_name="__main__")
+    runpy.run_path(str(REPO / "scripts/golden/golden_run.py"), run_name="__main__")
     assert "STRICT: every example is ok" in capsys.readouterr().out

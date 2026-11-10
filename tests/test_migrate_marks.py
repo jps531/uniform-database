@@ -1,4 +1,4 @@
-"""Tests for scripts/migrate_marks.py: flat, nested and flat-noyear plans, their problems, dry run vs --apply."""
+"""Tests for scripts/migration/migrate_marks.py: flat, nested and flat-noyear plans, their problems, dry run vs --apply."""
 
 import runpy
 import sys
@@ -358,5 +358,5 @@ def test_runs_as_a_script(monkeypatch):
     """Run as a script, the module reaches main(); --help exits cleanly."""
     monkeypatch.setattr(sys, "argv", ["migrate_marks.py", "--help"])
     with pytest.raises(SystemExit) as e:
-        runpy.run_path(str(REPO / "scripts" / "migrate_marks.py"), run_name="__main__")
+        runpy.run_path(str(REPO / "scripts" / "migration" / "migrate_marks.py"), run_name="__main__")
     assert e.value.code == 0

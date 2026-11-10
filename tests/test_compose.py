@@ -1,4 +1,4 @@
-"""Tests for scripts/compose.py: candidate ranking, placement resolution, pasting, --json and --diff."""
+"""Tests for scripts/pipeline/compose.py: candidate ranking, placement resolution, pasting, --json and --diff."""
 
 import json
 import os
@@ -12,7 +12,7 @@ import yaml
 from conftest import REPO, art, canvas_size
 from PIL import Image
 
-SCRIPT = str(REPO / "scripts" / "compose.py")
+SCRIPT = str(REPO / "scripts" / "pipeline" / "compose.py")
 MSU = "Mississippi State"
 
 

@@ -1,4 +1,4 @@
-"""Tests for scripts/golden_fixture.py: what the fixture copies, every refusal, dry run vs --apply.
+"""Tests for scripts/golden/golden_fixture.py: what the fixture copies, every refusal, dry run vs --apply.
 
 Also holds `small_configs()`, shared with test_golden_ci.py and test_derive_crops.py:
 a copy of the real configs with the helmet and venue canvases scaled down, so
@@ -231,8 +231,8 @@ def test_plan_refuses_missing_and_stale_results(project, small):
     js = project / "golden/run/football/helmets-4" / f"{ex2['id']}.json"
     os.utime(js, (10, 10))
     _, errors = gf.plan(project)
-    assert f"no result for {ex1['id']}: run scripts/golden_run.py first" in errors
-    assert f"{ex2['id']}: result is older than manifest.yaml, re-run scripts/golden_run.py" in errors
+    assert f"no result for {ex1['id']}: run scripts/golden/golden_run.py first" in errors
+    assert f"{ex2['id']}: result is older than manifest.yaml, re-run scripts/golden/golden_run.py" in errors
 
 
 def test_plan_refuses_placements_outside_the_project(project, small, tmp_path):
@@ -378,5 +378,5 @@ def test_runs_as_a_script(monkeypatch):
     """Run as a script, the module reaches main(); --help exits cleanly."""
     monkeypatch.setattr(sys, "argv", ["golden_fixture.py", "--help"])
     with pytest.raises(SystemExit) as e:
-        runpy.run_path(str(REPO / "scripts" / "golden_fixture.py"), run_name="__main__")
+        runpy.run_path(str(REPO / "scripts" / "golden" / "golden_fixture.py"), run_name="__main__")
     assert e.value.code == 0

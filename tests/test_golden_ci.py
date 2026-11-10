@@ -1,4 +1,4 @@
-"""Tests for scripts/golden_ci.py: a consistent synthetic fixture passes, and each kind of drift fails by name.
+"""Tests for scripts/golden/golden_ci.py: a consistent synthetic fixture passes, and each kind of drift fails by name.
 
 The fixture is built once per module, end to end, the way it is on the Mac:
 helmet marks for every era on both sides padded with standardize.py, venues
@@ -207,7 +207,7 @@ def test_empty_fixture_fails(ci, monkeypatch, capsys):
     shutil.rmtree(fixture_path(ci))
     code, out = run_ci(monkeypatch, capsys, ci)
     assert code == 1
-    assert "golden/fixture/ is empty: run scripts/golden_fixture.py --apply" in out
+    assert "golden/fixture/ is empty: run scripts/golden/golden_fixture.py --apply" in out
 
 
 def test_fixture_without_helmet_marks_fails(ci, monkeypatch, capsys):
@@ -291,5 +291,5 @@ def test_runs_as_a_script(monkeypatch):
     """Run as a script, the module reaches main(); --help exits cleanly."""
     monkeypatch.setattr(sys, "argv", ["golden_ci.py", "--help"])
     with pytest.raises(SystemExit) as e:
-        runpy.run_path(str(REPO / "scripts" / "golden_ci.py"), run_name="__main__")
+        runpy.run_path(str(REPO / "scripts" / "golden" / "golden_ci.py"), run_name="__main__")
     assert e.value.code == 0

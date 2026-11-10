@@ -4,7 +4,7 @@
 
 Review this, edit `golden/manifest.yaml` (set `approved: false` to skip an example, or change any element), then run:
 
-    python3 scripts/golden_run.py
+    python3 scripts/golden/golden_run.py
 
 How examples are chosen: greedily, so each one covers as many uncovered eras as possible; within a team, elements from the same year are preferred so a combination looks like one actually worn; elements with numbered files are preferred so number resolution is exercised. Explicit placements (the football helmet-left inset) get one extra example each.
 

@@ -16,7 +16,7 @@ Two independent signals:
     SCALED       content matches an era's POST-scale size — correction applied
     UNSCALED     content matches an era's PRE-scale size — correction pending
 
-    uv run scripts/classify.py Football temp
+    uv run scripts/migration/classify.py Football temp
 """
 
 import sys
