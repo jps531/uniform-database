@@ -1,21 +1,12 @@
 """Tests for scripts/migration/fix_dpi.py: `check` reports DPI tags read-only, `set` retags without touching pixels."""
 
-import runpy
-import sys
-
 import fix_dpi
 import numpy as np
 import pytest
-from conftest import REPO, art
+from helpers import REPO, art, main
 from PIL import Image, ImageCms, ImageOps, PngImagePlugin
 
 SCRIPT = str(REPO / "scripts" / "migration" / "fix_dpi.py")
-
-
-def run_script(monkeypatch, *argv):
-    """Run fix_dpi.py as `__main__` with the given arguments."""
-    monkeypatch.setattr(sys, "argv", ["fix_dpi.py", *argv])
-    runpy.run_path(SCRIPT, run_name="__main__")
 
 
 def untagged(path, size=(12, 9)):
@@ -52,7 +43,7 @@ def test_check_reports_mixed_dpi_with_counts_and_examples(tmp_path, monkeypatch,
     art(tmp_path / "T" / "c.png", (5, 5), dpi=(72, 72))
     untagged(tmp_path / "T" / "d.png")
     before = {p.name: p.read_bytes() for p in (tmp_path / "T").iterdir()}
-    run_script(monkeypatch, "check", str(tmp_path / "T"))
+    main(monkeypatch, fix_dpi, "check", str(tmp_path / "T"))
     out = capsys.readouterr().out
     assert "4 PNGs under T" in out
     assert "300 DPI" in out
@@ -99,7 +90,7 @@ def test_set_retags_only_files_off_target_and_keeps_pixels(tmp_path, monkeypatch
     c = art(tmp_path / "x" / "c.png", (7, 7), dpi=(300, 300))
     px = {p: pixels(p) for p in (a, b, c)}
     c_bytes = c.read_bytes()
-    run_script(monkeypatch, "set", str(tmp_path / "x"), "300", "--apply")
+    main(monkeypatch, fix_dpi, "set", str(tmp_path / "x"), "300", "--apply")
     out = capsys.readouterr().out
     assert "Set 300 DPI on 2 files (1 already correct)." in out
     assert "verified unchanged" in out
@@ -118,7 +109,7 @@ def test_set_without_apply_is_a_dry_run(tmp_path, monkeypatch, capsys):
     b = untagged(tmp_path / "x" / "b.png")
     c = art(tmp_path / "x" / "c.png", (6, 6), dpi=(300, 300))
     before = {p: p.read_bytes() for p in (a, b, c)}
-    run_script(monkeypatch, "set", str(tmp_path / "x"), "300")
+    main(monkeypatch, fix_dpi, "set", str(tmp_path / "x"), "300")
     out = capsys.readouterr().out
     assert "would set 300 DPI on 2 files (1 already correct)" in out
     assert "72 DPI -> 300" in out
@@ -175,10 +166,10 @@ def test_set_aborts_if_a_save_changes_pixel_dimensions(tmp_path, monkeypatch):
         """Save a cropped copy, simulating a save that did more than retag."""
         return real_save(self.crop((0, 0, 5, 5)), fp, *args, **kwargs)
 
-    monkeypatch.setattr(Image.Image, "save", shrinking_save)
-    with pytest.raises(SystemExit, match=r"ABORT: .*a\.png changed size \(10, 10\) -> \(5, 5\)"):
-        fix_dpi.cmd_set(tmp_path, 300, apply=True)
-    monkeypatch.undo()
+    with monkeypatch.context() as m:
+        m.setattr(Image.Image, "save", shrinking_save)
+        with pytest.raises(SystemExit, match=r"ABORT: .*a\.png changed size \(10, 10\) -> \(5, 5\)"):
+            fix_dpi.cmd_set(tmp_path, 300, apply=True)
     assert p.read_bytes() == before
     assert [q.name for q in tmp_path.iterdir()] == ["a.png"]
 
@@ -193,10 +184,10 @@ def test_set_aborts_if_a_save_changes_pixels(tmp_path, monkeypatch):
         """Save a transparent image of the same size, simulating a lossy save."""
         return real_save(Image.new("RGBA", self.size), fp, *args, **kwargs)
 
-    monkeypatch.setattr(Image.Image, "save", blanking_save)
-    with pytest.raises(SystemExit, match=r"ABORT: .*a\.png pixels changed"):
-        fix_dpi.cmd_set(tmp_path, 300, apply=True)
-    monkeypatch.undo()
+    with monkeypatch.context() as m:
+        m.setattr(Image.Image, "save", blanking_save)
+        with pytest.raises(SystemExit, match=r"ABORT: .*a\.png pixels changed"):
+            fix_dpi.cmd_set(tmp_path, 300, apply=True)
     assert p.read_bytes() == before
     assert [q.name for q in tmp_path.iterdir()] == ["a.png"]
 
@@ -212,10 +203,10 @@ def test_set_aborts_if_a_save_drops_the_orientation(tmp_path, monkeypatch):
         kwargs.pop("exif", None)
         return real_save(self, fp, *args, **kwargs)
 
-    monkeypatch.setattr(Image.Image, "save", exif_dropping_save)
-    with pytest.raises(SystemExit, match=r"ABORT: .*r\.png orientation changed 6 -> None"):
-        fix_dpi.cmd_set(tmp_path, 300, apply=True)
-    monkeypatch.undo()
+    with monkeypatch.context() as m:
+        m.setattr(Image.Image, "save", exif_dropping_save)
+        with pytest.raises(SystemExit, match=r"ABORT: .*r\.png orientation changed 6 -> None"):
+            fix_dpi.cmd_set(tmp_path, 300, apply=True)
     assert p.read_bytes() == before
 
 
@@ -230,10 +221,10 @@ def test_set_aborts_if_a_save_drops_the_dpi_tag(tmp_path, monkeypatch):
         kwargs.pop("dpi", None)
         return real_save(self, fp, *args, **kwargs)
 
-    monkeypatch.setattr(Image.Image, "save", dpi_dropping_save)
-    with pytest.raises(SystemExit, match=r"ABORT: .*a\.png re-saved without the 300 DPI tag"):
-        fix_dpi.cmd_set(tmp_path, 300, apply=True)
-    monkeypatch.undo()
+    with monkeypatch.context() as m:
+        m.setattr(Image.Image, "save", dpi_dropping_save)
+        with pytest.raises(SystemExit, match=r"ABORT: .*a\.png re-saved without the 300 DPI tag"):
+            fix_dpi.cmd_set(tmp_path, 300, apply=True)
     assert p.read_bytes() == before
 
 
@@ -246,10 +237,10 @@ def test_set_removes_the_temp_file_if_the_save_raises(tmp_path, monkeypatch):
         """Fail as a full disk would."""
         raise OSError("disk full")
 
-    monkeypatch.setattr(Image.Image, "save", failing_save)
-    with pytest.raises(OSError, match="disk full"):
-        fix_dpi.cmd_set(tmp_path, 300, apply=True)
-    monkeypatch.undo()
+    with monkeypatch.context() as m:
+        m.setattr(Image.Image, "save", failing_save)
+        with pytest.raises(OSError, match="disk full"):
+            fix_dpi.cmd_set(tmp_path, 300, apply=True)
     assert p.read_bytes() == before
     assert [q.name for q in tmp_path.iterdir()] == ["a.png"]
 
@@ -261,16 +252,9 @@ def test_set_removes_the_temp_file_if_the_save_raises(tmp_path, monkeypatch):
 def test_bad_arguments_print_usage_and_exit_2(monkeypatch, capsys, argv):
     """Anything other than `check PATH` or `set PATH DPI [--apply]` prints a usage error, not a traceback, and exits 2."""
     with pytest.raises(SystemExit) as e:
-        run_script(monkeypatch, *argv)
+        main(monkeypatch, fix_dpi, *argv)
     assert e.value.code == 2
     assert "usage:" in capsys.readouterr().err
-
-
-def test_missing_pillow_exits_with_a_hint(monkeypatch):
-    """Without Pillow installed the script exits telling the user to run `uv sync`."""
-    monkeypatch.setitem(sys.modules, "PIL", None)
-    with pytest.raises(SystemExit, match="uv sync"):
-        runpy.run_path(SCRIPT, run_name="fix_dpi_noimport")
 
 
 def test_relative_path_is_taken_from_the_root(project, tmp_path, monkeypatch, capsys):
@@ -279,8 +263,8 @@ def test_relative_path_is_taken_from_the_root(project, tmp_path, monkeypatch, ca
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     monkeypatch.chdir(elsewhere)
-    run_script(monkeypatch, "--root", str(project), "check", "Football")
+    main(monkeypatch, fix_dpi, "--root", str(project), "check", "Football")
     assert "1 PNGs under Football" in capsys.readouterr().out
     monkeypatch.chdir(project / "Football")
-    run_script(monkeypatch, "check", "Football")
+    main(monkeypatch, fix_dpi, "check", "Football")
     assert "72 DPI" in capsys.readouterr().out

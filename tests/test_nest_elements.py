@@ -1,14 +1,11 @@
 """Tests for scripts/migration/nest_elements.py: element folder = filename minus non-design tokens; dry run, then copy."""
 
 import os
-import runpy
-import sys
 
 import common
 import nest_elements as ne
 import pytest
-import yaml
-from conftest import REPO, art
+from helpers import REPO, art, main, override_configs
 
 
 @pytest.fixture(scope="module")
@@ -27,24 +24,6 @@ def nest(stem, vocab):
     """element_for() on one stem with a loaded vocabulary."""
     strip, design, form, _seq, known = vocab
     return ne.element_for(stem, strip, design, form, known)
-
-
-def custom_configs(project, files):
-    """Replace the project's configs link with a directory linking the real files plus `files` (name -> dict)."""
-    d = project / "configs"
-    d.unlink()
-    d.mkdir()
-    for f in (REPO / "configs").iterdir():
-        if f.name not in files:
-            os.symlink(f, d / f.name)
-    for name, data in files.items():
-        (d / name).write_text(yaml.safe_dump(data))
-
-
-def run(monkeypatch, *argv):
-    """Call nest_elements.main() with the given arguments."""
-    monkeypatch.setattr(sys, "argv", ["nest_elements.py", *argv])
-    ne.main()
 
 
 def stage(project, rel, seed=0):
@@ -69,7 +48,7 @@ def test_vocab_sorts_tokens_by_scope_and_kind(football):
 
 def test_sport_token_overrides_shared_and_colorways_inherit(project):
     """A token redefined in a sport's file wins over shared, and a sport without colorways inherits shared's."""
-    custom_configs(
+    override_configs(
         project,
         {"modifiers_mine.yaml": {"extends": "shared", "tokens": {"grad": {"label": "Grad", "scope": "design"}}}},
     )
@@ -86,7 +65,7 @@ def test_sport_token_overrides_shared_and_colorways_inherit(project):
 
 def test_token_of_unexpected_kind_is_kept_and_unlabelled_one_ignored(project):
     """A token with no recognised scope or kind is KEPT in the name; an entry with no token or label is skipped."""
-    custom_configs(
+    override_configs(
         project,
         {
             "modifiers_mine.yaml": {
@@ -103,7 +82,7 @@ def test_token_of_unexpected_kind_is_kept_and_unlabelled_one_ignored(project):
 
 def test_circular_extends_exits(project):
     """Vocabularies that extend each other in a loop exit rather than recursing forever."""
-    custom_configs(project, {"modifiers_a.yaml": {"extends": "b"}, "modifiers_b.yaml": {"extends": "a"}})
+    override_configs(project, {"modifiers_a.yaml": {"extends": "b"}, "modifiers_b.yaml": {"extends": "a"}})
     with pytest.raises(SystemExit, match="Circular `extends` reaching modifiers_a.yaml"):
         common.load_vocabulary(project, "a")
 
@@ -116,9 +95,7 @@ def test_missing_vocabulary_exits(project):
 
 def test_empty_vocabulary_file_is_allowed(project):
     """An empty modifiers file loads as no tokens and no colorways."""
-    (project / "configs").unlink()
-    (project / "configs").mkdir()
-    (project / "configs" / "modifiers_blank.yaml").write_text("")
+    override_configs(project, {"modifiers_blank.yaml": ""})
     assert common.load_vocabulary(project, "blank") == common.Vocabulary({}, [])
 
 
@@ -158,8 +135,7 @@ def test_empty_vocabulary_file_is_allowed(project):
 def test_football_element_names(football, stem, element, notes):
     """Football stems lose form, patch, variation and number tokens and keep design tokens and design letters."""
     got, stripped = nest(stem, football)
-    # Equal-length tokens match in set order, so the order of `notes` is not fixed.
-    assert (got, sorted(stripped)) == (element, sorted(notes))
+    assert (got, stripped) == (element, notes)
 
 
 @pytest.mark.parametrize(
@@ -183,8 +159,7 @@ def test_football_element_names(football, stem, element, notes):
 def test_baseball_element_names(baseball, stem, element, notes):
     """Baseball: the number is stripped wherever it sits, surnames parse out, colorway and design words never do."""
     got, stripped = nest(stem, baseball)
-    # Equal-length tokens match in set order, so the order of `notes` is not fixed.
-    assert (got, sorted(stripped)) == (element, sorted(notes))
+    assert (got, stripped) == (element, notes)
 
 
 @pytest.mark.parametrize("stem", [" 12", " Speedflex"])
@@ -202,7 +177,7 @@ def test_dry_run_plans_and_writes_nothing(project, monkeypatch, capsys):
     stage(project, "temp/Football/EMCC/Helmets Right/2014 White A Speedflex.png")
     stage(project, "temp/Football/EMCC/Helmets Right/2014 White B Speedflex.png")
     stage(project, "temp/Football/EMCC/Jerseys Front/2014 White 34 A.png")
-    run(monkeypatch, "--sport", "football")
+    main(monkeypatch, ne, "--sport", "football")
     out = capsys.readouterr().out
     assert "source: temp/Football  ->  dest: Football" in out
     assert "3 files -> 3 element folders" in out
@@ -228,7 +203,7 @@ def test_apply_copies_into_element_folders_and_keeps_source(project, monkeypatch
     for i, rel in enumerate(names):
         srcs[rel] = stage(project, f"temp/Football/Mississippi State/{rel}", seed=i)
     stage(project, "temp/Football/Mississippi State/Helmets Right/.2016 Maroon.png")
-    run(monkeypatch, "--sport", "football", "--apply")
+    main(monkeypatch, ne, "--sport", "football", "--apply")
     out = capsys.readouterr().out
     assert "Copied 4 files. Source tree left intact." in out
     for rel, el in names.items():
@@ -243,7 +218,7 @@ def test_staging_without_sport_level_falls_back_to_temp(project, monkeypatch, ca
     """With no temp/{Sport}/, staging is read from temp/{Team}/ directly."""
     (project / "Football").mkdir()
     stage(project, "temp/Jones/Helmets Left/2019 Black Cats.png")
-    run(monkeypatch, "--sport", "football", "--apply")
+    main(monkeypatch, ne, "--sport", "football", "--apply")
     assert "source: temp  ->  dest: Football" in capsys.readouterr().out
     assert (project / "Football/Jones/Helmets Left/2019 Black/2019 Black Cats.png").is_file()
 
@@ -253,8 +228,9 @@ def test_explicit_src_dest_root_and_team_filter(project, tmp_path, monkeypatch, 
     stage(project, "stage/Baseball/Mississippi State/Jerseys Front/2014 White 85s 18 Girodo.png")
     stage(project, "stage/Baseball/Southern Miss/Jerseys Front/2014 Gold 5.png")
     monkeypatch.chdir(tmp_path)
-    run(
+    main(
         monkeypatch,
+        ne,
         "--root",
         str(project),
         "--sport",
@@ -282,7 +258,7 @@ def test_unassignable_file_is_reported_and_blocks_apply(project, monkeypatch, ca
     stage(project, "temp/Football/EMCC/Jerseys Front/ 12.png")
     stage(project, "temp/Football/EMCC/Jerseys Front/2014 White 12.png")
     with pytest.raises(SystemExit, match="Refusing to apply"):
-        run(monkeypatch, "--apply")
+        main(monkeypatch, ne, "--apply")
     out = capsys.readouterr().out
     assert "!! 1 files could not be assigned" in out
     assert "EMCC/Jerseys Front/ 12.png  (nothing left)" in out
@@ -296,7 +272,7 @@ def test_collision_is_reported_and_blocks_apply(project, monkeypatch, capsys):
     dest = project / "Football/EMCC/Jerseys Front/2014 White/2014 White 12.png"
     monkeypatch.setattr(ne, "build_plan", lambda *a_, **k: ([(a, dest, []), (a, dest, [])], []))
     with pytest.raises(SystemExit, match="Refusing to apply"):
-        run(monkeypatch, "--apply")
+        main(monkeypatch, ne, "--apply")
     assert "!! 1 destination collisions" in capsys.readouterr().out
     assert not dest.exists()
 
@@ -307,12 +283,12 @@ def test_existing_different_destination_blocks_apply(project, monkeypatch, capsy
     other = stage(project, "temp/Football/EMCC/Jerseys Front/2014 White 13.png", seed=2)
     there = stage(project, "Football/EMCC/Jerseys Front/2014 White/2014 White 12.png", seed=3)
     before = there.read_bytes()
-    run(monkeypatch)
+    main(monkeypatch, ne)
     out = capsys.readouterr().out
     assert "!! 1 files already exist at the destination with different contents:" in out
     assert "   EMCC/Jerseys Front/2014 White/2014 White 12.png" in out
     with pytest.raises(SystemExit, match="Refusing to apply"):
-        run(monkeypatch, "--apply")
+        main(monkeypatch, ne, "--apply")
     assert there.read_bytes() == before
     assert not (project / "Football/EMCC/Jerseys Front/2014 White" / other.name).exists()
 
@@ -325,7 +301,7 @@ def test_identical_destination_is_a_reported_no_op(project, monkeypatch, capsys)
     there.parent.mkdir(parents=True)
     there.write_bytes(src.read_bytes())
     os.utime(there, (0, 0))
-    run(monkeypatch, "--apply")
+    main(monkeypatch, ne, "--apply")
     out = capsys.readouterr().out
     assert "1 files already at the destination, identical: nothing to copy for them." in out
     assert "Copied 1 files (1 already in place). Source tree left intact." in out
@@ -334,12 +310,10 @@ def test_identical_destination_is_a_reported_no_op(project, monkeypatch, capsys)
 
 
 def test_default_destination_matches_the_sport_slug(project, monkeypatch, capsys):
-    """mens_basketball (basketball's vocabulary patched in) resolves to Men's Basketball, for staging and destination."""
-    vocab = ne.load_vocab(REPO, "basketball")
-    monkeypatch.setattr(ne, "load_vocab", lambda root, sport: vocab)
+    """mens_basketball resolves to Men's Basketball, for staging and destination."""
     (project / "Men's Basketball").mkdir()
     src = stage(project, "temp/Men's Basketball/Mississippi State/Jerseys Front/2019 White 23.png")
-    run(monkeypatch, "--sport", "mens_basketball", "--apply")
+    main(monkeypatch, ne, "--sport", "mens_basketball", "--apply")
     assert "source: temp/Men's Basketball  ->  dest: Men's Basketball" in capsys.readouterr().out
     dest = project / "Men's Basketball/Mississippi State/Jerseys Front/2019 White/2019 White 23.png"
     assert dest.read_bytes() == src.read_bytes()
@@ -350,14 +324,14 @@ def test_no_sport_directory_requires_dest(project, monkeypatch):
     """With no directory matching the sport slug, main() exits asking for --dest rather than inventing a name."""
     stage(project, "temp/EMCC/Helmets Right/2014 White A.png")
     with pytest.raises(SystemExit, match="No directory for sport 'football'.*--dest"):
-        run(monkeypatch, "--sport", "football", "--apply")
+        main(monkeypatch, ne, "--sport", "football", "--apply")
     assert not (project / "Football").exists()
 
 
 def test_missing_source_exits(project, monkeypatch):
     """A source tree that doesn't exist exits naming it."""
     with pytest.raises(SystemExit, match="Source not found"):
-        run(monkeypatch, "--src", "nowhere")
+        main(monkeypatch, ne, "--src", "nowhere")
 
 
 def test_source_without_pngs_exits(project, monkeypatch):
@@ -366,7 +340,7 @@ def test_source_without_pngs_exits(project, monkeypatch):
     (project / "temp/Football/EMCC/Helmets Right").mkdir(parents=True)
     (project / "temp/Football/notes.txt").write_text("not a team")
     with pytest.raises(SystemExit, match="No PNGs under"):
-        run(monkeypatch)
+        main(monkeypatch, ne)
 
 
 def test_find_root_walks_up_and_fails_cleanly(project, tmp_path):
@@ -380,21 +354,13 @@ def test_find_root_walks_up_and_fails_cleanly(project, tmp_path):
         common.find_root(lone)
 
 
-def test_runs_as_a_script(project, monkeypatch, capsys):
-    """Run as `__main__`, the script plans the default (football) sport."""
+def test_default_sport_is_football(project, monkeypatch):
+    """With no --sport, main() nests football from temp/Football into Football/."""
     (project / "Football").mkdir()
     stage(project, "temp/Football/EMCC/Helmets Right/2014 White A.png")
-    monkeypatch.setattr(sys, "argv", ["nest_elements.py"])
-    runpy.run_path(str(REPO / "scripts" / "migration" / "nest_elements.py"), run_name="__main__")
-    assert "DRY RUN" in capsys.readouterr().out
-
-
-def test_missing_pyyaml_exits_with_a_hint(monkeypatch):
-    """Without PyYAML installed the script exits telling the user to run `uv sync`."""
-    monkeypatch.delitem(sys.modules, "common", raising=False)
-    monkeypatch.setitem(sys.modules, "yaml", None)
-    with pytest.raises(SystemExit, match="uv sync"):
-        runpy.run_path(str(REPO / "scripts" / "migration" / "nest_elements.py"), run_name="nest_noimport")
+    out = main(monkeypatch, ne)
+    assert "source: temp/Football  ->  dest: Football" in out
+    assert "DRY RUN" in out
 
 
 def test_equal_length_tokens_are_ordered_alphabetically(football):

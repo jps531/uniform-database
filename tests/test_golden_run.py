@@ -1,15 +1,14 @@
 """Tests for scripts/golden/golden_run.py: automatic checks, filtering, report, sheets and --strict."""
 
 import json
-import sys
 import types
 from pathlib import Path
 
 import golden_run as gr
 import pytest
 import yaml
-from conftest import REPO, art, canvas_size, era
-from PIL import Image
+from helpers import REPO, art, blank, canvas_size, era, main, placed
+from PIL import Image, ImageFont
 
 MSU = "Mississippi State"
 
@@ -30,26 +29,6 @@ def entry(id_, sport="football", view="icons-horizontal", **kw):
     return e
 
 
-def placed(file, element="2020 Maroon", slot="jersey", vp="icon", u=1, **kw):
-    """One compose placement record with status 'placed'."""
-    p = {
-        "label": f"{slot}/{vp}" + (f" #{u}" if u != 1 else ""),
-        "slot": slot,
-        "viewpoint": vp,
-        "uniform": u,
-        "element": element,
-        "file": str(file),
-        "status": "placed",
-        "number_requested": None,
-        "number_found": None,
-        "tokens_requested": [],
-        "tokens_found": [],
-        "clipped": {},
-    }
-    p.update(kw)
-    return p
-
-
 def opaque_png(path, size=(20, 20)):
     """A small fully opaque composition."""
     return art(path, size)
@@ -57,9 +36,7 @@ def opaque_png(path, size=(20, 20)):
 
 def empty_png(path, size=(20, 20)):
     """A composition with no opaque pixels."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    Image.new("RGBA", size, (0, 0, 0, 0)).save(path)
-    return path
+    return blank(path, size)
 
 
 class FakeCompose:
@@ -84,12 +61,6 @@ class FakeCompose:
         if png:
             png(out)
         return types.SimpleNamespace(returncode=1 if err else 0, stdout="", stderr=err)
-
-
-def run_main(monkeypatch, *argv):
-    """Call golden_run.main() with the given arguments."""
-    monkeypatch.setattr(sys, "argv", ["golden_run.py", *argv])
-    gr.main()
 
 
 def report(project):
@@ -135,18 +106,24 @@ def test_check_wrong_era(tmp_path, cfg):
     odd = art(tmp_path / "c" / "2000 White.png", W, (10, 10))
     blank = empty_png(tmp_path / "d" / "2000 White.png")
     ex = {"sport": "mens_basketball", "expect_eras": {"1/shorts/left": "a", "1/shorts/right": None}}
-    P = lambda f: {"placements": [placed(f, "2000 White", "shorts", "left")]}  # noqa: E731
+
+    def P(f):
+        """A compose result placing `f` as uniform 1's left shorts."""
+        return {"placements": [placed(f, "shorts", "left", "2000 White")]}
+
     assert gr.check(ex, P(a), None, cfg, []) == ([], [])
     assert gr.check(ex, P(b), None, cfg, []) == (["WRONG ERA shorts/left: planned a, placed b"], [])
     assert gr.check(ex, P(odd), None, cfg, [])[0] == ["WRONG ERA shorts/left: planned a, placed unrecognised size"]
     assert gr.check(ex, P(blank), None, cfg, [])[0] == ["WRONG ERA shorts/left: planned a, placed unrecognised size"]
-    # the nearest of two eras inside tolerance wins (helmet back E 667 vs E2 674)
+    # the nearest of two eras inside tolerance wins: helmet back E's width plus 3 is nearer E than E2
     e = era(cfg, "football-helmet-back", "E")["size"]
-    near = art(tmp_path / "e" / "2000 White.png", (700, 800), (e[0] + 3, e[1]))
+    e2 = era(cfg, "football-helmet-back", "E2")["size"]
+    assert abs(e2[0] - (e[0] + 3)) <= cfg["tolerance"]
+    near = art(tmp_path / "e" / "2000 White.png", canvas_size(cfg, "football_helmet_face"), (e[0] + 3, e[1]))
     hb = {"sport": "football", "expect_eras": {"1/helmet/back": "E"}}
-    assert gr.check(hb, {"placements": [placed(near, "2000 White", "helmet", "back")]}, None, cfg, []) == ([], [])
+    assert gr.check(hb, {"placements": [placed(near, "helmet", "back", "2000 White")]}, None, cfg, []) == ([], [])
     # a viewpoint whose expected era is empty is not checked
-    r = {"placements": [placed(odd, "2000 White", "shorts", "right")]}
+    r = {"placements": [placed(odd, "shorts", "right", "2000 White")]}
     assert gr.check(ex, r, None, cfg, []) == ([], [])
 
 
@@ -155,7 +132,7 @@ def test_check_number(tmp_path):
     d = tmp_path / "2020 Maroon"
     plain = opaque_png(d / "2020 Maroon.png")
     ex = {"sport": "football"}
-    res = {"placements": [placed(plain, number_requested="7")]}
+    res = {"placements": [placed(plain, number="7")]}
     assert gr.check(ex, res, None, {}, []) == ([], [])
     opaque_png(d / "2020 Maroon 17.png")
     opaque_png(d / "2020 Maroon 07.png")
@@ -165,7 +142,7 @@ def test_check_number(tmp_path):
         ["NUMBER jersey/icon: asked for 7, a file exists, placed unnumbered"],
         [],
     )
-    res = {"placements": [placed(d / "2020 Maroon 17.png", number_requested="7", number_found="17")]}
+    res = {"placements": [placed(d / "2020 Maroon 17.png", number="7", number_found="17")]}
     assert gr.check(ex, res, None, {}, [])[0] == [
         "NUMBER jersey/icon: asked for 7, placed 17: another number is never used"
     ]
@@ -174,7 +151,7 @@ def test_check_number(tmp_path):
         "NUMBER jersey/icon: asked for 7, placed 17: another number is never used"
     ]
     opaque_png(d / "2020 Maroon 7 Grad.png")
-    res = {"placements": [placed(d / "2020 Maroon 7 Grad.png", number_requested="7", number_found="7")]}
+    res = {"placements": [placed(d / "2020 Maroon 7 Grad.png", number="7", number_found="7")]}
     assert gr.check(ex, res, None, {}, []) == ([], [])
 
 
@@ -208,7 +185,7 @@ def test_check_number_ignores_patch_tokens_ending_in_digits(tmp_path):
     d = tmp_path / "2021 White"
     plain = opaque_png(d / "2021 White.png")
     opaque_png(d / "2021 White CWS21.png")
-    res = {"placements": [placed(plain, "2021 White", number_requested="21")]}
+    res = {"placements": [placed(plain, element="2021 White", number="21")]}
     assert gr.check({"sport": "baseball"}, res, None, {}, vocab) == ([], [])
     opaque_png(d / "2021 White 21 CWS21.png")
     assert gr.check({"sport": "baseball"}, res, None, {}, vocab)[0] == [
@@ -279,8 +256,6 @@ def test_vocab_tokens_real_shared():
 
 def test_font_falls_back_to_default(monkeypatch):
     """Without any TrueType font installed, the label font is Pillow's default."""
-    from PIL import ImageFont
-
     real = ImageFont.truetype
 
     def nope(f, *a, **k):
@@ -296,13 +271,11 @@ def test_font_falls_back_to_default(monkeypatch):
 def test_find_root_and_missing_manifest(tmp_path, project, monkeypatch):
     """No configs above the cwd exits; a project without a manifest exits telling you to plan first."""
     monkeypatch.chdir(tmp_path)
-    with pytest.raises(SystemExit) as e:
-        run_main(monkeypatch)
-    assert "No configs/canvas_definitions.yaml" in str(e.value)
+    with pytest.raises(SystemExit, match=r"No configs/canvas_definitions\.yaml"):
+        main(monkeypatch, gr)
     monkeypatch.chdir(project)
-    with pytest.raises(SystemExit) as e:
-        run_main(monkeypatch)
-    assert "run scripts/golden/golden_plan.py first" in str(e.value)
+    with pytest.raises(SystemExit, match=r"run scripts/golden/golden_plan\.py first"):
+        main(monkeypatch, gr)
 
 
 # --------------------------------------------------------------------------
@@ -318,20 +291,21 @@ def draw_icons(project, cfg):
         art(base / f"{slot} Icon" / "2020 Maroon" / "2020 Maroon.png", W)
 
 
-def test_end_to_end_strict_ok(project, cfg, monkeypatch, capsys):
+def test_end_to_end_strict_ok(project, cfg, templates, monkeypatch, capsys):
     """A real composition passes every check, and --strict reports every example ok."""
     draw_icons(project, cfg)
     els = {"helmet": "2020 Maroon", "jersey": "2020 Maroon", "pants": "2020 Maroon"}
     eras = {f"1/{s}/icon": "all" for s in els}
     manifest(project, [entry("football--icons-horizontal--01", uniform1=els, number=None, expect_eras=eras)])
-    run_main(monkeypatch, "--strict")
+    main(monkeypatch, gr, "--strict")
     out = capsys.readouterr().out
     assert "1 examples to render" in out
     assert "ok     football--icons-horizontal--01" in out
     assert "STRICT: every example is ok" in out
     d = project / "golden/run/football/icons-horizontal"
     with Image.open(d / "football--icons-horizontal--01.png") as im:
-        assert im.size == (2430, 750)
+        out_size = next(t["output"] for t in templates if t["view_kind"] == "icons-horizontal")
+        assert im.size == (out_size["width"], out_size["height"])
     assert json.loads((d / "football--icons-horizontal--01.json").read_text())["missing"] == []
     assert (project / "golden/run/sheets/football--icons-horizontal.png").is_file()
     assert "**1 examples, 0 with defects.**" in report(project)
@@ -348,9 +322,8 @@ def test_end_to_end_failed_placement(project, cfg, monkeypatch, capsys):
     draw_icons(project, cfg)
     els = {"helmet": "2020 Maroon", "jersey": "1999 Nothing", "pants": "2020 Maroon"}
     manifest(project, [entry("football--icons-horizontal--01", uniform1=els)])
-    with pytest.raises(SystemExit) as e:
-        run_main(monkeypatch, "--strict")
-    assert str(e.value) == "STRICT: 1 with defects, 0 with notes (of 1 rendered this run)"
+    with pytest.raises(SystemExit, match=r"^STRICT: 1 with defects, 0 with notes \(of 1 rendered this run\)$"):
+        main(monkeypatch, gr, "--strict")
     out = capsys.readouterr().out
     assert "DEFECT football--icons-horizontal--01" in out
     assert "- FAILED jersey/icon: no file under Jerseys Icon/1999 Nothing" in out
@@ -413,9 +386,8 @@ def test_every_outcome_reported(project, monkeypatch, tmp_path, capsys):
     A compose that wrote no result is a FAILED defect of this run, so it is in the report too.
     """
     fake = suite(project, monkeypatch, tmp_path)
-    with pytest.raises(SystemExit) as e:
-        run_main(monkeypatch, "--strict")
-    assert str(e.value) == "STRICT: 6 with defects, 1 with notes (of 9 rendered this run)"
+    with pytest.raises(SystemExit, match=r"^STRICT: 6 with defects, 1 with notes \(of 9 rendered this run\)$"):
+        main(monkeypatch, gr, "--strict")
     out = capsys.readouterr().out
     assert "9 examples to render (1 not approved, skipped)" in out
     assert "[  1/9] ok     fb--a--01" in out
@@ -463,22 +435,21 @@ def test_every_outcome_reported(project, monkeypatch, tmp_path, capsys):
 def test_strict_counts_a_note_alone(project, monkeypatch, tmp_path, capsys):
     """Under --strict a 1-2px clipping note fails the run even with no defects."""
     suite(project, monkeypatch, tmp_path)
-    with pytest.raises(SystemExit) as e:
-        run_main(monkeypatch, "--strict", "--only", "fb--a--02")
-    assert str(e.value) == "STRICT: 0 with defects, 1 with notes (of 1 rendered this run)"
+    with pytest.raises(SystemExit, match=r"^STRICT: 0 with defects, 1 with notes \(of 1 rendered this run\)$"):
+        main(monkeypatch, gr, "--strict", "--only", "fb--a--02")
     assert "1 examples to render" in capsys.readouterr().out
 
 
 def test_only_refreshes_one_and_reports_all(project, monkeypatch, tmp_path, capsys):
     """--only composes just the named example while the report still covers every result on disk."""
     fake = suite(project, monkeypatch, tmp_path)
-    run_main(monkeypatch)
+    main(monkeypatch, gr)
     capsys.readouterr()
     fake.calls.clear()
     fake.behaviours["fb--a--03"] = fake.behaviours["fb--a--01"]
     # --strict judges only what this run rendered; older results on disk (2
     # defects, 1 note) are reported but not judged
-    run_main(monkeypatch, "--only", "fb--a--03", "--strict")
+    main(monkeypatch, gr, "--only", "fb--a--03", "--strict")
     out = capsys.readouterr().out
     assert "STRICT: every example is ok (1 rendered this run)" in out
     assert len(fake.calls) == 1
@@ -493,7 +464,7 @@ def test_only_refreshes_one_and_reports_all(project, monkeypatch, tmp_path, caps
 def test_only_strict_ok(project, monkeypatch, tmp_path, capsys):
     """--strict exits normally when every approved result on disk is clean."""
     fake = suite(project, monkeypatch, tmp_path)
-    run_main(monkeypatch, "--sport", "soccer", "--strict")
+    main(monkeypatch, gr, "--sport", "soccer", "--strict")
     out = capsys.readouterr().out
     assert len(fake.calls) == 1
     assert "STRICT: every example is ok" in out
@@ -503,33 +474,33 @@ def test_only_strict_ok(project, monkeypatch, tmp_path, capsys):
 def test_strict_with_sport_ignores_earlier_results_on_disk(project, monkeypatch, tmp_path, capsys):
     """--strict --sport passes on a clean sport even when another sport's earlier results on disk have defects."""
     suite(project, monkeypatch, tmp_path)
-    with pytest.raises(SystemExit):
-        run_main(monkeypatch, "--sport", "football", "--strict")
+    with pytest.raises(SystemExit, match="^STRICT: 6 with defects, 1 with notes"):
+        main(monkeypatch, gr, "--sport", "football", "--strict")
     capsys.readouterr()
-    run_main(monkeypatch, "--sport", "soccer", "--strict")
+    main(monkeypatch, gr, "--sport", "soccer", "--strict")
     out = capsys.readouterr().out
     assert "report covers 6, 3 with defects" in out
     assert "STRICT: every example is ok (1 rendered this run)" in out
 
 
-def test_strict_judges_this_runs_defect_not_an_older_clean_result(project, monkeypatch, tmp_path, capsys):
+def test_strict_judges_this_runs_defect_not_an_older_clean_result(project, monkeypatch, tmp_path):
     """A defect rendered in this run fails --strict even if earlier results of other examples are clean."""
     fake = suite(project, monkeypatch, tmp_path)
-    run_main(monkeypatch, "--only", "fb--a--01")
+    main(monkeypatch, gr, "--only", "fb--a--01")
     fake.behaviours["sc--c--01"] = fake.behaviours["fb--a--03"]
-    with pytest.raises(SystemExit) as e:
-        run_main(monkeypatch, "--sport", "soccer", "--strict")
-    assert str(e.value) == "STRICT: 1 with defects, 0 with notes (of 1 rendered this run)"
+    with pytest.raises(SystemExit, match=r"^STRICT: 1 with defects, 0 with notes \(of 1 rendered this run\)$"):
+        main(monkeypatch, gr, "--sport", "soccer", "--strict")
 
 
 def test_sport_filter_and_report_from_disk(project, monkeypatch, tmp_path, capsys):
     """--sport composes one sport; results for other sports already on disk stay in the report."""
     fake = suite(project, monkeypatch, tmp_path)
-    run_main(monkeypatch, "--sport", "football")
+    main(monkeypatch, gr, "--sport", "football")
     capsys.readouterr()
+    assert fake.calls
     assert all("soccer" not in c for c in fake.calls)
     fake.calls.clear()
-    run_main(monkeypatch, "--sport", "soccer")
+    main(monkeypatch, gr, "--sport", "soccer")
     out = capsys.readouterr().out
     assert len(fake.calls) == 1
     assert "report covers 6, 3 with defects" in out
@@ -538,11 +509,11 @@ def test_sport_filter_and_report_from_disk(project, monkeypatch, tmp_path, capsy
     assert "| soccer | `c` | 1 |  |" in r
 
 
-def test_stale_png_removed_before_compose(project, monkeypatch, tmp_path, capsys):
+def test_stale_png_removed_before_compose(project, monkeypatch, tmp_path):
     """A PNG left from an earlier run is deleted before compose runs, so a failed compose shows NOT RENDERED."""
     suite(project, monkeypatch, tmp_path)
     old = opaque_png(project / "golden/run/football/b/fb--b--01.png")
-    run_main(monkeypatch, "--only", "fb--b--01")
+    main(monkeypatch, gr, "--only", "fb--b--01")
     assert not old.exists()
     assert "### `fb--b--01`" in report(project)
 
@@ -550,14 +521,13 @@ def test_stale_png_removed_before_compose(project, monkeypatch, tmp_path, capsys
 def test_stale_json_not_read_as_ok(project, monkeypatch, tmp_path, capsys):
     """A compose that writes no JSON is FAILED with its last error line, never the previous run's result."""
     fake = suite(project, monkeypatch, tmp_path)
-    run_main(monkeypatch, "--only", "fb--a--01", "--strict")
+    main(monkeypatch, gr, "--only", "fb--a--01", "--strict")
     js = project / "golden/run/football/a/fb--a--01.json"
     assert js.is_file()
     capsys.readouterr()
     fake.behaviours["fb--a--01"] = (None, None, "Unknown token(s): Bogus\nNot in configs/modifiers_football.yaml\n")
-    with pytest.raises(SystemExit) as e:
-        run_main(monkeypatch, "--only", "fb--a--01", "--strict")
-    assert str(e.value).startswith("STRICT: 1 with defects")
+    with pytest.raises(SystemExit, match="^STRICT: 1 with defects"):
+        main(monkeypatch, gr, "--only", "fb--a--01", "--strict")
     out = capsys.readouterr().out
     assert "DEFECT fb--a--01" in out
     assert "- FAILED compose: Not in configs/modifiers_football.yaml" in out
@@ -573,12 +543,11 @@ def test_end_to_end_unknown_token_after_ok_run(project, cfg, monkeypatch, capsys
     els = {"helmet": "2020 Maroon", "jersey": "2020 Maroon", "pants": "2020 Maroon"}
     ex = entry("football--icons-horizontal--01", uniform1=els)
     manifest(project, [ex])
-    run_main(monkeypatch, "--strict")
+    main(monkeypatch, gr, "--strict")
     capsys.readouterr()
     manifest(project, [{**ex, "with": ["Bogus"]}])
-    with pytest.raises(SystemExit) as e:
-        run_main(monkeypatch, "--strict")
-    assert str(e.value).startswith("STRICT: 1 with defects")
+    with pytest.raises(SystemExit, match="^STRICT: 1 with defects"):
+        main(monkeypatch, gr, "--strict")
     out = capsys.readouterr().out
     assert "DEFECT football--icons-horizontal--01" in out
     assert "- FAILED compose: " in out
@@ -597,13 +566,12 @@ def test_end_to_end_unknown_token_after_ok_run(project, cfg, monkeypatch, capsys
 def test_nothing_selected_reports_zero(project, monkeypatch, capsys, entries, argv):
     """With no example selected, golden/run/ is created and the report says 0 examples; --strict then fails."""
     manifest(project, entries)
-    run_main(monkeypatch, *argv)
+    main(monkeypatch, gr, *argv)
     assert "**0 examples, 0 with defects.**" in report(project)
     assert "0 rendered" in (project / "golden/run/index.html").read_text()
     assert "0 rendered this run; report covers 0" in capsys.readouterr().out
-    with pytest.raises(SystemExit) as e:
-        run_main(monkeypatch, *argv, "--strict")
-    assert str(e.value) == "STRICT: no approved example matched the selection, so nothing was checked"
+    with pytest.raises(SystemExit, match="^STRICT: no approved example matched the selection, so nothing was checked$"):
+        main(monkeypatch, gr, *argv, "--strict")
 
 
 def test_contact_sheet_labels_and_outline(tmp_path):
@@ -619,20 +587,10 @@ def test_contact_sheet_labels_and_outline(tmp_path):
         assert im.getpixel((40 - 4, 110 + 100)) == (210, 210, 210)
 
 
-def test_runs_as_a_script(project, monkeypatch, capsys):
-    """Executed as __main__, the script runs the manifest of the project it is run in."""
-    import runpy
-
-    manifest(project, [])
-    monkeypatch.setattr(sys, "argv", ["golden_run.py"])
-    runpy.run_path(str(REPO / "scripts/golden/golden_run.py"), run_name="__main__")
-    assert "0 rendered this run; report covers 0, 0 with defects" in capsys.readouterr().out
-
-
 def test_root_flag_from_outside_the_project(project, tmp_path, monkeypatch):
     """--root names the project when run from elsewhere: its missing manifest is what's reported."""
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     monkeypatch.chdir(elsewhere)
     with pytest.raises(SystemExit, match="No golden/manifest.yaml"):
-        run_main(monkeypatch, "--root", str(project))
+        main(monkeypatch, gr, "--root", str(project))

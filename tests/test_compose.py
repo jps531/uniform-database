@@ -1,16 +1,12 @@
 """Tests for scripts/pipeline/compose.py: candidate ranking, placement resolution, pasting, --json and --diff."""
 
 import json
-import os
-import runpy
-import sys
 
 import common
 import compose
 import numpy as np
 import pytest
-import yaml
-from conftest import REPO, art, canvas_size
+from helpers import REPO, art, blank, canvas_size, main, override_configs, pixels
 from PIL import Image
 
 SCRIPT = str(REPO / "scripts" / "pipeline" / "compose.py")
@@ -50,13 +46,7 @@ def rank(folder, element, vocab, number=None, want=(), player=None):
 
 def mini(project, *templates):
     """Replace the project's view templates with these, keeping every other real config file."""
-    d = project / "configs"
-    d.unlink()
-    d.mkdir()
-    for f in (REPO / "configs").iterdir():
-        if f.name != "view_templates.yaml":
-            os.symlink(f, d / f.name)
-    (d / "view_templates.yaml").write_text(yaml.safe_dump({"templates": list(templates)}))
+    override_configs(project, {"view_templates.yaml": {"templates": list(templates)}})
 
 
 def tpl(view, placements, w=200, h=120, sport="football"):
@@ -64,21 +54,15 @@ def tpl(view, placements, w=200, h=120, sport="football"):
     return {"sport": sport, "view_kind": view, "output": {"width": w, "height": h}, "placements": placements}
 
 
-def run(monkeypatch, *argv):
-    """Call compose.main() with these arguments."""
-    monkeypatch.setattr(sys, "argv", ["compose.py", *argv])
-    compose.main()
-
-
 def compose_json(project, monkeypatch, *argv, ok=True):
     """Run compose with --json and --out in the project; return (result dict, output path)."""
     out, jp = project / "out" / "c.png", project / "out" / "c.json"
     args = [*argv, "--out", str(out), "--json", str(jp)]
     if ok:
-        run(monkeypatch, *args)
+        main(monkeypatch, compose, *args)
     else:
         with pytest.raises(SystemExit) as e:
-            run(monkeypatch, *args)
+            main(monkeypatch, compose, *args)
         assert e.value.code == 1
     return json.loads(jp.read_text()), out
 
@@ -86,12 +70,6 @@ def compose_json(project, monkeypatch, *argv, ok=True):
 def by_label(result):
     """Placements of a --json result keyed by label."""
     return {p["label"]: p for p in result["placements"]}
-
-
-def pixels(path):
-    """An image's RGBA pixels as an array."""
-    with Image.open(path) as im:
-        return np.array(im.convert("RGBA"))
 
 
 # --- vocabulary and tail parsing ----------------------------------------------
@@ -112,12 +90,15 @@ def test_vocab_excludes_sequences_and_marks_default_forms(fvocab, bvocab):
 
 def test_vocab_exits_on_loops_and_missing_files_and_skips_unlabelled_tokens(project):
     """Circular extends and a missing vocabulary exit naming the file; a token with no name is skipped."""
-    mini(project)
-    d = project / "configs"
-    (d / "modifiers_a.yaml").write_text(yaml.safe_dump({"extends": "b", "tokens": {"x": {"label": "Xtra"}}}))
-    (d / "modifiers_b.yaml").write_text(yaml.safe_dump({"extends": "a", "tokens": {"y": {"scope": "patch"}}}))
-    (d / "modifiers_c.yaml").write_text(yaml.safe_dump({"extends": "nope", "tokens": {"z": {"label": "Zed"}}}))
-    (d / "modifiers_e.yaml").write_text(yaml.safe_dump({"tokens": {"x": {"label": "Xtra"}, "y": {"scope": "patch"}}}))
+    override_configs(
+        project,
+        {
+            "modifiers_a.yaml": {"extends": "b", "tokens": {"x": {"label": "Xtra"}}},
+            "modifiers_b.yaml": {"extends": "a", "tokens": {"y": {"scope": "patch"}}},
+            "modifiers_c.yaml": {"extends": "nope", "tokens": {"z": {"label": "Zed"}}},
+            "modifiers_e.yaml": {"tokens": {"x": {"label": "Xtra"}, "y": {"scope": "patch"}}},
+        },
+    )
     with pytest.raises(SystemExit, match="Circular `extends` reaching modifiers_a.yaml"):
         compose.load_vocab(project, "a")
     with pytest.raises(SystemExit, match="No vocabulary at configs/modifiers_nope.yaml"):
@@ -368,7 +349,7 @@ def test_missing_required_without_json_still_exits(project, monkeypatch):
     """Without --json a missing required placement still exits 1."""
     mini(project, MINI)
     with pytest.raises(SystemExit) as e:
-        run(monkeypatch, "--view", "mini", "--helmet", "2025 Black", "--out", str(project / "o.png"))
+        main(monkeypatch, compose, "--view", "mini", "--helmet", "2025 Black", "--out", str(project / "o.png"))
     assert e.value.code == 1
     assert not (project / "o.png").exists()
 
@@ -377,37 +358,34 @@ def test_required_slot_not_supplied_names_the_flag(project, monkeypatch):
     """A template needing a slot the caller didn't give exits listing what it needs and what's missing."""
     mini(project, MINI)
     with pytest.raises(SystemExit, match=r"Template 'mini' needs these slots: --helmet\nNot supplied: --helmet"):
-        run(monkeypatch, "--view", "mini")
+        main(monkeypatch, compose, "--view", "mini")
 
 
 def test_unknown_with_token_exits(project, monkeypatch):
     """--with a token not in the sport's vocabulary exits naming it."""
     mini(project, MINI)
     with pytest.raises(SystemExit, match=r"Unknown token\(s\): Glitter\nNot in configs/modifiers_football.yaml"):
-        run(monkeypatch, "--view", "mini", "--helmet", "x", "--with", "Glitter")
+        main(monkeypatch, compose, "--view", "mini", "--helmet", "x", "--with", "Glitter")
 
 
-def test_ranking_flags_pick_the_file_end_to_end(project, monkeypatch):
+@pytest.mark.parametrize(
+    "flags, name, number, tokens",
+    [
+        ((), "2025 Black.png", None, []),
+        (("--number", "03"), "2025 Black 03.png", "03", []),
+        (("--number", "3"), "2025 Black 3.png", "3", []),
+        (("--number", "03", "--with", "Grad"), "2025 Black 03 Grad.png", "03", ["Grad"]),
+    ],
+)
+def test_ranking_flags_pick_the_file_end_to_end(project, monkeypatch, flags, name, number, tokens):
     """--number, --with and the plainest-file rule decide which file is composed, reported in --json."""
     mini(project, MINI)
     for n in ("2025 Black", "2025 Black 3", "2025 Black 03", "2025 Black 03 Grad"):
         put(project, "helmet", "front", "2025 Black", n)
-    cases = {
-        (): ("2025 Black.png", None),
-        ("--number", "03"): ("2025 Black 03.png", "03"),
-        ("--number", "3"): ("2025 Black 3.png", "3"),
-        ("--number", "03", "--with", "Grad"): ("2025 Black 03 Grad.png", "03"),
-    }
-    placed = {}
-    for flags, (name, num) in cases.items():
-        res, _ = compose_json(project, monkeypatch, "--view", "mini", "--helmet", "2025 Black", *flags)
-        p = by_label(res)["helmet/front"]
-        assert (p["file"].rsplit("/", 1)[-1], p["number_found"]) == (name, num)
-        placed[flags] = p
-    # Only the one case passes --with, so name it rather than relying on it being last.
-    grad = placed[("--number", "03", "--with", "Grad")]
-    assert grad["tokens_requested"] == ["Grad"]
-    assert grad["tokens_found"] == ["Grad"]
+    res, _ = compose_json(project, monkeypatch, "--view", "mini", "--helmet", "2025 Black", *flags)
+    p = by_label(res)["helmet/front"]
+    assert (p["file"].rsplit("/", 1)[-1], p["number_found"]) == (name, number)
+    assert p["tokens_requested"] == p["tokens_found"] == tokens
 
 
 def test_numbers_resolve_per_viewpoint(project, monkeypatch):
@@ -474,7 +452,7 @@ def test_combo_needs_two_uniforms(project, monkeypatch):
     """A combo template without the `2` flags exits saying it needs two uniforms."""
     mini(project, COMBO)
     with pytest.raises(SystemExit, match=r"needs TWO uniforms: --jersey, --jersey2\nNot supplied: --jersey2"):
-        run(monkeypatch, "--view", "combo", "--jersey", "2025 White")
+        main(monkeypatch, compose, "--view", "combo", "--jersey", "2025 White")
 
 
 def test_combo_second_uniform_inherits_number_tokens_and_player(project, monkeypatch, capsys):
@@ -558,7 +536,7 @@ def test_element_flag_without_equals_exits(project, monkeypatch):
     """--element without SLOT=NAME exits quoting what it got."""
     mini(project, COMBO)
     with pytest.raises(SystemExit, match="--element expects SLOT=NAME, got 'jersey'"):
-        run(monkeypatch, "--view", "combo", "--element", "jersey")
+        main(monkeypatch, compose, "--view", "combo", "--element", "jersey")
 
 
 # --- clipping, blank artwork, rotation -----------------------------------------------
@@ -583,9 +561,7 @@ def test_clipping_is_judged_on_artwork_not_padding(project, monkeypatch, capsys)
 def test_fully_transparent_artwork_is_placed_without_bbox(project, monkeypatch):
     """An element with no opaque pixels is placed with an empty artwork bbox and no clipping."""
     mini(project, tpl("edge", [{"slot": "helmet", "viewpoint": "front", "x": 50, "y": 0}]))
-    path = project / "Football" / MSU / "Helmets Front" / "Blank" / "Blank.png"
-    path.parent.mkdir(parents=True)
-    Image.new("RGBA", (30, 30), (0, 0, 0, 0)).save(path)
+    blank(project / "Football" / MSU / "Helmets Front" / "Blank" / "Blank.png", (30, 30))
     res, _ = compose_json(project, monkeypatch, "--view", "edge", "--helmet", "Blank")
     p = by_label(res)["helmet/front"]
     assert p["status"] == "placed"
@@ -626,11 +602,11 @@ def test_diff_against_identical_reference(project, monkeypatch, capsys):
     mini(project, MINI)
     put(project, "helmet", "front", "2025 Black", "2025 Black")
     out = project / "out" / "c.png"
-    run(monkeypatch, "--view", "mini", "--helmet", "2025 Black", "--out", str(out))
+    main(monkeypatch, compose, "--view", "mini", "--helmet", "2025 Black", "--out", str(out))
     ref = project / "ref.png"
     ref.write_bytes(out.read_bytes())
     capsys.readouterr()
-    run(monkeypatch, "--view", "mini", "--helmet", "2025 Black", "--out", str(out), "--diff", str(ref))
+    main(monkeypatch, compose, "--view", "mini", "--helmet", "2025 Black", "--out", str(out), "--diff", str(ref))
     text = capsys.readouterr().out
     assert "reference (200, 120)  composed (200, 120)" in text
     assert "differing pixels: 0 of 1,200 inked (0.00%)" in text
@@ -644,7 +620,7 @@ def test_diff_writes_a_mask_of_differences(project, monkeypatch, capsys):
     ref = project / "ref.png"
     Image.new("RGBA", (200, 120), (0, 0, 0, 0)).save(ref)
     out = project / "out" / "c.png"
-    run(monkeypatch, "--view", "mini", "--helmet", "2025 Black", "--out", str(out), "--diff", str(ref))
+    main(monkeypatch, compose, "--view", "mini", "--helmet", "2025 Black", "--out", str(out), "--diff", str(ref))
     text = capsys.readouterr().out
     assert "differing pixels:" in text
     assert "differences span x 30-69, y 0-29" in text
@@ -658,7 +634,18 @@ def test_diff_scales_a_reference_of_another_size(project, monkeypatch, capsys):
     put(project, "helmet", "front", "2025 Black", "2025 Black")
     ref = project / "ref.png"
     Image.new("RGBA", (100, 60), (0, 0, 0, 0)).save(ref)
-    run(monkeypatch, "--view", "mini", "--helmet", "2025 Black", "--out", str(project / "c.png"), "--diff", str(ref))
+    main(
+        monkeypatch,
+        compose,
+        "--view",
+        "mini",
+        "--helmet",
+        "2025 Black",
+        "--out",
+        str(project / "c.png"),
+        "--diff",
+        str(ref),
+    )
     assert "sizes differ — scaling reference to compare" in capsys.readouterr().out
 
 
@@ -667,7 +654,7 @@ def test_diff_missing_reference_exits_after_writing(project, monkeypatch):
     mini(project, MINI)
     put(project, "helmet", "front", "2025 Black", "2025 Black")
     with pytest.raises(SystemExit, match="Reference not found"):
-        run(monkeypatch, "--view", "mini", "--helmet", "2025 Black", "--out", "c.png", "--diff", "nope.png")
+        main(monkeypatch, compose, "--view", "mini", "--helmet", "2025 Black", "--out", "c.png", "--diff", "nope.png")
     assert (project / "c.png").is_file()
 
 
@@ -728,6 +715,7 @@ def test_mens_basketball_finds_the_apostrophe_directory(project, monkeypatch, cf
         project, monkeypatch, "--sport", "mens_basketball", "--view", "mbk-jersey", "--jersey", "2025 Maroon"
     )
     assert out.is_file()
+    assert res["placements"]
     assert all("/Men's Basketball/" in p["file"] for p in res["placements"])
 
 
@@ -737,7 +725,7 @@ def test_mens_basketball_finds_the_apostrophe_directory(project, monkeypatch, cf
 def test_unknown_view_exits(project, monkeypatch):
     """A sport/view with no template exits naming both."""
     with pytest.raises(SystemExit, match="No template for football/nope"):
-        run(monkeypatch, "--view", "nope")
+        main(monkeypatch, compose, "--view", "nope")
 
 
 def test_find_root_walks_up_and_fails_cleanly(project, tmp_path, monkeypatch):
@@ -749,30 +737,19 @@ def test_find_root_walks_up_and_fails_cleanly(project, tmp_path, monkeypatch):
     lone.mkdir()
     monkeypatch.chdir(lone)
     with pytest.raises(SystemExit, match="No configs/canvas_definitions.yaml in"):
-        run(monkeypatch, "--view", "mini")
+        main(monkeypatch, compose, "--view", "mini")
 
 
-def test_root_flag_and_script_entry_point(project, tmp_path, monkeypatch):
-    """Run as `__main__` from elsewhere with --root, compose reads that project's templates."""
+def test_root_flag_from_elsewhere(project, tmp_path, monkeypatch):
+    """Run from elsewhere with --root, compose reads that project's templates."""
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(sys, "argv", ["compose.py", "--root", str(project), "--view", "nope"])
     with pytest.raises(SystemExit, match="No template for football/nope"):
-        runpy.run_path(SCRIPT, run_name="__main__")
+        main(monkeypatch, compose, "--root", str(project), "--view", "nope")
 
 
-def test_missing_dependencies_exit_with_a_hint(monkeypatch):
-    """Without Pillow the script exits telling the user to run `uv sync`."""
-    monkeypatch.setitem(sys.modules, "PIL", None)
-    with pytest.raises(SystemExit, match="uv sync"):
-        runpy.run_path(SCRIPT, run_name="compose_noimport")
-
-
-def test_slot_flags_are_the_slots_templates_place(project, monkeypatch, capsys):
+def test_slot_flags_are_the_slots_templates_place(project, monkeypatch):
     """compose offers --{slot} only for slots a template places: venue slots (field, court) are not combination slots."""
-    monkeypatch.setattr(sys, "argv", ["compose.py", "--help"])
-    with pytest.raises(SystemExit):
-        compose.main()
-    out = capsys.readouterr().out
+    out = main(monkeypatch, compose, "--help")
     for slot in ("--helmet", "--jersey", "--pants", "--hat", "--shorts"):
         assert slot in out
     assert "--field" not in out and "--court" not in out

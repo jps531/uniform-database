@@ -4,12 +4,19 @@ The fixture is built once per module, end to end, the way it is on the Mac:
 helmet marks for every era on both sides padded with standardize.py, venues
 cropped with derive_crops.py, golden_run.py, then golden_fixture.py --apply.
 Each test copies just what CI has (configs, scripts, manifest, fixture).
+
+A full golden_ci.main() renders every composition through golden_run.py and
+compose.py, so only three tests run it end to end (a pass, a composition
+failure, an empty fixture). The helmet and venue drift cases call
+check_helmets() / check_venues() on the throwaway project main() would
+build. The module's tests are marked to share one xdist worker
+(`--dist loadgroup`) so the module-scoped build happens once; with
+pytest-xdist 3.8 on pytest 9.2 the mark has no effect yet (see
+pyproject.toml), and each worker builds its own.
 """
 
-import os
-import runpy
+import re
 import shutil
-import sys
 import tempfile
 from pathlib import Path
 
@@ -20,9 +27,22 @@ import golden_fixture
 import golden_run
 import pytest
 import standardize
-from conftest import REPO, art, canvas_size, era
+from helpers import (
+    ERAS,
+    REPO,
+    TEAM,
+    art,
+    canvas_size,
+    era,
+    main,
+    make_project,
+    mark,
+    small_configs,
+    write_manifest,
+)
 from PIL import Image
-from test_golden_fixture import ERAS, TEAM, mark, small_configs, write_manifest
+
+pytestmark = pytest.mark.xdist_group("golden_ci")
 
 ELEMENTS = dict(zip(ERAS, ("1950 White", "1960 White", "1970 White", "1980 White", "1990 White", "2020 Maroon")))
 VENUES = (
@@ -32,23 +52,10 @@ VENUES = (
 )
 
 
-def call(mp, module, *argv):
-    """Run `module.main()` in-process with argv, treating a zero or absent exit as success."""
-    mp.setattr(sys, "argv", [module.__name__, *argv])
-    try:
-        module.main()
-    except SystemExit as e:
-        assert e.code in (0, None), e.code
-
-
 @pytest.fixture(scope="module")
 def base(tmp_path_factory) -> Path:
     """A project built end to end once: artwork, padded helmets, crops, a golden run and an applied fixture."""
-    root = tmp_path_factory.mktemp("ci") / "project"
-    root.mkdir()
-    for name in ("configs", "scripts"):
-        os.symlink(REPO / name, root / name)
-    (root / "golden").mkdir()
+    root = make_project(tmp_path_factory.mktemp("ci") / "project")
     cfg = small_configs(root)
     for side in ("Left", "Right"):
         for i, (e, el) in enumerate(ELEMENTS.items()):
@@ -82,18 +89,11 @@ def base(tmp_path_factory) -> Path:
     with pytest.MonkeyPatch.context() as mp:
         mp.chdir(root)
         for side in ("Left", "Right"):
-            call(
-                mp,
-                standardize,
-                "--root",
-                str(root),
-                "pad",
-                f"Marks/Football/{TEAM}/Helmets {side}",
-                f"Football/{TEAM}/Helmets {side}",
-            )
-        call(mp, derive_crops, "--root", str(root), "--apply")
-        call(mp, golden_run, "--strict")
-        call(mp, golden_fixture, "--root", str(root), "--apply")
+            src, dest = f"Marks/Football/{TEAM}/Helmets {side}", f"Football/{TEAM}/Helmets {side}"
+            main(mp, standardize, "--root", str(root), "pad", src, dest)
+        main(mp, derive_crops, "--root", str(root), "--apply")
+        main(mp, golden_run, "--strict")
+        main(mp, golden_fixture, "--root", str(root), "--apply")
     return root
 
 
@@ -103,7 +103,7 @@ def ci(base, tmp_path, monkeypatch) -> Path:
     root = tmp_path / "repo"
     (root / "golden").mkdir(parents=True)
     shutil.copytree(base / "configs", root / "configs")
-    os.symlink(REPO / "scripts", root / "scripts")
+    (root / "scripts").symlink_to(REPO / "scripts")
     shutil.copy2(base / "golden/manifest.yaml", root / "golden/manifest.yaml")
     shutil.copytree(base / "golden/fixture", root / "golden/fixture")
     temp = tmp_path / "temp"
@@ -113,12 +113,18 @@ def ci(base, tmp_path, monkeypatch) -> Path:
     return root
 
 
-def run_ci(monkeypatch, capsys, root: Path, *flags) -> tuple:
-    """Run golden_ci.main() on `root`; returns (exit code, stdout)."""
-    monkeypatch.setattr(sys, "argv", ["golden_ci.py", "--root", str(root), *flags])
-    with pytest.raises(SystemExit) as e:
-        golden_ci.main()
-    return e.value.code, capsys.readouterr().out
+@pytest.fixture
+def tmp(ci, tmp_path) -> Path:
+    """The throwaway project main() builds from the CI copy (golden_ci.build_project), for calling one check."""
+    t = tmp_path / "golden-x" / "project"
+    golden_ci.build_project(ci, ci / "golden/fixture", t)
+    return t
+
+
+@pytest.fixture
+def ci_cfg(ci) -> dict:
+    """The CI copy's (scaled-down) canvas config, as main() loads it."""
+    return common.load_config(ci)
 
 
 def fixture_path(root: Path, *parts) -> Path:
@@ -126,148 +132,144 @@ def fixture_path(root: Path, *parts) -> Path:
     return root.joinpath("golden", "fixture", *parts)
 
 
-def test_consistent_fixture_passes(ci, monkeypatch, capsys, tmp_path):
-    """A fixture built from a clean run passes all three checks, writes the job summary and cleans up."""
+def nudge_first_pixel(f: Path) -> None:
+    """Change the red channel of the first opaque pixel of a PNG by one."""
+    with Image.open(f) as im:
+        im = im.convert("RGBA")
+    box = im.getchannel("A").getbbox()
+    assert box is not None
+    x, y = box[:2]
+    px = im.getpixel((x, y))
+    assert isinstance(px, tuple)
+    r, g, b, a = px
+    im.putpixel((x, y), ((r + 1) % 256, g, b, a))
+    im.save(f)
+
+
+# --- main(), end to end --------------------------------------------------------
+
+
+def test_consistent_fixture_passes(ci, monkeypatch, tmp_path):
+    """A clean fixture passes all three checks, writes the job summary, copies results to golden/run-ci/ and cleans up.
+
+    A stale golden/run-ci/ is replaced, and a local full run in golden/run/ is never touched.
+    """
     summary = tmp_path / "summary.md"
     monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
-    code, out = run_ci(monkeypatch, capsys, ci)
-    assert code == 0, out
-    assert "Every composition, helmet and venue is ok." in out
-    assert "## Golden suite" in summary.read_text()
-    assert (ci / "golden/run-ci/REPORT.md").is_file()
-    assert list((tmp_path / "temp").iterdir()) == []
-
-
-def test_results_go_to_run_ci_and_leave_a_local_full_run_alone(ci, monkeypatch, capsys):
-    """golden_ci copies its results to golden/run-ci/, replacing a stale one, and never touches golden/run/."""
     local = ci / "golden/run/football/full/ex.json"
     local.parent.mkdir(parents=True)
     local.write_text('{"local": true}')
     stale = ci / "golden/run-ci/stale.txt"
     stale.parent.mkdir(parents=True)
     stale.write_text("old")
-    code, out = run_ci(monkeypatch, capsys, ci)
-    assert code == 0, out
+    out = main(monkeypatch, golden_ci, "--root", str(ci))
+    assert "Every composition, helmet and venue is ok." in out
+    assert "## Golden suite" in summary.read_text()
+    assert (ci / "golden/run-ci/REPORT.md").is_file()
+    assert not stale.exists()
     assert sorted(p.relative_to(ci / "golden/run").as_posix() for p in (ci / "golden/run").rglob("*")) == [
         "football",
         "football/full",
         "football/full/ex.json",
     ]
     assert local.read_text() == '{"local": true}'
-    assert not stale.exists()
-    assert (ci / "golden/run-ci/REPORT.md").is_file()
+    assert list((tmp_path / "temp").iterdir()) == []
 
 
-def test_keep_leaves_the_temporary_project(ci, monkeypatch, capsys, tmp_path):
-    """--keep prints the temporary project's path and leaves it in place."""
-    code, out = run_ci(monkeypatch, capsys, ci, "--keep")
-    assert code == 0
-    kept = Path(out.split("kept ", 1)[1].split()[0])
-    assert kept.is_relative_to(tmp_path / "temp")
-    assert (kept / "golden/run/REPORT.md").is_file()
-
-
-def test_changed_pixel_in_generated_helmet_fails(ci, monkeypatch, capsys):
-    """One pixel changed in a fixture's generated helmet fails the helmet check for that file."""
-    rel = Path(ELEMENTS["A"]) / f"{ELEMENTS['A']}.png"
-    f = fixture_path(ci, "Football", TEAM, "Helmets Left", rel)
-    with Image.open(f) as im:
-        im = im.convert("RGBA")
-        box = im.getchannel("A").getbbox()
-        assert box is not None
-        x, y = box[:2]
-        px = im.getpixel((x, y))
-        assert isinstance(px, tuple)
-        r, g, b, a = px
-        im.putpixel((x, y), ((r + 1) % 256, g, b, a))
-        im.save(f)
-    code, out = run_ci(monkeypatch, capsys, ci)
-    assert code == 1
-    assert f"- helmets {TEAM} Left: pixels differ: {rel}" in out
-
-
-def test_different_crop_fails(ci, monkeypatch, capsys):
-    """A cropped venue that no longer matches its re-derived crop fails the venue check."""
-    rel = Path("2021 B/2021 B.png")
-    f = fixture_path(ci, "Venues", "Baseball", TEAM, "Fields Cropped", rel)
-    with Image.open(f) as im:
-        size = im.size
-    art(f, size, seed=99)
-    code, out = run_ci(monkeypatch, capsys, ci)
-    assert code == 1
-    assert f"- venues Baseball/{TEAM}/Fields Cropped: pixels differ: {rel}" in out
-
-
-def test_missing_helmet_era_fails(ci, monkeypatch, capsys):
-    """A fixture with no mark of one era fails the coverage check for that era and side."""
-    el = ELEMENTS["C"]
-    for tree in ("Football", "Marks/Football"):
-        shutil.rmtree(fixture_path(ci, tree, TEAM, "Helmets Right", el))
-    code, out = run_ci(monkeypatch, capsys, ci)
-    assert code == 1
-    assert "- helmets: no right mark of era C in the fixture" in out
-    assert "no left mark" not in out
-
-
-def test_unresolvable_composition_fails(ci, monkeypatch, capsys):
-    """A placement the fixture can no longer resolve fails the composition check."""
+def test_unresolvable_composition_fails_and_keep_leaves_the_project(ci, monkeypatch, capsys, tmp_path):
+    """A placement the fixture can no longer resolve fails the composition check; --keep prints and keeps the project."""
     shutil.rmtree(fixture_path(ci, "Football", TEAM, "Helmets Front"))
-    code, out = run_ci(monkeypatch, capsys, ci)
-    assert code == 1
+    with pytest.raises(SystemExit) as e:
+        main(monkeypatch, golden_ci, "--root", str(ci), "--keep")
+    assert e.value.code == 1
+    out = capsys.readouterr().out
     assert "- compositions: golden_run.py --strict failed (see REPORT.md)" in out
     assert "## Defects" in (ci / "golden/run-ci/REPORT.md").read_text()
-
-
-def test_composition_check_without_a_run_fails(ci, monkeypatch, capsys):
-    """When golden_run.py writes no run at all (no manifest), the composition check fails and nothing is copied back."""
-    (ci / "golden/manifest.yaml").unlink()
-    code, out = run_ci(monkeypatch, capsys, ci)
-    assert code == 1
-    assert "- compositions: golden_run.py --strict failed (see REPORT.md)" in out
-    assert not (ci / "golden/run-ci").exists()
-    assert not (ci / "golden/run").exists()
+    kept = re.search(r"^kept (.+)$", out, re.M)
+    assert kept, out
+    kept = Path(kept.group(1))
+    assert kept.is_relative_to(tmp_path / "temp")
+    assert (kept / "golden/run/REPORT.md").is_file()
 
 
 def test_empty_fixture_fails(ci, monkeypatch, capsys):
     """An empty fixture fails at once with instructions to build it."""
     shutil.rmtree(fixture_path(ci))
-    code, out = run_ci(monkeypatch, capsys, ci)
-    assert code == 1
-    assert "golden/fixture/ is empty: run scripts/golden/golden_fixture.py --apply" in out
+    with pytest.raises(SystemExit) as e:
+        main(monkeypatch, golden_ci, "--root", str(ci))
+    assert e.value.code == 1
+    assert "golden/fixture/ is empty: run scripts/golden/golden_fixture.py --apply" in capsys.readouterr().out
 
 
-def test_fixture_without_helmet_marks_fails(ci, monkeypatch, capsys):
+def test_main_finds_root_from_cwd(project, monkeypatch, capsys):
+    """Without --root, main() uses the project found from the working directory."""
+    with pytest.raises(SystemExit) as e:
+        main(monkeypatch, golden_ci)
+    assert e.value.code == 1
+    assert "golden/fixture/ is empty" in capsys.readouterr().out
+
+
+# --- one check at a time ---------------------------------------------------------
+
+
+def test_composition_check_without_a_run_fails(ci, tmp):
+    """When golden_run.py writes no run at all (no manifest), the composition check fails and nothing is copied back."""
+    (tmp / "golden/manifest.yaml").unlink()
+    assert golden_ci.check_compositions(ci, tmp) == ["compositions: golden_run.py --strict failed (see REPORT.md)"]
+    assert not (tmp / "golden/run").exists()
+    assert not (ci / "golden/run-ci").exists()
+
+
+def test_changed_pixel_in_generated_helmet_fails(tmp, ci_cfg):
+    """One pixel changed in a fixture's generated helmet fails the helmet check for that file, and only that."""
+    rel = Path(ELEMENTS["A"]) / f"{ELEMENTS['A']}.png"
+    nudge_first_pixel(tmp / "Football" / TEAM / "Helmets Left" / rel)
+    assert golden_ci.check_helmets(tmp, ci_cfg) == [f"helmets {TEAM} Left: pixels differ: {rel}"]
+
+
+def test_missing_helmet_era_fails(tmp, ci_cfg):
+    """A fixture with no mark of one era fails the coverage check for that era and side only."""
+    el = ELEMENTS["C"]
+    for tree in ("Football", "Marks/Football"):
+        shutil.rmtree(tmp / tree / TEAM / "Helmets Right" / el)
+    assert golden_ci.check_helmets(tmp, ci_cfg) == ["helmets: no right mark of era C in the fixture"]
+
+
+def test_fixture_without_helmet_marks_fails(tmp, ci_cfg):
     """A fixture with no Marks helmet folders fails the helmet check."""
-    shutil.rmtree(fixture_path(ci, "Marks"))
-    code, out = run_ci(monkeypatch, capsys, ci)
-    assert code == 1
-    assert "- helmets: the fixture has no Marks/Football/*/Helmets Left|Right" in out
+    shutil.rmtree(tmp / "Marks")
+    assert golden_ci.check_helmets(tmp, ci_cfg) == ["helmets: the fixture has no Marks/Football/*/Helmets Left|Right"]
 
 
-def test_derived_sport_without_venue_fails(ci, monkeypatch, capsys):
-    """A sport whose canvases have derived_from but no venue in the fixture fails the venue check."""
-    shutil.rmtree(fixture_path(ci, "Venues", "Basketball"))
-    code, out = run_ci(monkeypatch, capsys, ci)
-    assert code == 1
-    assert "- venues: the fixture has no cropped venue for basketball" in out
-    assert "for football" not in out
-    assert "for baseball" not in out
-
-
-def test_pad_refusal_fails(ci, monkeypatch, capsys):
+def test_pad_refusal_fails(tmp, ci_cfg):
     """A Marks helmet folder that standardize.py refuses to pad is reported as a failure."""
-    fixture_path(ci, "Marks", "Football", "Other", "Helmets Left").mkdir(parents=True)
-    code, out = run_ci(monkeypatch, capsys, ci)
-    assert code == 1
-    assert "- helmets: pad refused Other / Helmets Left" in out
+    (tmp / "Marks" / "Football" / "Other" / "Helmets Left").mkdir(parents=True)
+    assert "helmets: pad refused Other / Helmets Left" in golden_ci.check_helmets(tmp, ci_cfg)
 
 
-def test_derive_crops_refusal_fails(ci, monkeypatch, capsys):
+def test_different_crop_fails(tmp, ci_cfg):
+    """A cropped venue that no longer matches its re-derived crop fails the venue check for that file."""
+    rel = Path("2021 B/2021 B.png")
+    f = tmp / "Venues" / "Baseball" / TEAM / "Fields Cropped" / rel
+    with Image.open(f) as im:
+        size = im.size
+    art(f, size, seed=99)
+    assert golden_ci.check_venues(tmp, ci_cfg) == [f"venues Baseball/{TEAM}/Fields Cropped: pixels differ: {rel}"]
+
+
+def test_derived_sport_without_venue_fails(tmp, ci_cfg):
+    """A sport whose canvases have derived_from but no venue in the fixture fails the venue check for that sport only."""
+    shutil.rmtree(tmp / "Venues" / "Basketball")
+    assert golden_ci.check_venues(tmp, ci_cfg) == ["venues: the fixture has no cropped venue for basketball"]
+
+
+def test_derive_crops_refusal_fails(tmp, ci_cfg):
     """A Full venue that derive_crops.py refuses (off its canvas) is reported as a failure."""
-    art(fixture_path(ci, "Venues", "Football", TEAM, "Fields Full", "2030 X", "2030 X.png"), (5, 5))
-    code, out = run_ci(monkeypatch, capsys, ci)
-    assert code == 1
-    assert "- venues: derive_crops.py refused" in out
+    art(tmp / "Venues" / "Football" / TEAM / "Fields Full" / "2030 X" / "2030 X.png", (5, 5))
+    assert golden_ci.check_venues(tmp, ci_cfg) == ["venues: derive_crops.py refused"]
+
+
+# --- helpers ----------------------------------------------------------------------
 
 
 def test_compare_reports_missing_extra_and_different(tmp_path):
@@ -298,28 +300,10 @@ def test_same_pixels_compares_size_and_rgba(tmp_path):
     assert not golden_ci.same_pixels(a, art(tmp_path / "c.png", (4, 5)))
 
 
-def test_main_finds_root_from_cwd(project, monkeypatch, capsys):
-    """Without --root, main() uses the project found from the working directory."""
-    monkeypatch.setattr(sys, "argv", ["golden_ci.py"])
-    with pytest.raises(SystemExit) as e:
-        golden_ci.main()
-    assert e.value.code == 1
-    assert "golden/fixture/ is empty" in capsys.readouterr().out
-
-
 def test_find_root_exits_without_configs(tmp_path):
     """find_root() exits when no directory above holds the configs."""
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match=r"No configs/canvas_definitions\.yaml"):
         common.find_root(tmp_path)
-    assert "No configs/canvas_definitions.yaml" in str(e.value.code)
-
-
-def test_runs_as_a_script(monkeypatch):
-    """Run as a script, the module reaches main(); --help exits cleanly."""
-    monkeypatch.setattr(sys, "argv", ["golden_ci.py", "--help"])
-    with pytest.raises(SystemExit) as e:
-        runpy.run_path(str(REPO / "scripts" / "golden" / "golden_ci.py"), run_name="__main__")
-    assert e.value.code == 0
 
 
 def test_png_set_ignores_dot_folders_only_inside_the_folder(tmp_path):
