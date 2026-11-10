@@ -16,11 +16,11 @@ The source VIEWPOINT is resolved from `assignments` by finding which
 viewpoint of the same sport+slot uses the source canvas. So adding
 basketball_court_cropped or baseball_field_cropped needs no code change.
 
-    pip install pillow pyyaml
+    uv sync
 
-    python3 scripts/derive_crops.py                 # dry run, all sports
-    python3 scripts/derive_crops.py --apply
-    python3 scripts/derive_crops.py --sport football --apply
+    uv run scripts/derive_crops.py                 # dry run, all sports
+    uv run scripts/derive_crops.py --apply
+    uv run scripts/derive_crops.py --sport football --apply
 
 Reads from the AUTHORED tree (e.g. Fields Full) and writes the derived one
 (Fields Cropped) with a .generated marker. Never reads from temp/ — staging
@@ -37,12 +37,13 @@ try:
     import yaml
     from PIL import Image, ImageOps
 except ImportError:
-    sys.exit("pip install pillow pyyaml")
+    sys.exit("Missing dependencies: run `uv sync`")
 
 DPI = 300
 
 
 def find_root(start: Path) -> Path:
+    """The nearest directory at or above `start` holding configs/canvas_definitions.yaml; exits if none."""
     for d in [start, *start.parents]:
         if (d / "configs" / "canvas_definitions.yaml").is_file():
             return d
@@ -85,6 +86,11 @@ def jobs_for(cfg, sport_filter):
 
 
 def main():
+    """Plan every crop from the config, then write the cropped files with --apply.
+
+    Writes each derived tree with a .generated marker. Refuses to apply while
+    any source file is off its canvas or a crop box falls outside it.
+    """
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--root")
     ap.add_argument("--sport")

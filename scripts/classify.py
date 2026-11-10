@@ -16,7 +16,7 @@ Two independent signals:
     SCALED       content matches an era's POST-scale size — correction applied
     UNSCALED     content matches an era's PRE-scale size — correction pending
 
-    python3 scripts/classify.py Football temp
+    uv run scripts/classify.py Football temp
 """
 
 import sys
@@ -27,7 +27,7 @@ try:
     import yaml
     from PIL import Image, ImageOps
 except ImportError:
-    sys.exit("pip install pillow pyyaml")
+    sys.exit("Missing dependencies: run `uv sync`")
 
 # Canvas sizes BEFORE the minimal-padding pass. Anything still at one of
 # these was written by the earlier standardization.
@@ -52,14 +52,23 @@ TOL = 5
 
 
 def slug(s):
+    """Directory name -> config key: lowercase, apostrophes dropped, spaces to underscores."""
     return s.lower().replace("\u2019", "").replace("'", "").replace(" ", "_")
 
 
 def near(a, b):
+    """True if two (width, height) sizes are within TOL pixels on both axes."""
     return abs(a[0] - b[0]) <= TOL and abs(a[1] - b[1]) <= TOL
 
 
 def main():
+    """Classify every PNG under the given paths and print counts per team and viewpoint.
+
+    Arguments are paths relative to the project root (default: all of it);
+    `--sport S` supplies the sport for trees like temp/{Team}/… that lack one.
+    Files whose content already carries an era's scale are flagged CANNOT
+    RE-PAD.
+    """
     root = Path(".")
     for d in [root, *Path.cwd().parents]:
         if (d / "configs" / "canvas_definitions.yaml").is_file():

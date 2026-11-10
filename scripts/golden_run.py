@@ -2,9 +2,9 @@
 """
 Run the GOLDEN EXAMPLE SUITE planned by golden_plan.py.
 
-    python3 scripts/golden_run.py                   # every approved example
-    python3 scripts/golden_run.py --sport soccer
-    python3 scripts/golden_run.py --only football--full--03
+    uv run scripts/golden_run.py                   # every approved example
+    uv run scripts/golden_run.py --sport soccer
+    uv run scripts/golden_run.py --only football--full--03
 
 Writes, under golden/run/
     {sport}/{view}/{id}.png      every composition
@@ -47,13 +47,14 @@ try:
     import yaml
     from PIL import Image, ImageDraw, ImageFont, ImageOps
 except ImportError:
-    sys.exit("pip install pillow pyyaml")
+    sys.exit("Missing dependencies: run `uv sync`")
 
 CLIP_NOTE = 2  # px of clipping treated as rounding
 TOL = 5
 
 
 def find_root():
+    """The nearest directory at or above the cwd holding configs/view_templates.yaml; exits if none."""
     for d in [Path.cwd(), *Path.cwd().parents]:
         if (d / "configs" / "view_templates.yaml").is_file():
             return d
@@ -61,6 +62,7 @@ def find_root():
 
 
 def font(size, bold=False):
+    """A TrueType font for contact-sheet labels (Arial on macOS, DejaVu on Linux), else Pillow's default."""
     for f in (
         "/System/Library/Fonts/Supplemental/Arial Bold.ttf" if bold else "/System/Library/Fonts/Supplemental/Arial.ttf",
         "/Library/Fonts/Arial.ttf",
@@ -76,6 +78,7 @@ def font(size, bold=False):
 
 
 def measure_era(cfg, sport, slot, vp, path):
+    """The era of a placed file, by its content size against each era's POST-scale size; None if unmatched or empty."""
     with ImageOps.exif_transpose(Image.open(path)).convert("RGBA") as im:
         b = im.getchannel("A").getbbox()
     if not b:
@@ -101,6 +104,7 @@ def plainer_exists(placed, vocab_tokens):
     num = placed["number_found"]
 
     def toks(stem):
+        """(tokens, number) found in a stem after the element name."""
         tail = stem[len(el) :] if stem.startswith(el) else stem
         found = {t for t in vocab_tokens if re.search(rf"(?:^|\s){re.escape(t)}(?:\s|$)", tail)}
         n = re.search(r"(?<![\d])(\d{1,2})(?![\d])", tail)
@@ -115,7 +119,10 @@ def plainer_exists(placed, vocab_tokens):
 
 
 def vocab_tokens(root, sport):
+    """Every non-sequence token for a sport, following `extends`, longest first."""
+
     def read(name, seen=frozenset()):
+        """Token dict for one vocabulary file, merged over the file it `extends`; a sport's own token wins."""
         p = root / "configs" / f"modifiers_{name}.yaml"
         if name in seen or not p.is_file():
             return {}
@@ -135,6 +142,11 @@ def vocab_tokens(root, sport):
 
 
 def check(example, result, png, cfg, vocab):
+    """Run the automatic checks on one composed example.
+
+    Returns (issues, notes): issues are defects (FAILED, EMPTY, CLIPPED, WRONG
+    ERA, NUMBER, EXTRA TOKEN); notes are clipping within rounding.
+    """
     issues, notes = [], []
     if result.get("missing"):
         for m in result["missing"]:
@@ -218,6 +230,7 @@ def contact_sheet(rows, out, title):
 
 
 def main():
+    """Compose every approved manifest example, check each, and write the sheets, REPORT.md and index.html under golden/run/."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--sport", action="append")
     ap.add_argument("--only", action="append", metavar="ID")
@@ -332,6 +345,7 @@ def main():
             ee = ex.get("expect_eras") or {}
 
             def eras(u, slot):
+                """The planned eras for one slot of uniform `u`, joined with '/', for a contact-sheet label."""
                 got = []
                 for k, v in ee.items():
                     ku, ks, _ = k.split("/")

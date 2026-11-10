@@ -14,12 +14,12 @@ exist in more than one shell, and omitting it on singletons would make naming
 inconsistent inside the same folder. It also gives era a second, independent
 signal alongside content size.
 
-    python3 scripts/migrate_marks.py            # dry run — prints the plan
-    python3 scripts/migrate_marks.py --apply    # copies files
+    uv run scripts/migrate_marks.py            # dry run — prints the plan
+    uv run scripts/migrate_marks.py --apply    # copies files
 
 COPIES, never moves. The source tree stays intact until you have verified.
 
-    pip install pyyaml
+    uv sync
 """
 
 import argparse
@@ -37,7 +37,7 @@ except ImportError:
 try:
     import yaml
 except ImportError:
-    sys.exit("pip install pyyaml")
+    sys.exit("Missing dependencies: run `uv sync`")
 
 SIDE_TO_VIEWPOINT = {"1": "Right", "2": "Left"}
 
@@ -59,6 +59,7 @@ TRAILING_NUM = re.compile(r"^(?P<desc>.+?)\s(?P<number>\d{1,2})$")
 
 
 def find_root(start: Path) -> Path:
+    """The nearest directory at or above `start` holding configs/canvas_definitions.yaml; exits if none."""
     for d in [start, *start.parents]:
         if (d / "configs" / "canvas_definitions.yaml").is_file():
             return d
@@ -126,11 +127,13 @@ def shell_by_era(root: Path) -> dict:
 
 
 def load_profile(root: Path, name: str):
+    """(profile entries or None, tolerance) for a profile name in canvas_definitions.yaml."""
     cfg = yaml.safe_load((root / "configs" / "canvas_definitions.yaml").open())
     return cfg.get("profiles", {}).get(name), cfg.get("tolerance", 3)
 
 
 def content_size(path: Path):
+    """(width, height) of the file's opaque bounding box, or None if it is fully transparent."""
     with Image.open(path).convert("RGBA") as im:
         box = im.getchannel("A").getbbox()
     if box is None:
@@ -142,7 +145,7 @@ def plan_nested(src_root: Path, dest_root: Path, team: str, root: Path):
     """Source already in element-folder shape; derive the shell token from
     content size where the filename does not already carry one."""
     if Image is None:
-        sys.exit("pip install pillow  (nested mode reads image sizes)")
+        sys.exit("Missing dependencies: run `uv sync` (nested mode reads image sizes)")
     era_shell = shell_by_era(root)
     shell_names = sorted(era_shell.values(), key=len, reverse=True)
     moves, problems = [], []
@@ -292,6 +295,11 @@ def plan(src_root: Path, dest_root: Path, colorways: set):
 
 
 def main():
+    """Plan a marks migration in the chosen --mode, report problems, and copy the files with --apply.
+
+    Unknown colorways are a warning; unparsed names, unmatched sizes and
+    destination collisions block --apply.
+    """
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--root", help="project root (default: auto-detect)")
     ap.add_argument("--src", default="Marks/Temp")

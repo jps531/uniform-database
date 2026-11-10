@@ -17,11 +17,11 @@ apart from the crop and the new margin.
 Use `pad` for authored source. Use this for anything a survey reports as
 SCALED (see classify.py).
 
-    pip install pillow pyyaml
+    uv sync
 
-    python3 scripts/recanvas.py "temp/Mississippi State/Jerseys Front" \\
+    uv run scripts/recanvas.py "temp/Mississippi State/Jerseys Front" \\
                                 "Football/Mississippi State/Jerseys Front"
-    python3 scripts/recanvas.py SRC DEST --apply
+    uv run scripts/recanvas.py SRC DEST --apply
 
 COPIES, never moves.
 """
@@ -35,12 +35,13 @@ try:
     import yaml
     from PIL import Image, ImageOps
 except ImportError:
-    sys.exit("pip install pillow pyyaml")
+    sys.exit("Missing dependencies: run `uv sync`")
 
 DPI = 300
 
 
 def find_root(start: Path) -> Path:
+    """The nearest directory at or above `start` holding configs/canvas_definitions.yaml; exits if none."""
     for d in [start, *start.parents]:
         if (d / "configs" / "canvas_definitions.yaml").is_file():
             return d
@@ -48,10 +49,16 @@ def find_root(start: Path) -> Path:
 
 
 def slug(s):
+    """Directory name -> config key: lowercase, apostrophes dropped, spaces to underscores."""
     return s.lower().replace("\u2019", "").replace("'", "").replace(" ", "_")
 
 
 def main():
+    """Re-place standardized files from SRC onto DEST's canvas, top-centre; dry run unless --apply.
+
+    The canvas comes from DEST's path (or --canvas). Refuses to apply while any
+    file's content is larger than the canvas.
+    """
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("src")
     ap.add_argument("dest")

@@ -3,8 +3,8 @@
 Plan the GOLDEN EXAMPLE SUITE: one composition per template per era, drawn
 from real elements, for review before anything is rendered.
 
-    python3 scripts/golden_plan.py            # inventory + manifest + PLAN.md
-    python3 scripts/golden_plan.py --rescan   # re-measure every element
+    uv run scripts/golden_plan.py            # inventory + manifest + PLAN.md
+    uv run scripts/golden_plan.py --rescan   # re-measure every element
 
 Writes
     golden/inventory.json   every element, its era per viewpoint, its numbers
@@ -38,7 +38,7 @@ try:
     import yaml
     from PIL import Image, ImageOps
 except ImportError:
-    sys.exit("pip install pillow pyyaml")
+    sys.exit("Missing dependencies: run `uv sync`")
 
 SLOT_DIR = {
     "helmet": "Helmets",
@@ -51,10 +51,12 @@ TOL = 5
 
 
 def slug(s):
+    """Directory name -> config key: lowercase, apostrophes dropped, spaces to underscores."""
     return s.lower().replace("\u2019", "").replace("'", "").replace(" ", "_")
 
 
 def find_root():
+    """The nearest directory at or above the cwd holding configs/view_templates.yaml; exits if none."""
     for d in [Path.cwd(), *Path.cwd().parents]:
         if (d / "configs" / "view_templates.yaml").is_file():
             return d
@@ -68,6 +70,11 @@ def find_root():
 #   keeper: True = a Keeper element, False = a field element
 # --------------------------------------------------------------------------
 def constraints(view, sport, names):
+    """Era rules a template imposes, as {uniform: {rule: value}} (see the table above).
+
+    `names` is every template name for the sport: a view whose `-tq` or `-ls`
+    sibling exists must leave that cut to the sibling.
+    """
     c = defaultdict(dict)
     if sport in ("baseball", "softball"):
         if view.endswith("-tq"):
@@ -95,6 +102,7 @@ def constraints(view, sport, names):
 
 
 def describe(c):
+    """One readable line of a template's constraints, for PLAN.md; empty when there are none."""
     out = []
     for u in sorted(c):
         bits = []
@@ -113,6 +121,11 @@ def describe(c):
 # Inventory
 # --------------------------------------------------------------------------
 def era_for(cfg, sport, slot, vp, size):
+    """The era whose POST-scale size is closest to `size` within TOL, or None.
+
+    Post-scale because the inventory measures standardized files, whose
+    correction is already baked in.
+    """
     best, dist = None, None
     for e in cfg["profiles"].get(f"{sport}-{slot}-{vp}", []):
         s = e.get("scale", 1)
@@ -125,12 +138,14 @@ def era_for(cfg, sport, slot, vp, size):
 
 
 def content_size(path):
+    """[width, height] of the file's opaque bounding box; the full image size if it is fully transparent."""
     with ImageOps.exif_transpose(Image.open(path)).convert("RGBA") as im:
         b = im.getchannel("A").getbbox()
         return [b[2] - b[0], b[3] - b[1]] if b else list(im.size)
 
 
 def numbers_in(stems, element):
+    """Every 1-2 digit number in the stems after the element name, as strings, shortest then lexical."""
     out = set()
     for s in stems:
         tail = s[len(element) :] if s.startswith(element) else s
@@ -140,6 +155,12 @@ def numbers_in(stems, element):
 
 
 def build_inventory(root, cfg, sports):
+    """Measure every element of the given sports: its year, whether it is a keeper, and per viewpoint
+    the era, content size, numbers and file count.
+
+    Reads one file per element per viewpoint (the unnumbered one when it
+    exists). Returns {sport: {team: {slot: {element: record}}}}.
+    """
     inv = {}
     dirs = {slug(d.name): d for d in root.iterdir() if d.is_dir()}
     for sport in sports:
@@ -200,6 +221,12 @@ def colorway(el):
 
 
 def plan_template(tpl, names, inv, cfg):
+    """Choose the examples that cover every era of every viewpoint one template places.
+
+    Greedy: each round anchors on the first uncovered target and builds the
+    most realistic uniform around it from one team. Returns (examples,
+    explicit extras, coverage targets, uncoverable targets, constraints).
+    """
     sport, view = tpl["sport"], tpl["view_kind"]
     cons = constraints(view, sport, names)
     # (uniform, slot) -> viewpoints this template places. REQUIRED ones decide
@@ -223,6 +250,7 @@ def plan_template(tpl, names, inv, cfg):
     teams = inv.get(sport, {})
 
     def allowed(team, u, slot, el):
+        """Whether an element may fill this (uniform, slot): it has every required viewpoint and meets the template's constraints."""
         rec = teams[team][slot][el]
         if any(vp not in rec["vps"] for vp in need[(u, slot)]):
             return False
@@ -280,12 +308,16 @@ def plan_template(tpl, names, inv, cfg):
     targets = {t for t in targets if t[3] is not None}
 
     def covers(team, u, slot, el):
+        """The (uniform, slot, viewpoint, era) targets this element would cover."""
         rec = teams[team][slot][el]
         return {
             (u, slot, vp, rec["vps"][vp]["era"]) for vp in need[(u, slot)] + optional[(u, slot)] if vp in rec["vps"]
         }
 
     def score(team, u, slot, el, year, chosen=None):
+        """Sort key for an element in a slot, higher better: realism (known pairing, same name, same colour
+        and year) before new coverage, then numbered files.
+        """
         rec = teams[team][slot][el]
         new = len(covers(team, u, slot, el) - covered)
         # uniform 2 should differ from uniform 1, or a combo shows one kit twice
@@ -397,6 +429,7 @@ def plan_template(tpl, names, inv, cfg):
 
 
 def pick_number(rec, need_vps):
+    """A number to request for this element: the first one on the back view, else on a needed viewpoint, else None."""
     for vp in ("back", *need_vps):
         if vp in rec["vps"] and rec["vps"][vp]["numbers"]:
             return rec["vps"][vp]["numbers"][0]
@@ -404,6 +437,10 @@ def pick_number(rec, need_vps):
 
 
 def main():
+    """Build or reuse the inventory, plan every template, and write golden/manifest.yaml and golden/PLAN.md.
+
+    Overwrites the manifest; durable choices belong in golden/pairings.yaml.
+    """
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--rescan", action="store_true")
     ap.add_argument("--sport", action="append", help="limit to these sports (repeatable)")

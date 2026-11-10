@@ -5,13 +5,13 @@ Standardize element PNGs onto fixed canvases.
 Reads canvas sizes and era corrections from configs/canvas_definitions.yaml,
 so this script holds no per-era knowledge of its own.
 
-    pip install pillow pyyaml
+    uv sync
 
     # inspect a slot before configuring it
-    python3 scripts/standardize.py survey "Football/Mississippi State/Helmets Right"
+    uv run scripts/standardize.py survey "Football/Mississippi State/Helmets Right"
 
     # standardize into place (canvas + profile looked up from the path)
-    python3 scripts/standardize.py pad \\
+    uv run scripts/standardize.py pad \\
         "~/.../MSU Uniforms/Football/Helmets Right" \\
         "Football/Mississippi State/Helmets Right"
 
@@ -36,11 +36,11 @@ MARKER = ".generated"
 try:
     import yaml
 except ImportError:
-    sys.exit("pip install pyyaml")
+    sys.exit("Missing dependencies: run `uv sync`")
 try:
     from PIL import Image, ImageOps
 except ImportError:
-    sys.exit("pip install pillow")
+    sys.exit("Missing dependencies: run `uv sync`")
 
 
 # ---------------------------------------------------------------- config
@@ -63,11 +63,13 @@ def find_root(start: Path) -> Path:
 
 
 def load_config(root: Path) -> dict:
+    """Parsed configs/canvas_definitions.yaml."""
     with (root / "configs" / "canvas_definitions.yaml").open() as fh:
         return yaml.safe_load(fh)
 
 
 def resolve(path_arg: str, root: Path) -> Path:
+    """A path argument as an absolute path; relative ones are taken from the project root, not the cwd."""
     p = Path(path_arg).expanduser()
     return p.resolve() if p.is_absolute() else (root / p).resolve()
 
@@ -130,6 +132,7 @@ def lookup(cfg, sport, slot, viewpoint):
 
 
 def pngs(root: Path):
+    """Yield every PNG under root, sorted, skipping anything inside a hidden directory or hidden itself."""
     for p in sorted(root.rglob("*.png")):
         if any(part.startswith(".") for part in p.relative_to(root).parts):
             continue
@@ -137,6 +140,7 @@ def pngs(root: Path):
 
 
 def content_size(img: Image.Image):
+    """(bbox, (width, height)) of the image's opaque content, or (None, None) if fully transparent."""
     box = img.getchannel("A").getbbox()
     if box is None:
         return None, None
@@ -144,6 +148,7 @@ def content_size(img: Image.Image):
 
 
 def match_era(profile, w, h, tol):
+    """The first profile entry whose size is within `tol` of (w, h), or None."""
     for entry in profile:
         ew, eh = entry["size"]
         if abs(ew - w) <= tol and abs(eh - h) <= tol:
@@ -155,6 +160,11 @@ def match_era(profile, w, h, tol):
 
 
 def cmd_survey(args, root, cfg):
+    """Print the distinct content sizes under a path and the era each matches. Read-only.
+
+    Use it to write or check a profile; with --elements, or when no profile
+    exists yet, it also lists which elements sit at each size.
+    """
     src = resolve(args.path, root)
     if not src.is_dir():
         sys.exit(f"Not a directory: {src}")
@@ -241,6 +251,13 @@ def cmd_survey(args, root, cfg):
 
 
 def cmd_pad(args, root, cfg):
+    """Standardize authored source into DEST: crop to content, apply the era's scale, pad onto the canvas.
+
+    Writes immediately, and writes a .generated marker into DEST. Refuses a
+    DEST of authored PNGs without a marker (unless --force), and refuses
+    source that is already standardized: files on the target canvas, or whose
+    content matches what an era's scale produces.
+    """
     src = resolve(args.src, root)
     dest = resolve(args.dest, root)
     if not src.is_dir():
@@ -468,6 +485,7 @@ def cmd_pad(args, root, cfg):
 
 
 def main():
+    """Parse the command line and run `survey` or `pad`."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--root", help="project root (default: auto-detect)")
     sub = ap.add_subparsers(dest="cmd", required=True)

@@ -7,19 +7,19 @@ configs/view_templates.yaml, resolves each placement to a file on disk, and
 pastes. No database, no caching, no deterministic URLs — the point is to
 validate that the standardized assets, canvases and anchors actually compose.
 
-    pip install pillow pyyaml
+    uv sync
 
-    python3 scripts/compose.py \\
+    uv run scripts/compose.py \\
         --team "Mississippi State" \\
         --helmet "2025 Black" --jersey "2025 Black" --pants "2025 Black" \\
         --number 0 \\
         --out out/2025-black.png
 
     # show the left helmet inset (only when the two sides differ)
-    python3 scripts/compose.py ... --helmet-left
+    uv run scripts/compose.py ... --helmet-left
 
     # compare against a hand-made composite
-    python3 scripts/compose.py ... --diff "path/to/existing.png"
+    uv run scripts/compose.py ... --diff "path/to/existing.png"
 
 RESOLUTION per placement, in order:
     1. {element}/{element} … {number} … .png   matching the requested number
@@ -41,7 +41,7 @@ try:
     import yaml
     from PIL import Image, ImageOps
 except ImportError:
-    sys.exit("pip install pillow pyyaml")
+    sys.exit("Missing dependencies: run `uv sync`")
 
 SLOT_DIR = {
     "helmet": "Helmets",
@@ -59,6 +59,7 @@ def load_vocab(root: Path, sport: str):
     """Return (all_tokens_longest_first, form_tokens, default_form_tokens)."""
 
     def read(name, seen=frozenset()):
+        """Token dict for one vocabulary file, merged over the file it `extends`; a sport's own token wins."""
         if name in seen:
             return {}
         q = root / "configs" / f"modifiers_{name}.yaml"
@@ -108,6 +109,7 @@ def split_tail(stem, element, vocab_tokens):
 
 
 def find_root(start: Path) -> Path:
+    """The nearest directory at or above `start` holding configs/view_templates.yaml; exits if none."""
     for d in [start, *start.parents]:
         if (d / "configs" / "view_templates.yaml").is_file():
             return d
@@ -115,6 +117,7 @@ def find_root(start: Path) -> Path:
 
 
 def load_template(root: Path, sport: str, view_kind: str):
+    """The view template for this sport and view kind; exits if there is none."""
     cfg = yaml.safe_load((root / "configs" / "view_templates.yaml").open())
     for t in cfg["templates"]:
         if t["sport"] == sport and t["view_kind"] == view_kind:
@@ -188,6 +191,7 @@ def sport_dir(root: Path, sport: str) -> Path:
     """
 
     def slug(s):
+        """Directory name -> sport slug: lowercase, apostrophes dropped, spaces to underscores."""
         return s.lower().replace("\u2019", "").replace("'", "").replace(" ", "_")
 
     for d in root.iterdir():
@@ -229,6 +233,11 @@ def resolve(
 
 
 def main():
+    """Resolve every placement the template asks for, paste them onto its canvas and save the result.
+
+    With --json, also writes the structured result (placements, missing,
+    clipping), including when nothing could be written.
+    """
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--root")
     ap.add_argument("--team", default="Mississippi State")
@@ -461,6 +470,7 @@ def main():
         )
 
     def dump(written):
+        """Write the --json result if one was asked for; `written` says whether the PNG was saved."""
         if not args.json:
             return
         jp = Path(args.json)

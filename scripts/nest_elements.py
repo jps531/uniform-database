@@ -30,10 +30,10 @@ rule, because some design tokens end in a digit (DWS100) or a single capital
 The number is not assumed to be trailing. Baseball has "2015 White 85s 19
 Grad" — element "2015 White 85s", number 19, patch Grad.
 
-    pip install pyyaml
+    uv sync
 
-    python3 scripts/nest_elements.py --sport football
-    python3 scripts/nest_elements.py --sport baseball --apply
+    uv run scripts/nest_elements.py --sport football
+    uv run scripts/nest_elements.py --sport baseball --apply
 
 COPIES, never moves.
 """
@@ -48,7 +48,7 @@ from pathlib import Path
 try:
     import yaml
 except ImportError:
-    sys.exit("pip install pyyaml")
+    sys.exit("Missing dependencies: run `uv sync`")
 
 
 # Physical form variants that select a canvas: helmet shell, jersey cut, hat
@@ -58,6 +58,7 @@ FORM_KINDS = ("shell", "cut", "style")
 
 
 def find_root(start: Path) -> Path:
+    """The nearest directory at or above `start` holding both configs/ and scripts/; exits if none."""
     for d in [start, *start.parents]:
         if (d / "configs").is_dir() and (d / "scripts").is_dir():
             return d
@@ -87,6 +88,13 @@ def read_vocab(root: Path, name: str, seen=None):
 
 
 def load_vocab(root: Path, sport: str):
+    """Sort a sport's vocabulary into what nesting strips and what it keeps.
+
+    Returns (strip, design, form, sequence, known_words): patch/variation
+    tokens, design tokens and form tokens each longest first, the sequence
+    letters, and every word of a design token or colorway (anything else
+    trailing and capitalised is read as a surname).
+    """
     tokens, cw = read_vocab(root, sport)
     colorways = {c.title() for c in cw}
     strip, design, shellcut, seq = [], [], [], []
@@ -122,6 +130,12 @@ def load_vocab(root: Path, sport: str):
 
 
 def element_for(stem, strip, design, shellcut, seq, known_words=frozenset()):
+    """Derive the element folder name from a filename stem.
+
+    Returns (element, notes), notes listing what was stripped (form, patches,
+    number, surname), or (None, ["nothing left"]) when stripping consumed the
+    whole name.
+    """
     s, notes = stem, []
 
     for tok in shellcut:
@@ -167,6 +181,12 @@ def element_for(stem, strip, design, shellcut, seq, known_words=frozenset()):
 
 
 def build_plan(src_root, dest_root, vocab, only_team):
+    """Plan a copy of every staged PNG into its element folder.
+
+    Returns (moves, problems): moves are (source, destination, notes), problems
+    are (path, reason) for files no element could be derived for. Writes
+    nothing.
+    """
     strip, design, shellcut, seq, known = vocab
     moves, problems = [], []
     for team_dir in sorted(d for d in src_root.iterdir() if d.is_dir()):
@@ -185,6 +205,11 @@ def build_plan(src_root, dest_root, vocab, only_team):
 
 
 def main():
+    """Print the nesting plan for a sport's staging tree, and copy the files with --apply.
+
+    Refuses to apply while any file is unassigned or two sources would land on
+    the same destination.
+    """
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--root")
     ap.add_argument("--sport", default="football")

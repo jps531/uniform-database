@@ -5,11 +5,11 @@ List files whose content size is not an EXACT match for their profile entry.
 `standardize.py` matches within a tolerance, so near-misses pass silently.
 This reports them so the source artwork can be corrected instead.
 
-    pip install pillow pyyaml
+    uv sync
 
-    python3 scripts/offsize.py "Football"
-    python3 scripts/offsize.py "Football/Southern Miss/Pants Front"
-    python3 scripts/offsize.py "Football" --csv offsize.csv
+    uv run scripts/offsize.py "Football"
+    uv run scripts/offsize.py "Football/Southern Miss/Pants Front"
+    uv run scripts/offsize.py "Football" --csv offsize.csv
 
 Walks any directory: a whole tree, one team, or one viewpoint. Read-only.
 """
@@ -24,7 +24,7 @@ try:
     import yaml
     from PIL import Image, ImageOps
 except ImportError:
-    sys.exit("pip install pillow pyyaml")
+    sys.exit("Missing dependencies: run `uv sync`")
 
 
 def sport_slug(name: str) -> str:
@@ -33,6 +33,7 @@ def sport_slug(name: str) -> str:
 
 
 def find_root(start: Path) -> Path:
+    """The nearest directory at or above `start` holding configs/canvas_definitions.yaml; exits if none."""
     for d in [start, *start.parents]:
         if (d / "configs" / "canvas_definitions.yaml").is_file():
             return d
@@ -40,12 +41,19 @@ def find_root(start: Path) -> Path:
 
 
 def content_size(path: Path):
+    """(width, height) of the file's opaque bounding box, or None if it is fully transparent."""
     with ImageOps.exif_transpose(Image.open(path)).convert("RGBA") as im:
         box = im.getchannel("A").getbbox()
     return None if box is None else (box[2] - box[0], box[3] - box[1])
 
 
 def main():
+    """Report files under PATH whose content is within tolerance of a profile size but not exact.
+
+    Skips generated trees and files already on their padded canvas, since
+    both hold post-correction sizes that profiles don't list. Read-only apart
+    from the optional --csv.
+    """
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("path")
     ap.add_argument("--root")
