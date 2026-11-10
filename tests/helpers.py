@@ -5,8 +5,11 @@ constant, imported by name (`from helpers import art, era`). No test file
 imports from another test file.
 """
 
+import contextlib
+import io
 import os
 import shutil
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -21,6 +24,31 @@ ERAS = ("A", "B", "C", "D", "E", "F")
 # How far small_configs() shrinks helmet and venue canvases.
 HELMET_DIV = 8
 VENUE_DIV = {"football": 16, "baseball": 16, "basketball": 32}
+
+
+# --- running a script --------------------------------------------------------
+
+
+def main(monkeypatch, module, *argv) -> str:
+    """Run `module.main()` with `argv` as its command line and return what it printed to stdout.
+
+    An exit with code 0 or None (argparse's --help, say) counts as success.
+    Any other SystemExit propagates, so a test asserts it with
+    `pytest.raises(SystemExit, match=...)` for a message exit or
+    `e.value.code == N` for a numeric one. Either way the output is also
+    passed through to the real stdout, so `capsys` sees it too.
+    """
+    monkeypatch.setattr(sys, "argv", [f"{module.__name__}.py", *argv])
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            module.main()
+    except SystemExit as e:
+        if e.code not in (0, None):
+            raise
+    finally:
+        sys.stdout.write(buf.getvalue())
+    return buf.getvalue()
 
 
 # --- artwork -----------------------------------------------------------------

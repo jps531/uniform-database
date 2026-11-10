@@ -8,7 +8,7 @@ import common
 import compose
 import numpy as np
 import pytest
-from helpers import REPO, art, canvas_size, override_configs, pixels
+from helpers import REPO, art, canvas_size, main, override_configs, pixels
 from PIL import Image
 
 SCRIPT = str(REPO / "scripts" / "pipeline" / "compose.py")
@@ -56,21 +56,15 @@ def tpl(view, placements, w=200, h=120, sport="football"):
     return {"sport": sport, "view_kind": view, "output": {"width": w, "height": h}, "placements": placements}
 
 
-def run(monkeypatch, *argv):
-    """Call compose.main() with these arguments."""
-    monkeypatch.setattr(sys, "argv", ["compose.py", *argv])
-    compose.main()
-
-
 def compose_json(project, monkeypatch, *argv, ok=True):
     """Run compose with --json and --out in the project; return (result dict, output path)."""
     out, jp = project / "out" / "c.png", project / "out" / "c.json"
     args = [*argv, "--out", str(out), "--json", str(jp)]
     if ok:
-        run(monkeypatch, *args)
+        main(monkeypatch, compose, *args)
     else:
         with pytest.raises(SystemExit) as e:
-            run(monkeypatch, *args)
+            main(monkeypatch, compose, *args)
         assert e.value.code == 1
     return json.loads(jp.read_text()), out
 
@@ -357,7 +351,7 @@ def test_missing_required_without_json_still_exits(project, monkeypatch):
     """Without --json a missing required placement still exits 1."""
     mini(project, MINI)
     with pytest.raises(SystemExit) as e:
-        run(monkeypatch, "--view", "mini", "--helmet", "2025 Black", "--out", str(project / "o.png"))
+        main(monkeypatch, compose, "--view", "mini", "--helmet", "2025 Black", "--out", str(project / "o.png"))
     assert e.value.code == 1
     assert not (project / "o.png").exists()
 
@@ -366,14 +360,14 @@ def test_required_slot_not_supplied_names_the_flag(project, monkeypatch):
     """A template needing a slot the caller didn't give exits listing what it needs and what's missing."""
     mini(project, MINI)
     with pytest.raises(SystemExit, match=r"Template 'mini' needs these slots: --helmet\nNot supplied: --helmet"):
-        run(monkeypatch, "--view", "mini")
+        main(monkeypatch, compose, "--view", "mini")
 
 
 def test_unknown_with_token_exits(project, monkeypatch):
     """--with a token not in the sport's vocabulary exits naming it."""
     mini(project, MINI)
     with pytest.raises(SystemExit, match=r"Unknown token\(s\): Glitter\nNot in configs/modifiers_football.yaml"):
-        run(monkeypatch, "--view", "mini", "--helmet", "x", "--with", "Glitter")
+        main(monkeypatch, compose, "--view", "mini", "--helmet", "x", "--with", "Glitter")
 
 
 def test_ranking_flags_pick_the_file_end_to_end(project, monkeypatch):
@@ -463,7 +457,7 @@ def test_combo_needs_two_uniforms(project, monkeypatch):
     """A combo template without the `2` flags exits saying it needs two uniforms."""
     mini(project, COMBO)
     with pytest.raises(SystemExit, match=r"needs TWO uniforms: --jersey, --jersey2\nNot supplied: --jersey2"):
-        run(monkeypatch, "--view", "combo", "--jersey", "2025 White")
+        main(monkeypatch, compose, "--view", "combo", "--jersey", "2025 White")
 
 
 def test_combo_second_uniform_inherits_number_tokens_and_player(project, monkeypatch, capsys):
@@ -547,7 +541,7 @@ def test_element_flag_without_equals_exits(project, monkeypatch):
     """--element without SLOT=NAME exits quoting what it got."""
     mini(project, COMBO)
     with pytest.raises(SystemExit, match="--element expects SLOT=NAME, got 'jersey'"):
-        run(monkeypatch, "--view", "combo", "--element", "jersey")
+        main(monkeypatch, compose, "--view", "combo", "--element", "jersey")
 
 
 # --- clipping, blank artwork, rotation -----------------------------------------------
@@ -615,11 +609,11 @@ def test_diff_against_identical_reference(project, monkeypatch, capsys):
     mini(project, MINI)
     put(project, "helmet", "front", "2025 Black", "2025 Black")
     out = project / "out" / "c.png"
-    run(monkeypatch, "--view", "mini", "--helmet", "2025 Black", "--out", str(out))
+    main(monkeypatch, compose, "--view", "mini", "--helmet", "2025 Black", "--out", str(out))
     ref = project / "ref.png"
     ref.write_bytes(out.read_bytes())
     capsys.readouterr()
-    run(monkeypatch, "--view", "mini", "--helmet", "2025 Black", "--out", str(out), "--diff", str(ref))
+    main(monkeypatch, compose, "--view", "mini", "--helmet", "2025 Black", "--out", str(out), "--diff", str(ref))
     text = capsys.readouterr().out
     assert "reference (200, 120)  composed (200, 120)" in text
     assert "differing pixels: 0 of 1,200 inked (0.00%)" in text
@@ -633,7 +627,7 @@ def test_diff_writes_a_mask_of_differences(project, monkeypatch, capsys):
     ref = project / "ref.png"
     Image.new("RGBA", (200, 120), (0, 0, 0, 0)).save(ref)
     out = project / "out" / "c.png"
-    run(monkeypatch, "--view", "mini", "--helmet", "2025 Black", "--out", str(out), "--diff", str(ref))
+    main(monkeypatch, compose, "--view", "mini", "--helmet", "2025 Black", "--out", str(out), "--diff", str(ref))
     text = capsys.readouterr().out
     assert "differing pixels:" in text
     assert "differences span x 30-69, y 0-29" in text
@@ -647,7 +641,18 @@ def test_diff_scales_a_reference_of_another_size(project, monkeypatch, capsys):
     put(project, "helmet", "front", "2025 Black", "2025 Black")
     ref = project / "ref.png"
     Image.new("RGBA", (100, 60), (0, 0, 0, 0)).save(ref)
-    run(monkeypatch, "--view", "mini", "--helmet", "2025 Black", "--out", str(project / "c.png"), "--diff", str(ref))
+    main(
+        monkeypatch,
+        compose,
+        "--view",
+        "mini",
+        "--helmet",
+        "2025 Black",
+        "--out",
+        str(project / "c.png"),
+        "--diff",
+        str(ref),
+    )
     assert "sizes differ — scaling reference to compare" in capsys.readouterr().out
 
 
@@ -656,7 +661,7 @@ def test_diff_missing_reference_exits_after_writing(project, monkeypatch):
     mini(project, MINI)
     put(project, "helmet", "front", "2025 Black", "2025 Black")
     with pytest.raises(SystemExit, match="Reference not found"):
-        run(monkeypatch, "--view", "mini", "--helmet", "2025 Black", "--out", "c.png", "--diff", "nope.png")
+        main(monkeypatch, compose, "--view", "mini", "--helmet", "2025 Black", "--out", "c.png", "--diff", "nope.png")
     assert (project / "c.png").is_file()
 
 
@@ -726,7 +731,7 @@ def test_mens_basketball_finds_the_apostrophe_directory(project, monkeypatch, cf
 def test_unknown_view_exits(project, monkeypatch):
     """A sport/view with no template exits naming both."""
     with pytest.raises(SystemExit, match="No template for football/nope"):
-        run(monkeypatch, "--view", "nope")
+        main(monkeypatch, compose, "--view", "nope")
 
 
 def test_find_root_walks_up_and_fails_cleanly(project, tmp_path, monkeypatch):
@@ -738,15 +743,14 @@ def test_find_root_walks_up_and_fails_cleanly(project, tmp_path, monkeypatch):
     lone.mkdir()
     monkeypatch.chdir(lone)
     with pytest.raises(SystemExit, match="No configs/canvas_definitions.yaml in"):
-        run(monkeypatch, "--view", "mini")
+        main(monkeypatch, compose, "--view", "mini")
 
 
-def test_root_flag_and_script_entry_point(project, tmp_path, monkeypatch):
-    """Run as `__main__` from elsewhere with --root, compose reads that project's templates."""
+def test_root_flag_from_elsewhere(project, tmp_path, monkeypatch):
+    """Run from elsewhere with --root, compose reads that project's templates."""
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(sys, "argv", ["compose.py", "--root", str(project), "--view", "nope"])
     with pytest.raises(SystemExit, match="No template for football/nope"):
-        runpy.run_path(SCRIPT, run_name="__main__")
+        main(monkeypatch, compose, "--root", str(project), "--view", "nope")
 
 
 def test_missing_dependencies_exit_with_a_hint(monkeypatch):
@@ -756,12 +760,9 @@ def test_missing_dependencies_exit_with_a_hint(monkeypatch):
         runpy.run_path(SCRIPT, run_name="compose_noimport")
 
 
-def test_slot_flags_are_the_slots_templates_place(project, monkeypatch, capsys):
+def test_slot_flags_are_the_slots_templates_place(project, monkeypatch):
     """compose offers --{slot} only for slots a template places: venue slots (field, court) are not combination slots."""
-    monkeypatch.setattr(sys, "argv", ["compose.py", "--help"])
-    with pytest.raises(SystemExit):
-        compose.main()
-    out = capsys.readouterr().out
+    out = main(monkeypatch, compose, "--help")
     for slot in ("--helmet", "--jersey", "--pants", "--hat", "--shorts"):
         assert slot in out
     assert "--field" not in out and "--court" not in out

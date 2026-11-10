@@ -8,7 +8,7 @@ from pathlib import Path
 import golden_run as gr
 import pytest
 import yaml
-from helpers import REPO, art, blank, canvas_size, era, placed
+from helpers import REPO, art, blank, canvas_size, era, main, placed
 from PIL import Image
 
 MSU = "Mississippi State"
@@ -62,12 +62,6 @@ class FakeCompose:
         if png:
             png(out)
         return types.SimpleNamespace(returncode=1 if err else 0, stdout="", stderr=err)
-
-
-def run_main(monkeypatch, *argv):
-    """Call golden_run.main() with the given arguments."""
-    monkeypatch.setattr(sys, "argv", ["golden_run.py", *argv])
-    gr.main()
 
 
 def report(project):
@@ -275,11 +269,11 @@ def test_find_root_and_missing_manifest(tmp_path, project, monkeypatch):
     """No configs above the cwd exits; a project without a manifest exits telling you to plan first."""
     monkeypatch.chdir(tmp_path)
     with pytest.raises(SystemExit) as e:
-        run_main(monkeypatch)
+        main(monkeypatch, gr)
     assert "No configs/canvas_definitions.yaml" in str(e.value)
     monkeypatch.chdir(project)
     with pytest.raises(SystemExit) as e:
-        run_main(monkeypatch)
+        main(monkeypatch, gr)
     assert "run scripts/golden/golden_plan.py first" in str(e.value)
 
 
@@ -302,7 +296,7 @@ def test_end_to_end_strict_ok(project, cfg, monkeypatch, capsys):
     els = {"helmet": "2020 Maroon", "jersey": "2020 Maroon", "pants": "2020 Maroon"}
     eras = {f"1/{s}/icon": "all" for s in els}
     manifest(project, [entry("football--icons-horizontal--01", uniform1=els, number=None, expect_eras=eras)])
-    run_main(monkeypatch, "--strict")
+    main(monkeypatch, gr, "--strict")
     out = capsys.readouterr().out
     assert "1 examples to render" in out
     assert "ok     football--icons-horizontal--01" in out
@@ -327,7 +321,7 @@ def test_end_to_end_failed_placement(project, cfg, monkeypatch, capsys):
     els = {"helmet": "2020 Maroon", "jersey": "1999 Nothing", "pants": "2020 Maroon"}
     manifest(project, [entry("football--icons-horizontal--01", uniform1=els)])
     with pytest.raises(SystemExit) as e:
-        run_main(monkeypatch, "--strict")
+        main(monkeypatch, gr, "--strict")
     assert str(e.value) == "STRICT: 1 with defects, 0 with notes (of 1 rendered this run)"
     out = capsys.readouterr().out
     assert "DEFECT football--icons-horizontal--01" in out
@@ -392,7 +386,7 @@ def test_every_outcome_reported(project, monkeypatch, tmp_path, capsys):
     """
     fake = suite(project, monkeypatch, tmp_path)
     with pytest.raises(SystemExit) as e:
-        run_main(monkeypatch, "--strict")
+        main(monkeypatch, gr, "--strict")
     assert str(e.value) == "STRICT: 6 with defects, 1 with notes (of 9 rendered this run)"
     out = capsys.readouterr().out
     assert "9 examples to render (1 not approved, skipped)" in out
@@ -442,7 +436,7 @@ def test_strict_counts_a_note_alone(project, monkeypatch, tmp_path, capsys):
     """Under --strict a 1-2px clipping note fails the run even with no defects."""
     suite(project, monkeypatch, tmp_path)
     with pytest.raises(SystemExit) as e:
-        run_main(monkeypatch, "--strict", "--only", "fb--a--02")
+        main(monkeypatch, gr, "--strict", "--only", "fb--a--02")
     assert str(e.value) == "STRICT: 0 with defects, 1 with notes (of 1 rendered this run)"
     assert "1 examples to render" in capsys.readouterr().out
 
@@ -450,13 +444,13 @@ def test_strict_counts_a_note_alone(project, monkeypatch, tmp_path, capsys):
 def test_only_refreshes_one_and_reports_all(project, monkeypatch, tmp_path, capsys):
     """--only composes just the named example while the report still covers every result on disk."""
     fake = suite(project, monkeypatch, tmp_path)
-    run_main(monkeypatch)
+    main(monkeypatch, gr)
     capsys.readouterr()
     fake.calls.clear()
     fake.behaviours["fb--a--03"] = fake.behaviours["fb--a--01"]
     # --strict judges only what this run rendered; older results on disk (2
     # defects, 1 note) are reported but not judged
-    run_main(monkeypatch, "--only", "fb--a--03", "--strict")
+    main(monkeypatch, gr, "--only", "fb--a--03", "--strict")
     out = capsys.readouterr().out
     assert "STRICT: every example is ok (1 rendered this run)" in out
     assert len(fake.calls) == 1
@@ -471,7 +465,7 @@ def test_only_refreshes_one_and_reports_all(project, monkeypatch, tmp_path, caps
 def test_only_strict_ok(project, monkeypatch, tmp_path, capsys):
     """--strict exits normally when every approved result on disk is clean."""
     fake = suite(project, monkeypatch, tmp_path)
-    run_main(monkeypatch, "--sport", "soccer", "--strict")
+    main(monkeypatch, gr, "--sport", "soccer", "--strict")
     out = capsys.readouterr().out
     assert len(fake.calls) == 1
     assert "STRICT: every example is ok" in out
@@ -482,9 +476,9 @@ def test_strict_with_sport_ignores_earlier_results_on_disk(project, monkeypatch,
     """--strict --sport passes on a clean sport even when another sport's earlier results on disk have defects."""
     suite(project, monkeypatch, tmp_path)
     with pytest.raises(SystemExit):
-        run_main(monkeypatch, "--sport", "football", "--strict")
+        main(monkeypatch, gr, "--sport", "football", "--strict")
     capsys.readouterr()
-    run_main(monkeypatch, "--sport", "soccer", "--strict")
+    main(monkeypatch, gr, "--sport", "soccer", "--strict")
     out = capsys.readouterr().out
     assert "report covers 6, 3 with defects" in out
     assert "STRICT: every example is ok (1 rendered this run)" in out
@@ -493,21 +487,21 @@ def test_strict_with_sport_ignores_earlier_results_on_disk(project, monkeypatch,
 def test_strict_judges_this_runs_defect_not_an_older_clean_result(project, monkeypatch, tmp_path, capsys):
     """A defect rendered in this run fails --strict even if earlier results of other examples are clean."""
     fake = suite(project, monkeypatch, tmp_path)
-    run_main(monkeypatch, "--only", "fb--a--01")
+    main(monkeypatch, gr, "--only", "fb--a--01")
     fake.behaviours["sc--c--01"] = fake.behaviours["fb--a--03"]
     with pytest.raises(SystemExit) as e:
-        run_main(monkeypatch, "--sport", "soccer", "--strict")
+        main(monkeypatch, gr, "--sport", "soccer", "--strict")
     assert str(e.value) == "STRICT: 1 with defects, 0 with notes (of 1 rendered this run)"
 
 
 def test_sport_filter_and_report_from_disk(project, monkeypatch, tmp_path, capsys):
     """--sport composes one sport; results for other sports already on disk stay in the report."""
     fake = suite(project, monkeypatch, tmp_path)
-    run_main(monkeypatch, "--sport", "football")
+    main(monkeypatch, gr, "--sport", "football")
     capsys.readouterr()
     assert all("soccer" not in c for c in fake.calls)
     fake.calls.clear()
-    run_main(monkeypatch, "--sport", "soccer")
+    main(monkeypatch, gr, "--sport", "soccer")
     out = capsys.readouterr().out
     assert len(fake.calls) == 1
     assert "report covers 6, 3 with defects" in out
@@ -520,7 +514,7 @@ def test_stale_png_removed_before_compose(project, monkeypatch, tmp_path, capsys
     """A PNG left from an earlier run is deleted before compose runs, so a failed compose shows NOT RENDERED."""
     suite(project, monkeypatch, tmp_path)
     old = opaque_png(project / "golden/run/football/b/fb--b--01.png")
-    run_main(monkeypatch, "--only", "fb--b--01")
+    main(monkeypatch, gr, "--only", "fb--b--01")
     assert not old.exists()
     assert "### `fb--b--01`" in report(project)
 
@@ -528,13 +522,13 @@ def test_stale_png_removed_before_compose(project, monkeypatch, tmp_path, capsys
 def test_stale_json_not_read_as_ok(project, monkeypatch, tmp_path, capsys):
     """A compose that writes no JSON is FAILED with its last error line, never the previous run's result."""
     fake = suite(project, monkeypatch, tmp_path)
-    run_main(monkeypatch, "--only", "fb--a--01", "--strict")
+    main(monkeypatch, gr, "--only", "fb--a--01", "--strict")
     js = project / "golden/run/football/a/fb--a--01.json"
     assert js.is_file()
     capsys.readouterr()
     fake.behaviours["fb--a--01"] = (None, None, "Unknown token(s): Bogus\nNot in configs/modifiers_football.yaml\n")
     with pytest.raises(SystemExit) as e:
-        run_main(monkeypatch, "--only", "fb--a--01", "--strict")
+        main(monkeypatch, gr, "--only", "fb--a--01", "--strict")
     assert str(e.value).startswith("STRICT: 1 with defects")
     out = capsys.readouterr().out
     assert "DEFECT fb--a--01" in out
@@ -551,11 +545,11 @@ def test_end_to_end_unknown_token_after_ok_run(project, cfg, monkeypatch, capsys
     els = {"helmet": "2020 Maroon", "jersey": "2020 Maroon", "pants": "2020 Maroon"}
     ex = entry("football--icons-horizontal--01", uniform1=els)
     manifest(project, [ex])
-    run_main(monkeypatch, "--strict")
+    main(monkeypatch, gr, "--strict")
     capsys.readouterr()
     manifest(project, [{**ex, "with": ["Bogus"]}])
     with pytest.raises(SystemExit) as e:
-        run_main(monkeypatch, "--strict")
+        main(monkeypatch, gr, "--strict")
     assert str(e.value).startswith("STRICT: 1 with defects")
     out = capsys.readouterr().out
     assert "DEFECT football--icons-horizontal--01" in out
@@ -575,12 +569,12 @@ def test_end_to_end_unknown_token_after_ok_run(project, cfg, monkeypatch, capsys
 def test_nothing_selected_reports_zero(project, monkeypatch, capsys, entries, argv):
     """With no example selected, golden/run/ is created and the report says 0 examples; --strict then fails."""
     manifest(project, entries)
-    run_main(monkeypatch, *argv)
+    main(monkeypatch, gr, *argv)
     assert "**0 examples, 0 with defects.**" in report(project)
     assert "0 rendered" in (project / "golden/run/index.html").read_text()
     assert "0 rendered this run; report covers 0" in capsys.readouterr().out
     with pytest.raises(SystemExit) as e:
-        run_main(monkeypatch, *argv, "--strict")
+        main(monkeypatch, gr, *argv, "--strict")
     assert str(e.value) == "STRICT: no approved example matched the selection, so nothing was checked"
 
 
@@ -613,4 +607,4 @@ def test_root_flag_from_outside_the_project(project, tmp_path, monkeypatch):
     elsewhere.mkdir()
     monkeypatch.chdir(elsewhere)
     with pytest.raises(SystemExit, match="No golden/manifest.yaml"):
-        run_main(monkeypatch, "--root", str(project))
+        main(monkeypatch, gr, "--root", str(project))

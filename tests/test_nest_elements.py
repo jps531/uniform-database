@@ -7,7 +7,7 @@ import sys
 import common
 import nest_elements as ne
 import pytest
-from helpers import REPO, art, override_configs
+from helpers import REPO, art, main, override_configs
 
 
 @pytest.fixture(scope="module")
@@ -26,12 +26,6 @@ def nest(stem, vocab):
     """element_for() on one stem with a loaded vocabulary."""
     strip, design, form, _seq, known = vocab
     return ne.element_for(stem, strip, design, form, known)
-
-
-def run(monkeypatch, *argv):
-    """Call nest_elements.main() with the given arguments."""
-    monkeypatch.setattr(sys, "argv", ["nest_elements.py", *argv])
-    ne.main()
 
 
 def stage(project, rel, seed=0):
@@ -187,7 +181,7 @@ def test_dry_run_plans_and_writes_nothing(project, monkeypatch, capsys):
     stage(project, "temp/Football/EMCC/Helmets Right/2014 White A Speedflex.png")
     stage(project, "temp/Football/EMCC/Helmets Right/2014 White B Speedflex.png")
     stage(project, "temp/Football/EMCC/Jerseys Front/2014 White 34 A.png")
-    run(monkeypatch, "--sport", "football")
+    main(monkeypatch, ne, "--sport", "football")
     out = capsys.readouterr().out
     assert "source: temp/Football  ->  dest: Football" in out
     assert "3 files -> 3 element folders" in out
@@ -213,7 +207,7 @@ def test_apply_copies_into_element_folders_and_keeps_source(project, monkeypatch
     for i, rel in enumerate(names):
         srcs[rel] = stage(project, f"temp/Football/Mississippi State/{rel}", seed=i)
     stage(project, "temp/Football/Mississippi State/Helmets Right/.2016 Maroon.png")
-    run(monkeypatch, "--sport", "football", "--apply")
+    main(monkeypatch, ne, "--sport", "football", "--apply")
     out = capsys.readouterr().out
     assert "Copied 4 files. Source tree left intact." in out
     for rel, el in names.items():
@@ -228,7 +222,7 @@ def test_staging_without_sport_level_falls_back_to_temp(project, monkeypatch, ca
     """With no temp/{Sport}/, staging is read from temp/{Team}/ directly."""
     (project / "Football").mkdir()
     stage(project, "temp/Jones/Helmets Left/2019 Black Cats.png")
-    run(monkeypatch, "--sport", "football", "--apply")
+    main(monkeypatch, ne, "--sport", "football", "--apply")
     assert "source: temp  ->  dest: Football" in capsys.readouterr().out
     assert (project / "Football/Jones/Helmets Left/2019 Black/2019 Black Cats.png").is_file()
 
@@ -238,8 +232,9 @@ def test_explicit_src_dest_root_and_team_filter(project, tmp_path, monkeypatch, 
     stage(project, "stage/Baseball/Mississippi State/Jerseys Front/2014 White 85s 18 Girodo.png")
     stage(project, "stage/Baseball/Southern Miss/Jerseys Front/2014 Gold 5.png")
     monkeypatch.chdir(tmp_path)
-    run(
+    main(
         monkeypatch,
+        ne,
         "--root",
         str(project),
         "--sport",
@@ -267,7 +262,7 @@ def test_unassignable_file_is_reported_and_blocks_apply(project, monkeypatch, ca
     stage(project, "temp/Football/EMCC/Jerseys Front/ 12.png")
     stage(project, "temp/Football/EMCC/Jerseys Front/2014 White 12.png")
     with pytest.raises(SystemExit, match="Refusing to apply"):
-        run(monkeypatch, "--apply")
+        main(monkeypatch, ne, "--apply")
     out = capsys.readouterr().out
     assert "!! 1 files could not be assigned" in out
     assert "EMCC/Jerseys Front/ 12.png  (nothing left)" in out
@@ -281,7 +276,7 @@ def test_collision_is_reported_and_blocks_apply(project, monkeypatch, capsys):
     dest = project / "Football/EMCC/Jerseys Front/2014 White/2014 White 12.png"
     monkeypatch.setattr(ne, "build_plan", lambda *a_, **k: ([(a, dest, []), (a, dest, [])], []))
     with pytest.raises(SystemExit, match="Refusing to apply"):
-        run(monkeypatch, "--apply")
+        main(monkeypatch, ne, "--apply")
     assert "!! 1 destination collisions" in capsys.readouterr().out
     assert not dest.exists()
 
@@ -292,12 +287,12 @@ def test_existing_different_destination_blocks_apply(project, monkeypatch, capsy
     other = stage(project, "temp/Football/EMCC/Jerseys Front/2014 White 13.png", seed=2)
     there = stage(project, "Football/EMCC/Jerseys Front/2014 White/2014 White 12.png", seed=3)
     before = there.read_bytes()
-    run(monkeypatch)
+    main(monkeypatch, ne)
     out = capsys.readouterr().out
     assert "!! 1 files already exist at the destination with different contents:" in out
     assert "   EMCC/Jerseys Front/2014 White/2014 White 12.png" in out
     with pytest.raises(SystemExit, match="Refusing to apply"):
-        run(monkeypatch, "--apply")
+        main(monkeypatch, ne, "--apply")
     assert there.read_bytes() == before
     assert not (project / "Football/EMCC/Jerseys Front/2014 White" / other.name).exists()
 
@@ -310,7 +305,7 @@ def test_identical_destination_is_a_reported_no_op(project, monkeypatch, capsys)
     there.parent.mkdir(parents=True)
     there.write_bytes(src.read_bytes())
     os.utime(there, (0, 0))
-    run(monkeypatch, "--apply")
+    main(monkeypatch, ne, "--apply")
     out = capsys.readouterr().out
     assert "1 files already at the destination, identical: nothing to copy for them." in out
     assert "Copied 1 files (1 already in place). Source tree left intact." in out
@@ -324,7 +319,7 @@ def test_default_destination_matches_the_sport_slug(project, monkeypatch, capsys
     monkeypatch.setattr(ne, "load_vocab", lambda root, sport: vocab)
     (project / "Men's Basketball").mkdir()
     src = stage(project, "temp/Men's Basketball/Mississippi State/Jerseys Front/2019 White 23.png")
-    run(monkeypatch, "--sport", "mens_basketball", "--apply")
+    main(monkeypatch, ne, "--sport", "mens_basketball", "--apply")
     assert "source: temp/Men's Basketball  ->  dest: Men's Basketball" in capsys.readouterr().out
     dest = project / "Men's Basketball/Mississippi State/Jerseys Front/2019 White/2019 White 23.png"
     assert dest.read_bytes() == src.read_bytes()
@@ -335,14 +330,14 @@ def test_no_sport_directory_requires_dest(project, monkeypatch):
     """With no directory matching the sport slug, main() exits asking for --dest rather than inventing a name."""
     stage(project, "temp/EMCC/Helmets Right/2014 White A.png")
     with pytest.raises(SystemExit, match="No directory for sport 'football'.*--dest"):
-        run(monkeypatch, "--sport", "football", "--apply")
+        main(monkeypatch, ne, "--sport", "football", "--apply")
     assert not (project / "Football").exists()
 
 
 def test_missing_source_exits(project, monkeypatch):
     """A source tree that doesn't exist exits naming it."""
     with pytest.raises(SystemExit, match="Source not found"):
-        run(monkeypatch, "--src", "nowhere")
+        main(monkeypatch, ne, "--src", "nowhere")
 
 
 def test_source_without_pngs_exits(project, monkeypatch):
@@ -351,7 +346,7 @@ def test_source_without_pngs_exits(project, monkeypatch):
     (project / "temp/Football/EMCC/Helmets Right").mkdir(parents=True)
     (project / "temp/Football/notes.txt").write_text("not a team")
     with pytest.raises(SystemExit, match="No PNGs under"):
-        run(monkeypatch)
+        main(monkeypatch, ne)
 
 
 def test_find_root_walks_up_and_fails_cleanly(project, tmp_path):

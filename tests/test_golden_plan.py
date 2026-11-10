@@ -8,7 +8,7 @@ import common
 import golden_plan as gp
 import pytest
 import yaml
-from helpers import REPO, art, canvas_size, era, override_configs, scaled
+from helpers import REPO, art, canvas_size, era, main, override_configs, scaled
 
 # --------------------------------------------------------------------------
 # helpers
@@ -61,12 +61,6 @@ def reduced_configs(project, templates, views, **files):
     override_configs(project, {"view_templates.yaml": {"templates": keep}, **files})
 
 
-def run_main(monkeypatch, *argv):
-    """Call golden_plan.main() with the given arguments."""
-    monkeypatch.setattr(sys, "argv", ["golden_plan.py", *argv])
-    gp.main()
-
-
 # --------------------------------------------------------------------------
 # small functions
 # --------------------------------------------------------------------------
@@ -76,7 +70,7 @@ def test_find_root_exits_without_configs(tmp_path, monkeypatch):
     """main() exits when no configs/canvas_definitions.yaml is above the cwd."""
     monkeypatch.chdir(tmp_path)
     with pytest.raises(SystemExit) as e:
-        run_main(monkeypatch)
+        main(monkeypatch, gp)
     assert "No configs/canvas_definitions.yaml" in str(e.value)
 
 
@@ -534,7 +528,7 @@ def test_main_rescan_writes_inventory_manifest_and_plan(project, cfg, templates,
     """A first run measures artwork and writes inventory.json, manifest.yaml and PLAN.md covering every era."""
     reduced_configs(project, templates, {"wbk-shorts"})
     draw_wbk(project, cfg)
-    run_main(monkeypatch)
+    main(monkeypatch, gp)
     out = capsys.readouterr().out
     assert "inventory: measuring womens_basketball (not in golden/inventory.json)" in out
     assert "2 element-slots across 1 sports" in out
@@ -563,13 +557,13 @@ def test_main_reuses_cache_and_reresolves_eras(project, cfg, templates, monkeypa
     r["vps"]["front"]["era"] = "stale"
     inv = {M: {"Mississippi State": {"shorts": {"2020 Maroon": r}}}}
     (project / "golden/inventory.json").write_text(json.dumps(inv))
-    run_main(monkeypatch)
+    main(monkeypatch, gp)
     out = capsys.readouterr().out
     assert "reusing golden/inventory.json for womens_basketball (--rescan to refresh) — 1 eras re-resolved" in out
     man = yaml.safe_load((project / "golden/manifest.yaml").read_text())
     assert man[0]["expect_eras"]["1/shorts/front"] == "a"
     # --rescan ignores the cache: there is no artwork, so nothing is found
-    run_main(monkeypatch, "--rescan")
+    main(monkeypatch, gp, "--rescan")
     out = capsys.readouterr().out
     assert "inventory: measuring womens_basketball (--rescan)" in out
     assert "0 element-slots across 0 sports" in out
@@ -620,7 +614,7 @@ def test_main_combo_explicit_constraints_gaps_and_pairings(project, cfg, templat
             }
         )
     )
-    run_main(monkeypatch)
+    main(monkeypatch, gp)
     out = capsys.readouterr().out
     assert "pairings: 1 known uniform from golden/pairings.yaml" in out
     assert "!! 1 era targets not coverable" in out
@@ -654,7 +648,7 @@ def test_main_sport_filter_and_plural_pairings(project, cfg, templates, monkeypa
     reduced_configs(project, templates, {"wbk-shorts", "condensed", "jersey-full"}, **{"slots_global.yaml": None})
     (project / "golden/pairings.yaml").write_text("")
     (project / "golden/inventory.json").write_text(json.dumps(football_inv(cfg)))
-    run_main(monkeypatch, "--sport", "football")
+    main(monkeypatch, gp, "--sport", "football")
     out = capsys.readouterr().out
     assert "pairings: 0 known uniforms" in out
     assert "3 examples across 2 templates" in out
@@ -676,7 +670,7 @@ def test_main_reads_colorway_tokens_and_labels(project, templates, monkeypatch, 
     (project / "golden/inventory.json").write_text("{}")
     seen, real = [], gp.plan_template
     monkeypatch.setattr(gp, "plan_template", lambda *a: seen.append(a[4]) or real(*a))
-    run_main(monkeypatch)
+    main(monkeypatch, gp)
     assert seen[0][:2] == ["powder blue", "vegas gold"]
     assert set(seen[0]) == {
         "powder blue",
@@ -719,7 +713,7 @@ def test_main_sport_replaces_only_that_sport_in_manifest_and_plan(project, cfg, 
     """--sport replaces the selected sport's manifest entries and PLAN.md section, keeping every other sport's, edits included."""
     reduced_configs(project, templates, {"wbk-shorts", "condensed", "jersey-full"})
     (project / "golden/inventory.json").write_text(json.dumps(two_sport_inv(cfg)))
-    run_main(monkeypatch)
+    main(monkeypatch, gp)
     full_man = yaml.safe_load((project / "golden/manifest.yaml").read_text())
     full_md = (project / "golden/PLAN.md").read_text()
     assert {m["sport"] for m in full_man} == {"football", "womens_basketball"}
@@ -727,7 +721,7 @@ def test_main_sport_replaces_only_that_sport_in_manifest_and_plan(project, cfg, 
     edited = [dict(m, approved=False) if m["sport"] == "womens_basketball" else m for m in full_man]
     (project / "golden/manifest.yaml").write_text(yaml.safe_dump(edited, sort_keys=False))
     capsys.readouterr()
-    run_main(monkeypatch, "--sport", "football")
+    main(monkeypatch, gp, "--sport", "football")
     out = capsys.readouterr().out
     assert "kept 1 example for other sports: womens_basketball" in out
     assert yaml.safe_load((project / "golden/manifest.yaml").read_text()) == edited
@@ -739,7 +733,7 @@ def test_main_sport_replaces_only_that_sport_in_manifest_and_plan(project, cfg, 
     (project / "golden/PLAN.md").write_text(
         full_md.split("\n## Football\n")[0] + "\n## Womens Basketball\n" + full_md.split("\n## Womens Basketball\n")[1]
     )
-    run_main(monkeypatch, "--sport", "football")
+    main(monkeypatch, gp, "--sport", "football")
     assert yaml.safe_load((project / "golden/manifest.yaml").read_text()) == edited
     assert (project / "golden/PLAN.md").read_text() == full_md
 
@@ -752,11 +746,11 @@ def test_main_sport_header_counts_kept_sections(project, cfg, templates, monkeyp
         cfg, "football", "jersey", "2021 Odd", {"front": None}
     )
     (project / "golden/inventory.json").write_text(json.dumps(inv))
-    run_main(monkeypatch)
+    main(monkeypatch, gp)
     full_md = (project / "golden/PLAN.md").read_text()
     assert "## ⚠ 1 template have NO examples" in full_md
     assert "era targets could not be covered" in full_md
-    run_main(monkeypatch, "--sport", "womens_basketball")
+    main(monkeypatch, gp, "--sport", "womens_basketball")
     assert (project / "golden/PLAN.md").read_text() == full_md
 
 
@@ -764,10 +758,10 @@ def test_main_sport_warns_when_a_kept_sport_has_no_plan_section(project, cfg, te
     """A kept sport with manifest entries but no PLAN.md section is kept and named, so a full re-plan can restore it."""
     reduced_configs(project, templates, {"wbk-shorts", "condensed"})
     (project / "golden/inventory.json").write_text(json.dumps(two_sport_inv(cfg)))
-    run_main(monkeypatch)
+    main(monkeypatch, gp)
     (project / "golden/PLAN.md").unlink()
     capsys.readouterr()
-    run_main(monkeypatch, "--sport", "womens_basketball")
+    main(monkeypatch, gp, "--sport", "womens_basketball")
     out = capsys.readouterr().out
     assert "PLAN.md had no section for football" in out
     assert {m["sport"] for m in yaml.safe_load((project / "golden/manifest.yaml").read_text())} == {
@@ -779,7 +773,7 @@ def test_main_sport_warns_when_a_kept_sport_has_no_plan_section(project, cfg, te
 def test_main_sport_unknown_exits(project, monkeypatch):
     """--sport naming a sport with no template exits before writing anything."""
     with pytest.raises(SystemExit, match="No templates for sport: curling"):
-        run_main(monkeypatch, "--sport", "curling")
+        main(monkeypatch, gp, "--sport", "curling")
     assert not (project / "golden/manifest.yaml").exists()
 
 
@@ -800,12 +794,12 @@ def test_inventory_records_its_sports_and_extends_when_one_is_missing(project, c
     reduced_configs(project, templates, {"wbk-shorts", "jersey-full"})
     draw_wbk(project, cfg)
     draw_football_jerseys(project, cfg)
-    run_main(monkeypatch, "--sport", "womens_basketball")
+    main(monkeypatch, gp, "--sport", "womens_basketball")
     saved = json.loads((project / "golden/inventory.json").read_text())
     assert saved["sports"] == ["womens_basketball"]
     assert set(saved["elements"]) == {"womens_basketball"}
     capsys.readouterr()
-    run_main(monkeypatch)
+    main(monkeypatch, gp)
     out = capsys.readouterr().out
     assert "inventory: measuring football (not in golden/inventory.json)" in out
     saved = json.loads((project / "golden/inventory.json").read_text())
@@ -813,7 +807,7 @@ def test_inventory_records_its_sports_and_extends_when_one_is_missing(project, c
     man = yaml.safe_load((project / "golden/manifest.yaml").read_text())
     assert [m["uniform1"] for m in man if m["view"] == "jersey-full"] == [{"jersey": "2016 White"}]
     # now everything needed is cached: reused, nothing measured
-    run_main(monkeypatch)
+    main(monkeypatch, gp)
     assert "inventory: reusing golden/inventory.json" in capsys.readouterr().out
 
 
@@ -824,7 +818,7 @@ def test_rescan_with_sport_keeps_other_sports_inventory(project, cfg, templates,
         json.dumps({"sports": ["football", "womens_basketball"], "elements": two_sport_inv(cfg)})
     )
     draw_wbk(project, cfg)
-    run_main(monkeypatch, "--rescan", "--sport", "womens_basketball")
+    main(monkeypatch, gp, "--rescan", "--sport", "womens_basketball")
     saved = json.loads((project / "golden/inventory.json").read_text())
     assert saved["sports"] == ["football", "womens_basketball"]
     assert saved["elements"]["football"] == football_inv(cfg)["football"]
@@ -840,7 +834,7 @@ def test_legacy_inventory_covers_the_sports_it_holds(project, cfg, templates, mo
         M: {"Mississippi State": {"shorts": {"2020 Maroon": rec(cfg, M, "shorts", "2020 Maroon", {"front": "a"})}}}
     }
     (project / "golden/inventory.json").write_text(json.dumps(legacy))
-    run_main(monkeypatch)
+    main(monkeypatch, gp)
     out = capsys.readouterr().out
     assert "inventory: measuring football (not in golden/inventory.json)" in out
     saved = json.loads((project / "golden/inventory.json").read_text())
@@ -854,7 +848,7 @@ def test_root_flag_and_manifest_header(project, tmp_path, monkeypatch, capsys):
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     monkeypatch.chdir(elsewhere)
-    run_main(monkeypatch, "--root", str(project), "--sport", "womens_basketball")
+    main(monkeypatch, gp, "--root", str(project), "--sport", "womens_basketball")
     text = (project / "golden/manifest.yaml").read_text()
     assert text.startswith(gp.MANIFEST_HEADER)
     assert "WARNING: golden_plan.py OVERWRITES this file." in text

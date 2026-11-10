@@ -8,7 +8,7 @@ from pathlib import Path
 import common
 import migrate_marks as mm
 import pytest
-from helpers import REPO, art, era, override_configs, small_configs
+from helpers import REPO, art, era, main, override_configs, small_configs
 
 T = Path("Marks/Temp")
 D = Path("Marks/Football")
@@ -17,12 +17,6 @@ D = Path("Marks/Football")
 def touch(root: Path, rel, size=(4, 4)) -> Path:
     """Draw a small PNG at root/rel."""
     return art(root / rel, size)
-
-
-def run_main(monkeypatch, root: Path, *flags):
-    """Call migrate_marks.main() with --root and the given flags."""
-    monkeypatch.setattr(sys, "argv", ["migrate_marks.py", "--root", str(root), *flags])
-    mm.main()
 
 
 def rels(moves, src: Path, dest: Path) -> list:
@@ -107,7 +101,7 @@ def test_main_flat_dry_run_then_apply_copies_and_keeps_sources(project, monkeypa
     """The dry run writes nothing and warns on unknown colorways; --apply copies and leaves the source intact."""
     src = touch(project, T / "Speedflex" / "Alabama 2015 Crimson 1.png")
     touch(project, T / "Speed" / "Alabama 2015 Zebra 1.png")
-    run_main(monkeypatch, project)
+    main(monkeypatch, mm, "--root", str(project))
     out = capsys.readouterr().out
     assert "2 files -> 1 teams, 2 element folders" in out
     assert "!! 1 colorways not in slots_global.yaml (1 files):" in out
@@ -116,7 +110,7 @@ def test_main_flat_dry_run_then_apply_copies_and_keeps_sources(project, monkeypa
     assert "Resolve the flagged items first" not in out
     assert not (project / D).exists()
 
-    run_main(monkeypatch, project, "--apply")
+    main(monkeypatch, mm, "--root", str(project), "--apply")
     assert "Copied 2 files. Source tree left intact." in capsys.readouterr().out
     out_file = project / D / "Alabama/Helmets Right/2015 Crimson/2015 Crimson Speedflex.png"
     assert out_file.read_bytes() == src.read_bytes()
@@ -129,7 +123,7 @@ def test_main_flat_blocks_on_problems_and_collisions(project, monkeypatch, capsy
     touch(project, T / "Speedflex" / "Alabama 2015 Crimson  1.png")
     touch(project, T / "Speedflex" / "garbage.png")
     touch(project, T / "Mystery" / "x.png")
-    run_main(monkeypatch, project)
+    main(monkeypatch, mm, "--root", str(project))
     out = capsys.readouterr().out
     assert "!! 1 unknown shell directory:" in out
     assert "!! 1 unparsed filename:" in out
@@ -137,7 +131,7 @@ def test_main_flat_blocks_on_problems_and_collisions(project, monkeypatch, capsy
     assert "Alabama/Helmets Right/2015 Crimson/2015 Crimson Speedflex.png (2 sources)" in out
     assert "Resolve the flagged items first" in out
     with pytest.raises(SystemExit) as e:
-        run_main(monkeypatch, project, "--apply")
+        main(monkeypatch, mm, "--root", str(project), "--apply")
     assert "Refusing to apply" in str(e.value.code)
     assert not (project / D).exists()
 
@@ -147,13 +141,13 @@ def test_main_refuses_to_overwrite_a_different_existing_file(project, monkeypatc
     touch(project, T / "Speedflex" / "Alabama 2015 Crimson 1.png")
     there = art(project / D / "Alabama/Helmets Right/2015 Crimson/2015 Crimson Speedflex.png", (4, 4), seed=5)
     before = there.read_bytes()
-    run_main(monkeypatch, project)
+    main(monkeypatch, mm, "--root", str(project))
     out = capsys.readouterr().out
     assert "!! 1 files already exist at the destination with different contents:" in out
     assert "     Alabama/Helmets Right/2015 Crimson/2015 Crimson Speedflex.png" in out
     assert "Resolve the flagged items first" in out
     with pytest.raises(SystemExit) as e:
-        run_main(monkeypatch, project, "--apply")
+        main(monkeypatch, mm, "--root", str(project), "--apply")
     assert "Refusing to apply" in str(e.value.code)
     assert there.read_bytes() == before
 
@@ -166,7 +160,7 @@ def test_main_skips_an_identical_existing_file(project, monkeypatch, capsys):
     there.parent.mkdir(parents=True)
     there.write_bytes(src.read_bytes())
     os.utime(there, (0, 0))
-    run_main(monkeypatch, project, "--apply")
+    main(monkeypatch, mm, "--root", str(project), "--apply")
     out = capsys.readouterr().out
     assert "1 files already at the destination, identical: nothing to copy for them." in out
     assert "Copied 1 files (1 already in place). Source tree left intact." in out
@@ -177,20 +171,18 @@ def test_main_skips_an_identical_existing_file(project, monkeypatch, capsys):
 def test_main_exits_without_source_or_team(project, monkeypatch):
     """A missing source tree, or nested mode without --team, exits with a message."""
     with pytest.raises(SystemExit) as e:
-        run_main(monkeypatch, project)
+        main(monkeypatch, mm, "--root", str(project))
     assert "Source not found" in str(e.value.code)
     (project / T).mkdir(parents=True)
     with pytest.raises(SystemExit) as e:
-        run_main(monkeypatch, project, "--mode", "nested")
+        main(monkeypatch, mm, "--root", str(project), "--mode", "nested")
     assert e.value.code == "--team is required in nested mode"
 
 
-def test_main_finds_root_from_cwd(project, monkeypatch, capsys):
+def test_main_finds_root_from_cwd(project, monkeypatch):
     """Without --root, main() finds the project from the working directory."""
     touch(project, T / "Speed" / "Alabama 2015 Crimson 1.png")
-    monkeypatch.setattr(sys, "argv", ["migrate_marks.py"])
-    mm.main()
-    assert "1 files -> 1 teams" in capsys.readouterr().out
+    assert "1 files -> 1 teams" in main(monkeypatch, mm)
 
 
 def test_find_root_exits_without_configs(tmp_path):
@@ -299,7 +291,7 @@ def test_main_nested_blocks_on_an_empty_mark(project, monkeypatch, capsys):
     small_configs(project)
     art(project / "Incoming/Helmets Left/2015 Crimson/2015 Crimson.png", (20, 20), (0, 0))
     with pytest.raises(SystemExit):
-        run_main(monkeypatch, project, "--mode", "nested", "--team", "X", "--src", "Incoming", "--apply")
+        main(monkeypatch, mm, "--root", str(project), "--mode", "nested", "--team", "X", "--src", "Incoming", "--apply")
     out = capsys.readouterr().out
     assert "!! 1 no opaque content:" in out
     assert "2015 Crimson/2015 Crimson.png" in out
@@ -320,13 +312,13 @@ def test_main_nested_reports_problems_and_collisions_then_refuses(project, monke
     helmet(project, cfg, "Left", "2015 Crimson", "2015 Crimson Bogus")
     art(project / "Incoming/Helmets Left/2015 Crimson/2015 Crimson 9.png", (20, 20), (13, 11))
     flags = ("--mode", "nested", "--team", "Alabama", "--src", "Incoming")
-    run_main(monkeypatch, project, *flags)
+    main(monkeypatch, mm, "--root", str(project), *flags)
     out = capsys.readouterr().out
     assert "!! 1 unrecognised trailing token:" in out
     assert "!! 1 size matches no era:" in out
     assert "!! 1 destination collisions" in out
     with pytest.raises(SystemExit):
-        run_main(monkeypatch, project, *flags, "--apply")
+        main(monkeypatch, mm, "--root", str(project), *flags, "--apply")
     assert not (project / D).exists()
 
 
@@ -334,7 +326,9 @@ def test_main_nested_apply_copies(project, monkeypatch, capsys):
     """A clean nested plan is copied into Marks/Football/<Team>, leaving the source in place."""
     cfg = small_configs(project)
     src = helmet(project, cfg, "Right", "1980 Maroon", "1980 Maroon", "D")
-    run_main(monkeypatch, project, "--mode", "nested", "--team", "Alabama", "--src", "Incoming", "--apply")
+    main(
+        monkeypatch, mm, "--root", str(project), "--mode", "nested", "--team", "Alabama", "--src", "Incoming", "--apply"
+    )
     assert "Copied 1 files." in capsys.readouterr().out
     assert (project / D / "Alabama/Helmets Right/1980 Maroon/1980 Maroon Classic.png").read_bytes() == src.read_bytes()
     assert src.is_file()
@@ -383,7 +377,7 @@ def test_main_flat_noyear_apply_copies(project, monkeypatch, capsys):
     """flat-noyear --apply copies hats into {Team}/{slot} {viewpoint}/{element}/ and keeps the source."""
     src = touch(project, T / "Auburn Navy A.png")
     flags = ("--mode", "flat-noyear", "--dest", "Marks/Baseball", "--slot-dir", "Hats", "--viewpoint", "Front")
-    run_main(monkeypatch, project, *flags, "--apply")
+    main(monkeypatch, mm, "--root", str(project), *flags, "--apply")
     assert "Copied 1 files." in capsys.readouterr().out
     assert (project / "Marks/Baseball/Auburn/Hats Front/Navy A/Navy A.png").read_bytes() == src.read_bytes()
     assert src.is_file()
@@ -394,7 +388,7 @@ def test_main_flat_noyear_refuses_collisions(project, monkeypatch, capsys):
     touch(project, T / "a" / "Auburn Navy A.png")
     touch(project, T / "b" / "Auburn Navy A.png")
     with pytest.raises(SystemExit):
-        run_main(monkeypatch, project, "--mode", "flat-noyear", "--dest", "Marks/Baseball", "--apply")
+        main(monkeypatch, mm, "--root", str(project), "--mode", "flat-noyear", "--dest", "Marks/Baseball", "--apply")
     assert "!! 1 destination collisions" in capsys.readouterr().out
     assert not (project / "Marks/Baseball").exists()
 
@@ -405,13 +399,13 @@ def test_main_flat_noyear_prints_problems_and_refuses(project, monkeypatch, caps
     touch(project, T / "Black Campbell.png")
     touch(project, T / "Zebra Thing.png")
     flags = ("--mode", "flat-noyear", "--dest", "Marks/Baseball")
-    run_main(monkeypatch, project, *flags)
+    main(monkeypatch, mm, "--root", str(project), *flags)
     out = capsys.readouterr().out
     assert "!! 1 no known colorway:\n     Zebra Thing.png" in out
     assert "!! 1 nothing before the colorway — team and colour may be reversed:\n     Black Campbell.png" in out
     assert "Resolve the flagged items first" in out
     with pytest.raises(SystemExit):
-        run_main(monkeypatch, project, *flags, "--apply")
+        main(monkeypatch, mm, "--root", str(project), *flags, "--apply")
     assert not (project / "Marks/Baseball").exists()
     assert good.is_file()
 
@@ -421,7 +415,7 @@ def test_main_flat_noyear_without_colorways_refuses(project, monkeypatch, capsys
     override_configs(project, {"slots_global.yaml": None})
     touch(project, T / "Auburn Navy A.png")
     with pytest.raises(SystemExit):
-        run_main(monkeypatch, project, "--mode", "flat-noyear", "--dest", "Marks/Baseball", "--apply")
+        main(monkeypatch, mm, "--root", str(project), "--mode", "flat-noyear", "--dest", "Marks/Baseball", "--apply")
     assert "!! 1 no colorways:\n     configs/slots_global.yaml" in capsys.readouterr().out
 
 

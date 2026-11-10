@@ -1,22 +1,15 @@
 """Tests for scripts/migration/recanvas.py: moving standardized files to a new canvas without ever rescaling."""
 
 import json
-import sys
 
 import common
 import numpy as np
 import pytest
 import recanvas
-from helpers import art, canvas_size, era
+from helpers import art, canvas_size, era, main
 from PIL import Image
 
 DEST = "Football/T/Helmets Front"
-
-
-def run(monkeypatch, *argv):
-    """Call recanvas.main() with the given command-line arguments."""
-    monkeypatch.setattr(sys, "argv", ["recanvas.py", *argv])
-    recanvas.main()
 
 
 def test_find_root(project, tmp_path):
@@ -36,7 +29,7 @@ def test_dry_run_reports_and_writes_nothing(project, cfg, monkeypatch, capsys):
     W, H = canvas_size(cfg, "football_helmet_face")
     b = era(cfg, "football-helmet-front", "B")["size"]
     art(project / "old" / "x" / "h.png", (W + 40, H + 40), b)
-    run(monkeypatch, "old", DEST)
+    main(monkeypatch, recanvas, "old", DEST)
     out = capsys.readouterr().out
     assert f"canvas football_helmet_face = {W} x {H}, anchor top-center" in out
     assert "1 files, 1 distinct content sizes:" in out
@@ -53,7 +46,7 @@ def test_apply_moves_content_without_rescaling(project, cfg, monkeypatch, capsys
     src = art(project / "old" / "1960 White" / "h.png", (W + 30, H + 20), post, top=7, seed=2)
     art(project / "old" / "1960 White" / ".hidden.png", (5, 5))
     before = src.read_bytes()
-    run(monkeypatch, "old", DEST, "--apply")
+    main(monkeypatch, recanvas, "old", DEST, "--apply")
     out_file = project / DEST / "1960 White" / "h.png"
     x = (W - post[0]) // 2
     with Image.open(src) as s, Image.open(out_file) as o:
@@ -73,7 +66,7 @@ def test_apply_keeps_blank_file_blank(project, cfg, monkeypatch):
     """A fully transparent file is written as a blank canvas."""
     W, H = canvas_size(cfg, "football_helmet_face")
     art(project / "old" / "x" / "blank.png", (20, 20), (0, 0))
-    run(monkeypatch, "old", DEST, "--apply")
+    main(monkeypatch, recanvas, "old", DEST, "--apply")
     with Image.open(project / DEST / "x" / "blank.png") as o:
         assert o.size == (W, H)
         assert o.getchannel("A").getbbox() is None
@@ -86,13 +79,13 @@ def test_too_big_is_listed_and_blocks_apply(project, cfg, monkeypatch, capsys):
     art(project / "old" / "big" / "h.png", (W + 1, 10))
     art(project / "old" / "tall" / "h.png", (10, H + 1))
     art(project / "old" / "ok" / "h.png", b)
-    run(monkeypatch, "old", DEST)
+    main(monkeypatch, recanvas, "old", DEST)
     out = capsys.readouterr().out
     assert "!! 2 files are LARGER than the canvas:" in out
     assert f"{W + 1}x10  big/h.png" in out
     assert f"10x{H + 1}  tall/h.png" in out
     with pytest.raises(SystemExit) as e:
-        run(monkeypatch, "old", DEST, "--apply")
+        main(monkeypatch, recanvas, "old", DEST, "--apply")
     assert "Refusing to apply while files exceed the canvas." in str(e.value)
     assert not (project / DEST).exists()
 
@@ -101,12 +94,12 @@ def test_canvas_override_and_marks_prefix(project, cfg, monkeypatch, capsys):
     """--canvas names the canvas directly; Marks/ paths resolve like sport trees."""
     W, H = canvas_size(cfg, "football_helmet_profile")
     art(project / "old" / "x" / "h.png", (30, 20))
-    run(monkeypatch, "old", "out/anything", "--canvas", "football_helmet_profile", "--apply")
+    main(monkeypatch, recanvas, "old", "out/anything", "--canvas", "football_helmet_profile", "--apply")
     with Image.open(project / "out/anything/x/h.png") as o:
         assert o.size == (W, H)
         assert o.getchannel("A").getbbox() == ((W - 30) // 2, 0, (W - 30) // 2 + 30, 20)
     capsys.readouterr()
-    run(monkeypatch, "old", "Marks/Football/T/Helmets Left")
+    main(monkeypatch, recanvas, "old", "Marks/Football/T/Helmets Left")
     assert f"canvas football_helmet_profile = {W} x {H}" in capsys.readouterr().out
 
 
@@ -116,7 +109,7 @@ def test_explicit_root(project, monkeypatch, tmp_path, capsys):
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     monkeypatch.chdir(elsewhere)
-    run(monkeypatch, "old", DEST, "--root", str(project))
+    main(monkeypatch, recanvas, "old", DEST, "--root", str(project))
     assert "DRY RUN" in capsys.readouterr().out
 
 
@@ -133,7 +126,7 @@ def test_refusals(project, monkeypatch, src, dest, msg):
     """recanvas exits on a missing source, an unparseable destination, and one with no canvas."""
     art(project / "old" / "x.png", (5, 5))
     with pytest.raises(SystemExit) as e:
-        run(monkeypatch, src, dest)
+        main(monkeypatch, recanvas, src, dest)
     assert msg in str(e.value)
 
 
@@ -143,7 +136,7 @@ def test_refuses_destination_equal_to_source(project, monkeypatch, dest):
     src = art(project / "old" / "x" / "h.png", (5, 5))
     before = src.read_bytes()
     with pytest.raises(SystemExit) as e:
-        run(monkeypatch, "old", dest, "--canvas", "football_helmet_face", "--apply")
+        main(monkeypatch, recanvas, "old", dest, "--canvas", "football_helmet_face", "--apply")
     assert "Destination must differ from source." in str(e.value)
     assert src.read_bytes() == before
 
@@ -152,7 +145,7 @@ def test_std_sibling_resolves_its_canvas(project, cfg, monkeypatch, capsys):
     """A "… STD" sibling (the recommended destination) resolves the same canvas as the folder it shadows."""
     W, H = canvas_size(cfg, "football_jersey")
     art(project / "old" / "x" / "j.png", (10, 10))
-    run(monkeypatch, "old", "Football/T/Jerseys Front STD")
+    main(monkeypatch, recanvas, "old", "Football/T/Jerseys Front STD")
     assert f"canvas football_jersey = {W} x {H}, anchor top-center" in capsys.readouterr().out
 
 
@@ -160,7 +153,7 @@ def test_destination_outside_the_project_is_unreadable(project, monkeypatch, tmp
     """A destination outside the project root cannot name a canvas, and exits cleanly."""
     art(project / "old" / "x.png", (5, 5))
     with pytest.raises(SystemExit) as e:
-        run(monkeypatch, "old", str(tmp_path / "elsewhere" / "Football/T/Jerseys Front"))
+        main(monkeypatch, recanvas, "old", str(tmp_path / "elsewhere" / "Football/T/Jerseys Front"))
     assert "Cannot read sport/slot/viewpoint from" in str(e.value)
 
 
@@ -171,7 +164,7 @@ def test_refuses_an_authored_destination(project, cfg, monkeypatch):
     before = authored.read_bytes()
     for flags in ((), ("--apply",)):
         with pytest.raises(SystemExit) as e:
-            run(monkeypatch, "old", DEST, *flags)
+            main(monkeypatch, recanvas, "old", DEST, *flags)
         assert "REFUSING to write to" in str(e.value)
         assert "holds 1 PNGs but has no .generated marker" in str(e.value)
     assert authored.read_bytes() == before
@@ -183,8 +176,8 @@ def test_writes_a_marker_and_may_rewrite_its_own_output(project, cfg, monkeypatc
     art(project / "old" / "x" / "h.png", (10, 10))
     (project / DEST).mkdir(parents=True)
     (project / DEST / "notes.txt").write_text("")
-    run(monkeypatch, "old", DEST, "--apply")
-    run(monkeypatch, "old", DEST, "--apply")
+    main(monkeypatch, recanvas, "old", DEST, "--apply")
+    main(monkeypatch, recanvas, "old", DEST, "--apply")
     assert capsys.readouterr().out.count("Wrote 1 files.") == 2
     marker = json.loads((project / DEST / ".generated").read_text())
     assert marker["generated_by"] == "scripts/migration/recanvas.py"
@@ -197,6 +190,6 @@ def test_writes_a_marker_and_may_rewrite_its_own_output(project, cfg, monkeypatc
 def test_nothing_to_write_leaves_no_marker(project, monkeypatch, capsys):
     """A source with no PNGs writes nothing, so no destination or marker is created."""
     (project / "old").mkdir()
-    run(monkeypatch, "old", DEST, "--apply")
+    main(monkeypatch, recanvas, "old", DEST, "--apply")
     assert "Wrote 0 files." in capsys.readouterr().out
     assert not (project / DEST).exists()

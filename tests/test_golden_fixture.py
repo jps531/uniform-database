@@ -17,6 +17,7 @@ from helpers import (
     art,
     canvas_size,
     cropped_of,
+    main,
     mark,
     placed,
     venue,
@@ -121,12 +122,6 @@ def scene(root: Path, cfg: dict) -> dict:
         ],
     )
     return {"want": want, "ex": [ex1, ex2, ex3]}
-
-
-def run_main(monkeypatch, root: Path, *flags):
-    """Call golden_fixture.main() with --root and the given flags."""
-    monkeypatch.setattr(sys, "argv", ["golden_fixture.py", "--root", str(root), *flags])
-    gf.main()
 
 
 def test_plan_copies_candidates_whole_helmets_era_top_up_and_venue_ends(project, small):
@@ -243,7 +238,7 @@ def test_plan_without_venues_or_examples(project, small):
 def test_main_dry_run_writes_nothing(project, small, monkeypatch, capsys):
     """Without --apply, main() reports the files to add and writes nothing."""
     s = scene(project, small)
-    run_main(monkeypatch, project)
+    main(monkeypatch, gf, "--root", str(project))
     out = capsys.readouterr().out
     assert f"fixture: {len(s['want'])} files" in out
     assert f"add {len(s['want'])}, update 0, remove 0" in out
@@ -256,7 +251,7 @@ def test_main_apply_adds_updates_removes_and_prunes(project, small, monkeypatch,
     """--apply copies the plan, then updates changed files, removes stale ones and prunes empty folders."""
     s = scene(project, small)
     dest = project / "golden/fixture"
-    run_main(monkeypatch, project, "--apply")
+    main(monkeypatch, gf, "--root", str(project), "--apply")
     have = {f.relative_to(dest) for f in dest.rglob("*") if f.is_file()}
     assert have == s["want"]
     assert not list(dest.rglob(".generated"))
@@ -267,7 +262,7 @@ def test_main_apply_adds_updates_removes_and_prunes(project, small, monkeypatch,
     changed = Path("Football") / TEAM / "Jerseys Front/2020 White/2020 White.png"
     art(project / changed, (8, 8), seed=9)
     capsys.readouterr()
-    run_main(monkeypatch, project, "--apply")
+    main(monkeypatch, gf, "--root", str(project), "--apply")
     out = capsys.readouterr().out
     assert "add 0, update 1, remove 1" in out
     assert f"~ {changed}" in out
@@ -281,7 +276,7 @@ def test_main_warns_over_size_limit(project, small, monkeypatch, capsys):
     """A fixture over WARN_MB is flagged as growing history."""
     scene(project, small)
     monkeypatch.setattr(gf, "WARN_MB", 0)
-    run_main(monkeypatch, project)
+    main(monkeypatch, gf, "--root", str(project))
     assert "!! over 0 MB" in capsys.readouterr().out
 
 
@@ -290,7 +285,7 @@ def test_main_exits_on_problems(project, small, monkeypatch, capsys):
     s = scene(project, small)
     (project / "golden/run/football/jersey-full" / f"{s['ex'][0]['id']}.json").unlink()
     with pytest.raises(SystemExit) as e:
-        run_main(monkeypatch, project, "--apply")
+        main(monkeypatch, gf, "--root", str(project), "--apply")
     assert e.value.code == "Fix these before syncing the fixture."
     assert "!! 1 problems:" in capsys.readouterr().out
     assert not (project / "golden/fixture").exists()
@@ -303,19 +298,16 @@ def test_main_refuses_fixture_outside_golden(project, small, monkeypatch, tmp_pa
     outside.mkdir()
     os.symlink(outside, project / "golden/fixture")
     with pytest.raises(SystemExit) as e:
-        run_main(monkeypatch, project, "--apply")
+        main(monkeypatch, gf, "--root", str(project), "--apply")
     assert "is outside golden/" in str(e.value.code)
     assert list(outside.iterdir()) == []
 
 
-def test_main_finds_root_from_cwd(project, small, monkeypatch, capsys):
+def test_main_finds_root_from_cwd(project, small, monkeypatch):
     """Without --root, main() finds the project from the working directory."""
     scene(project, small)
-    sub = project / "Football"
-    monkeypatch.chdir(sub)
-    monkeypatch.setattr(sys, "argv", ["golden_fixture.py"])
-    gf.main()
-    assert "DRY RUN" in capsys.readouterr().out
+    monkeypatch.chdir(project / "Football")
+    assert "DRY RUN" in main(monkeypatch, gf)
 
 
 def test_find_root_exits_without_configs(tmp_path):
