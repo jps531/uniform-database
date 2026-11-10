@@ -39,10 +39,13 @@ Grad" — element "2015 White 85s", number 19, patch Grad.
     uv run scripts/migration/nest_elements.py --sport football
     uv run scripts/migration/nest_elements.py --sport baseball --apply
 
-COPIES, never moves.
+COPIES, never moves, and never overwrites: a file already at its
+destination blocks --apply unless it is byte-identical to the source, in
+which case it is reported and left alone.
 """
 
 import argparse
+import filecmp
 import re
 import shutil
 import sys
@@ -211,11 +214,25 @@ def build_plan(src_root, dest_root, vocab, only_team):
     return moves, problems
 
 
+def existing(moves):
+    """Split planned copies whose destination already exists into (identical, different) destination lists.
+
+    An identical file (same bytes as its source) needs no copy; a different
+    one would be silently overwritten by shutil.copy2, so it is a problem.
+    """
+    same, differ = [], []
+    for s, d, *_ in moves:
+        if d.exists():
+            (same if d.is_file() and filecmp.cmp(s, d, shallow=False) else differ).append(d)
+    return same, differ
+
+
 def main():
     """Print the nesting plan for a sport's staging tree, and copy the files with --apply.
 
-    Refuses to apply while any file is unassigned or two sources would land on
-    the same destination, and exits without --dest when no directory matches
+    Refuses to apply while any file is unassigned, two sources would land on
+    the same destination, or a destination file already exists with different
+    contents (an identical one is skipped and reported), and exits without --dest when no directory matches
     the sport slug.
     """
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -281,6 +298,13 @@ def main():
         print(f"\n!! {len(coll)} destination collisions:")
         for d, n in list(coll.items())[:10]:
             print(f"   {d.relative_to(dest_root)} ({n} sources)")
+    same, differ = existing(moves)
+    if differ:
+        print(f"\n!! {len(differ)} files already exist at the destination with different contents:")
+        for d in differ[:10]:
+            print(f"   {d.relative_to(dest_root)}")
+    if same:
+        print(f"\n{len(same)} files already at the destination, identical: nothing to copy for them.")
     if problems:
         print(f"\n!! {len(problems)} files could not be assigned:")
         for p, why in problems[:20]:
@@ -294,12 +318,16 @@ def main():
     if not args.apply:
         print("\nDRY RUN — nothing written. Re-run with --apply.")
         return
-    if problems or coll:
-        sys.exit("\nRefusing to apply while problems or collisions remain.")
+    if problems or coll or differ:
+        sys.exit("\nRefusing to apply while problems, collisions or differing existing files remain.")
+    skip = set(same)
     for s, d, _ in moves:
+        if d in skip:
+            continue
         d.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(s, d)
-    print(f"\nCopied {len(moves)} files. Source tree left intact.")
+    kept = f" ({len(same)} already in place)" if same else ""
+    print(f"\nCopied {len(moves) - len(same)} files{kept}. Source tree left intact.")
 
 
 if __name__ == "__main__":

@@ -12,6 +12,12 @@ This reports them so the source artwork can be corrected instead.
     uv run scripts/migration/offsize.py "Football" --csv offsize.csv
 
 Walks any directory: a whole tree, one team, or one viewpoint. Read-only.
+
+Skips generated trees (a .generated marker) and files already sitting on a
+standardized canvas — the slot canvas or any era's own `canvas:`, the set
+`pad` refuses to re-pad from — since their content is post-correction. On a
+`fills: fill` canvas that check can't tell source from output, so those
+files are always measured. Run it on authored or raw source.
 """
 
 import argparse
@@ -40,8 +46,30 @@ def content_size(path: Path):
     return None if box is None else (box[2] - box[0], box[3] - box[1])
 
 
+def standard_canvases(cfg: dict, canvas, profile) -> set:
+    """Every (width, height) a standardized file of this slot can sit on: the slot canvas plus each era `canvas:` override.
+
+    The same set `standardize.py pad` refuses to re-pad from (`on_canvas` in
+    cmd_pad). `fills: fill` canvases are left out: there the canvas IS the
+    content, so authored source cropped to its content already sits on it and
+    canvas size can't tell source from output.
+    """
+    out = set()
+    if canvas and canvas.get("width") and canvas.get("fills") != "fill":
+        out.add((canvas["width"], canvas["height"]))
+    for e in profile:
+        oc = cfg["canvases"].get(e.get("canvas") or "") or {}
+        if oc.get("width") and oc.get("fills") != "fill":
+            out.add((oc["width"], oc["height"]))
+    return out
+
+
 def main():
-    """Walk the target and report near-miss and unmatched content sizes."""
+    """Walk the target and report near-miss and unmatched content sizes.
+
+    Skips generated trees, and files already on a standardized canvas (the
+    slot canvas or any era's own canvas, as `pad` does).
+    """
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("path")
     ap.add_argument("--root")
@@ -89,11 +117,14 @@ def main():
 
         # Files standardized IN PLACE carry no .generated marker but hold
         # post-standardization content. The tell is that their CANVAS equals
-        # the configured padded canvas — the same signal standardize.py uses
-        # for its idempotency guard.
-        if canvas and canvas.get("fills") == "pad" and canvas.get("width"):
-            with Image.open(f) as im:
-                if im.size == (canvas["width"], canvas["height"]):
+        # one a padded file of this slot can sit on — the slot canvas or an
+        # era's own `canvas:` — the same set standardize.py's guard uses.
+        # Checking the slot canvas alone measured every long-sleeve keeper
+        # on its era canvas as if it were source.
+        on_canvas = standard_canvases(cfg, canvas, profile)
+        if on_canvas:
+            with ImageOps.exif_transpose(Image.open(f)) as im:
+                if im.size in on_canvas:
                     skipped_standardized += 1
                     continue
 

@@ -23,8 +23,14 @@ basketball_court_cropped or baseball_field_cropped needs no code change.
     uv run scripts/pipeline/derive_crops.py --sport football --apply
 
 Reads from the AUTHORED tree (e.g. Fields Full) and writes the derived one
-(Fields Cropped) with a .generated marker. Never reads from temp/ — staging
-gets cleared, and this must stay re-runnable.
+(Fields Cropped) with a .generated marker recording the source folder, the
+crop canvas and the crop origin. Never reads from temp/ — staging gets
+cleared, and this must stay re-runnable.
+
+Refuses to --apply into a destination folder that holds PNGs but no
+.generated marker: like `standardize.py pad`, it treats such a folder as
+authored artwork and will not overwrite it. Remove or rename the folder by
+hand if it really is stale output.
 """
 
 import argparse
@@ -40,6 +46,7 @@ except ImportError:
     sys.exit("Missing dependencies: run `uv sync`")
 
 DPI = 300
+MARKER = ".generated"
 
 
 def find_root(start: Path) -> Path:
@@ -91,11 +98,23 @@ def jobs_for(cfg, sport_filter):
                 )
 
 
+def authored_pngs(folder: Path) -> int:
+    """How many PNGs `folder` holds if it has no .generated marker (so must be treated as authored), else 0.
+
+    Hidden files and anything inside a hidden directory are not counted, as
+    in `standardize.py pad`'s guard.
+    """
+    if not folder.is_dir() or (folder / MARKER).exists():
+        return 0
+    return sum(1 for p in folder.rglob("*.png") if not any(x.startswith(".") for x in p.relative_to(folder).parts))
+
+
 def main():
     """Plan every crop from the config, then write the cropped files with --apply.
 
     Writes each derived tree with a .generated marker. Refuses to apply while
-    any source file is off its canvas or a crop box falls outside it.
+    any source file is off its canvas, a crop box falls outside it, or a
+    destination folder holds PNGs without a marker (authored artwork).
     """
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--root")
@@ -131,6 +150,8 @@ def main():
         sport_dir = next((d for d in cand if d.is_dir()), cand[0])
         cw, ch = cdst["width"], cdst["height"]
         sw, sh = csrc["width"], csrc["height"]
+        dst_name = cfg["assignments"][sport][slot][dst_vp]
+        src_name = cdst["derived_from"]["canvas"]
         if cx + cw > sw or cy + ch > sh:
             problems.append((f"{sport}/{slot}/{dst_vp}", "crop box falls outside the source canvas"))
             continue
@@ -147,6 +168,16 @@ def main():
                 if not src.is_dir():
                     continue
                 dst = team_dir / f"{sdir} {dst_vp.title()}"
+                # Provenance guard, as in `pad`: PNGs without a marker are
+                # authored artwork, and a crop must never overwrite them.
+                held = authored_pngs(dst)
+                if held:
+                    problems.append(
+                        (
+                            str(dst.relative_to(root)),
+                            f"holds {held} PNGs but no {MARKER} marker, so it looks like AUTHORED artwork",
+                        )
+                    )
                 written = 0
                 for f in sorted(src.rglob("*.png")):
                     if f.name.startswith("."):
@@ -166,7 +197,7 @@ def main():
                     found.append((f, dst / f.relative_to(src), (cx, cy, cw, ch)))
                     written += 1
                 if written:
-                    per_rule.append((dst, written))
+                    per_rule.append((dst, written, src, dst_name, src_name, (cx, cy), (cw, ch)))
         print(f"   {len(found)} files\n")
         total += found
 
@@ -186,13 +217,18 @@ def main():
         d.parent.mkdir(parents=True, exist_ok=True)
         with ImageOps.exif_transpose(Image.open(s)).convert("RGBA") as im:
             im.crop((cx, cy, cx + cw, cy + ch)).save(d, dpi=(DPI, DPI))
-    for dst, n in per_rule:
+    for dst, n, src, dst_name, src_name, (cx, cy), (cw, ch) in per_rule:
         dst.mkdir(parents=True, exist_ok=True)
-        (dst / ".generated").write_text(
+        (dst / MARKER).write_text(
             json.dumps(
                 {
                     "generated_by": "scripts/pipeline/derive_crops.py",
                     "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
+                    "source": str(src),
+                    "source_canvas": src_name,
+                    "canvas": f"{cw}x{ch}",
+                    "canvas_name": dst_name,
+                    "crop_at": [cx, cy],
                     "files_written": n,
                     "note": "Generated output. Regenerate from the source viewpoint rather than editing by hand.",
                 },
