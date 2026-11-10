@@ -141,11 +141,14 @@ def main():
                 if not src.is_dir():
                     continue
                 dst = team_dir / f"{sdir} {dst_vp.title()}"
+                written = 0
                 for f in sorted(src.rglob("*.png")):
                     if f.name.startswith("."):
                         continue
+                    # Measure what will be cropped: an EXIF rotation swaps
+                    # the axes, and a stored size alone would hide it.
                     with Image.open(f) as im:
-                        size = im.size
+                        size = ImageOps.exif_transpose(im).size
                     if size != (sw, sh):
                         problems.append(
                             (
@@ -155,7 +158,9 @@ def main():
                         )
                         continue
                     found.append((f, dst / f.relative_to(src), (cx, cy, cw, ch)))
-                per_rule.append((dst, len(found)))
+                    written += 1
+                if written:
+                    per_rule.append((dst, written))
         print(f"   {len(found)} files\n")
         total += found
 
@@ -176,8 +181,6 @@ def main():
         with ImageOps.exif_transpose(Image.open(s)).convert("RGBA") as im:
             im.crop((cx, cy, cx + cw, cy + ch)).save(d, dpi=(DPI, DPI))
     for dst, n in per_rule:
-        if not n:
-            continue
         dst.mkdir(parents=True, exist_ok=True)
         (dst / ".generated").write_text(
             json.dumps(

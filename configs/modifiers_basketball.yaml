@@ -1,5 +1,6 @@
-# Basketball — men's and women's. Pass `--sport basketball` for either;
-# the paths distinguish them, and they share every token.
+# Basketball — men's and women's. They share every token: the sport slugs
+# mens_basketball and womens_basketball each have a file that only
+# `extends: basketball`.
 #
 # Canvases are NOT shared: mbk_jersey is 1258x1931 against wbk_jersey's
 # 1244x1919, and men's shorts are a side view (902x1765) where women's are

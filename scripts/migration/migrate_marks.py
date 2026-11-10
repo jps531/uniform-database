@@ -57,6 +57,22 @@ NAME = re.compile(r"^(?P<team>.+?)\s(?P<year>\d{4})\s(?P<rest>.+)\s(?P<side>[12]
 # A trailing 1-2 digit token in `rest` is a jersey number (rare — Alabama).
 TRAILING_NUM = re.compile(r"^(?P<desc>.+?)\s(?P<number>\d{1,2})$")
 
+# Problem kinds printed one by one and blocking --apply, across all three
+# modes. "unknown colorway" (flat mode) is the one warning and is not here.
+BLOCKING = (
+    "unknown shell directory",
+    "unparsed filename",
+    "no profile",
+    "filename does not match folder",
+    "unrecognised trailing token",
+    "no opaque content",
+    "size matches no era",
+    "era has no shell token",
+    "no colorways",
+    "no known colorway",
+    "nothing before the colorway — team and colour may be reversed",
+)
+
 
 def find_root(start: Path) -> Path:
     """Walk up for the directory containing configs/canvas_definitions.yaml."""
@@ -212,6 +228,9 @@ def plan_nested(src_root: Path, dest_root: Path, team: str, root: Path):
 
                 if shell is None:
                     cs = content_size(f)
+                    if cs is None:
+                        problems.append(("no opaque content", f"{element}/{f.name}", ""))
+                        continue
                     entry = next(
                         (e for e in profile if abs(e["size"][0] - cs[0]) <= tol and abs(e["size"][1] - cs[1]) <= tol),
                         None,
@@ -370,15 +389,7 @@ def main():
     for kind, a, b in problems:
         by_kind[kind].append((a, b))
 
-    for kind in (
-        "unknown shell directory",
-        "unparsed filename",
-        "no profile",
-        "filename does not match folder",
-        "unrecognised trailing token",
-        "size matches no era",
-        "era has no shell token",
-    ):
+    for kind in BLOCKING:
         if by_kind.get(kind):
             print(f"!! {len(by_kind[kind])} {kind}:")
             for a, b in by_kind[kind][:20]:
@@ -406,21 +417,7 @@ def main():
         print(f"  {s.relative_to(src_root)}")
         print(f"    -> {d.relative_to(dest_root)}")
 
-    blocking = (
-        any(
-            by_kind.get(k)
-            for k in (
-                "unparsed filename",
-                "unknown shell directory",
-                "no profile",
-                "filename does not match folder",
-                "unrecognised trailing token",
-                "size matches no era",
-                "era has no shell token",
-            )
-        )
-        or dupes
-    )
+    blocking = any(by_kind.get(k) for k in BLOCKING) or dupes
     if not args.apply:
         print("\nDRY RUN — nothing written. Re-run with --apply to copy.")
         if blocking:
@@ -428,9 +425,7 @@ def main():
         return
 
     if blocking:
-        sys.exit(
-            "\nRefusing to apply while unparsed files, unknown shell directories, or destination collisions remain."
-        )
+        sys.exit("\nRefusing to apply while flagged problems or destination collisions remain.")
 
     written = 0
     for s, d in moves:
