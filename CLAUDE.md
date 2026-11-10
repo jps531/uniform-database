@@ -43,6 +43,9 @@ a place in the golden suite.
 Python for the asset pipeline (`scripts/`), YAML for all pipeline config.
 Dependencies via uv (`pyproject.toml`, `uv.lock`): `uv sync`, then
 `uv run scripts/…`. ruff lints and formats; every function has a docstring.
+pytest unit tests in `tests/test_<script>.py` hold every script at 95%+
+line-and-branch coverage (`tests/coverage_gate.py`); they draw synthetic
+artwork against the real configs and never touch the real tree.
 CONTRIBUTING.md has the checks CI runs and what must change together.
 Site: Next.js, Node, Postgres with Drizzle, Cloudflare R2 for images. Assets
 live in iCloud Drive.
@@ -73,6 +76,7 @@ Uniform Database/
 │   slots_hailstateunis.yaml  what a combination picks from, per sport
 │   modifiers_{sport}.yaml    token vocabularies; all `extends: shared`
 ├── scripts/                  see "Commands" below
+├── tests/                    pytest: test_<script>.py, conftest.py, coverage_gate.py
 ├── {Sport}/{Team}/{Slot} {Viewpoint}/{Element}/{file}.png
 ├── Marks/Football/{Team}/Helmets {Left|Right}/…   native scale, 258 teams
 ├── Marks/Baseball/{Team}/Hats Front/…             on canvas, 41 teams

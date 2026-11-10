@@ -25,14 +25,16 @@ whatever its size:
 - **One topic per PR.** A fix you find along the way that's off topic gets
   its own PR.
 - **CI must be green** before merging (`.github/workflows/ci.yml`). Two
-  jobs: `checks` (lint, formatting, docstrings, every config file parses)
-  and `golden` (the golden suite on `golden/fixture/`). Run the same
-  locally first:
+  jobs: `checks` (lint, formatting, docstrings, every config file parses,
+  the unit tests, and 95% coverage of every script) and `golden` (the golden
+  suite on `golden/fixture/`). Run the same locally first:
 
   ```
   uv run ruff check .
   uv run ruff format --check .
-  uv run docstr-coverage scripts --skip-magic --skip-init
+  uv run docstr-coverage scripts tests --skip-magic --skip-init
+  uv run pytest -n auto
+  uv run python tests/coverage_gate.py
   uv run scripts/golden_ci.py
   ```
 
@@ -70,13 +72,36 @@ uv run ruff format .         # format
 **Dependencies.** Add one with `uv add NAME` (or `uv add --dev NAME` for a
 tool), which updates `pyproject.toml` and `uv.lock` together. Commit both.
 
-**Docstrings.** Every module and function in `scripts/` has one, nested
-helpers included. A module's docstring is its manual: what it does, how to
-run it, and what it refuses to do. To check (`-v 3` lists anything
-missing):
+**Tests.** `tests/test_<script>.py` holds each script's unit tests, run
+with pytest. They never touch the real artwork. The `project` fixture
+(`tests/conftest.py`) makes a throwaway project linked to the real
+`configs/`, and `art()` draws synthetic PNGs at exact content sizes, so the
+tests use the same canvases, profiles and eras as the pipeline.
 
 ```
-uv run docstr-coverage scripts --skip-magic --skip-init
+uv run pytest -n auto                  # every test, in parallel, with coverage
+uv run pytest tests/test_compose.py    # one script's tests
+uv run python tests/coverage_gate.py   # 95% or more for every script
+```
+
+Coverage counts lines and branches together, and it includes scripts run
+as subprocesses (`golden_ci.py` runs others). coverage.py's own threshold
+checks only the total, which would let one untested script hide behind the
+rest; `coverage_gate.py` checks each script. For a browsable report, run
+`uv run pytest --cov-report=html`, then open `htmlcov/index.html`.
+
+A test asserts what the script does: files written, pixels, messages, exit
+codes. It never asserts on behaviour that's a bug. Fix the bug, or leave
+the path untested and say so in the PR.
+
+**Docstrings.** Every module and function in `scripts/` and `tests/` has
+one, nested helpers included. A script's module docstring is its manual:
+what it does, how to run it, and what it refuses to do. A test's docstring
+says, in one line, what behaviour it checks. To check (`-v 3` lists
+anything missing):
+
+```
+uv run docstr-coverage scripts tests --skip-magic --skip-init
 ```
 
 docstr-coverage doesn't read `pyproject.toml`, so the options go on the
@@ -93,7 +118,8 @@ command line.
 | An outline or stroke in the artwork | Re-measure the profile (`standardize.py survey`): restyling moves the content bounding box. |
 | A pairing the golden planner gets wrong | `golden/pairings.yaml`, not `manifest.yaml`, which `golden_plan.py` overwrites. |
 | The golden plan (`manifest.yaml`), or any artwork the fixture copies | A full `golden_run.py`, then `golden_fixture.py --apply`, committed with the change. CI can't tell a stale fixture from a current one. |
-| A script, a command or an option | Its module docstring and CLAUDE.md's "Commands". |
+| A script, a command or an option | Its module docstring, CLAUDE.md's "Commands", and its tests in `tests/test_<script>.py`, which must keep it at 95% or more. |
+| A new script | A `tests/test_<script>.py`; `coverage_gate.py` fails any script under 95%, including one with no tests. |
 | How the pipeline behaves (resolution, ranking, nesting rules) | The section of CLAUDE.md that describes it, and "Tried and reversed" if it undoes an earlier choice. |
 | A dependency | `pyproject.toml` and `uv.lock`, through `uv add` or `uv lock`. |
 

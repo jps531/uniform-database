@@ -39,6 +39,7 @@ just the artwork the golden suite uses, so CI can run it.
 | `configs/` | Everything the pipeline knows, as YAML: canvases and era profiles, the 48 view templates, slots and colorways, and each sport's token vocabulary |
 | `scripts/` | The Python asset pipeline: DPI fixes, nesting, standardizing, cropping, composing, the golden suite |
 | `golden/` | The golden suite's approved plan (`manifest.yaml`, `PLAN.md`), known pairings, and `fixture/`: a copy of the artwork the suite needs, so CI can run it. Renders go to `golden/run/`, which isn't tracked |
+| `tests/` | Unit tests for every script (pytest), on synthetic artwork |
 | `docs/` | Longer how-tos ([golden_suite.md](docs/golden_suite.md)) |
 | `pyproject.toml`, `uv.lock` | Dependencies, managed with uv, and the ruff config |
 | `CLAUDE.md` | The full reference for the pipeline: naming grammar, invariants, eras and canvases, composition, and the mistakes not to repeat. Written for AI agents, and the most complete description of the project for people too |
@@ -209,6 +210,7 @@ uv run scripts/golden_fixture.py --apply    # then commit golden/fixture/
 uv run scripts/golden_ci.py                 # the same check CI runs
 ```
 
+Every script has unit tests in `tests/` (`uv run pytest -n auto`).
 [CONTRIBUTING.md](CONTRIBUTING.md) has the checks CI runs, the tools, and
 what must change together.
 
