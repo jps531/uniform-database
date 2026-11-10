@@ -9,8 +9,10 @@ A full golden_ci.main() renders every composition through golden_run.py and
 compose.py, so only three tests run it end to end (a pass, a composition
 failure, an empty fixture). The helmet and venue drift cases call
 check_helmets() / check_venues() on the throwaway project main() would
-build. The module's tests share one xdist worker (`--dist loadgroup`), so
-the module-scoped build happens once.
+build. The module's tests are marked to share one xdist worker
+(`--dist loadgroup`) so the module-scoped build happens once; with
+pytest-xdist 3.8 on pytest 9.2 the mark has no effect yet (see
+pyproject.toml), and each worker builds its own.
 """
 
 import re
