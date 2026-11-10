@@ -374,8 +374,11 @@ sport trees.
   (both scale 1.0). If manufacturer matters, it needs a filename token.
 - "Shares a canvas" and "shares dimensions" are different claims — football
   jersey fronts and backs differed by 19px in eras B and C.
-- An `offsize.py` with no output means every file is exact, not that the
-  directory is empty.
+- `offsize.py` says "exact" only when it checked at least one file. A path
+  matching no profile is listed under `!! skipped`. It used to build profile
+  keys without the sport, miss every lookup and still report "exact". Files
+  standardized in place sit on their padded canvas and are skipped, so run
+  it on authored or raw source.
 - Exporting from Numbers: CSV cells keep their displayed decimal places, so
   set them before exporting or scales round to integers.
 
