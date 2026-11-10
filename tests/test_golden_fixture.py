@@ -12,6 +12,7 @@ import shutil
 import sys
 from pathlib import Path
 
+import common
 import golden_fixture as gf
 import pytest
 import yaml
@@ -208,13 +209,13 @@ def test_composition_files_never_keeps_another_number(project, small):
     files = [art(folder / f"2020 White {n}.png", (4, 4)) for n in ("5", "7")]
     vocab = {0: gf.load_vocab(project, "football")[0]}
     p = placed(files[1], "jersey", "back", "2020 White", "7")
-    assert gf.composition_files(p, project, vocab) == [files[1]]
+    assert gf.composition_files(p, vocab) == [files[1]]
     plain = art(folder / "2020 White.png", (4, 4))
     p = placed(plain, "jersey", "back", "2020 White", "12")
-    assert gf.composition_files(p, project, vocab) == [plain]
+    assert gf.composition_files(p, vocab) == [plain]
     # a stale result naming another number still keeps the file it placed, and nothing else numbered
     p = placed(files[0], "jersey", "back", "2020 White", "12")
-    assert gf.composition_files(p, project, vocab) == [files[0], plain]
+    assert gf.composition_files(p, vocab) == [files[0], plain]
 
 
 def test_composition_files_without_a_number_keeps_unnumbered_else_the_whole_folder(project, small):
@@ -223,9 +224,9 @@ def test_composition_files_without_a_number_keeps_unnumbered_else_the_whole_fold
     files = [art(folder / f"2020 White {n}.png", (4, 4)) for n in ("5", "7")]
     vocab = {0: gf.load_vocab(project, "football")[0]}
     p = placed(files[0], "jersey", "back", "2020 White")
-    assert gf.composition_files(p, project, vocab) == files
+    assert gf.composition_files(p, vocab) == files
     plain = art(folder / "2020 White.png", (4, 4))
-    assert gf.composition_files(placed(plain, "jersey", "back", "2020 White"), project, vocab) == [plain]
+    assert gf.composition_files(placed(plain, "jersey", "back", "2020 White"), vocab) == [plain]
 
 
 def test_helmet_eras_matches_marks_and_ignores_empty_files(project, small):
@@ -386,7 +387,7 @@ def test_main_finds_root_from_cwd(project, small, monkeypatch, capsys):
 def test_find_root_exits_without_configs(tmp_path):
     """find_root() exits when no directory above holds the configs."""
     with pytest.raises(SystemExit) as e:
-        gf.find_root(tmp_path)
+        common.find_root(tmp_path)
     assert "No configs/canvas_definitions.yaml" in str(e.value.code)
 
 

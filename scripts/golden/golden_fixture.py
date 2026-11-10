@@ -39,33 +39,24 @@ import shutil
 import sys
 from pathlib import Path
 
-try:
-    import yaml
-    from PIL import Image, ImageOps
-except ImportError:
-    sys.exit("Missing dependencies: run `uv sync`")
-
-# compose.py and standardize.py live in scripts/pipeline/.
+# common.py and compose.py live in scripts/pipeline/.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "pipeline"))
-from compose import SLOT_DIR, load_vocab, split_tail  # noqa: E402
-from standardize import match_era  # noqa: E402
+from common import (  # noqa: E402
+    add_root_arg,
+    content_size,
+    load_config,
+    load_yaml,
+    match_era,
+    pngs,
+    root_from,
+    slot_dirs,
+    tolerance,
+)
+from compose import load_vocab, split_tail  # noqa: E402
 
 FIXTURE = Path("golden") / "fixture"
 SIDES = ("Left", "Right")
 WARN_MB = 250
-
-
-def find_root(start: Path) -> Path:
-    """The nearest directory at or above `start` holding configs/canvas_definitions.yaml; exits if none."""
-    for d in [start, *start.parents]:
-        if (d / "configs" / "canvas_definitions.yaml").is_file():
-            return d
-    sys.exit(f"No configs/canvas_definitions.yaml above {start}")
-
-
-def pngs(folder: Path):
-    """Visible PNGs directly in `folder`, sorted."""
-    return sorted(f for f in folder.glob("*.png") if not f.name.startswith("."))
 
 
 def evicted(path: Path) -> bool:
@@ -73,7 +64,7 @@ def evicted(path: Path) -> bool:
     return (path.parent / f".{path.name}.icloud").exists()
 
 
-def composition_files(placement, _root: Path, vocab) -> list[Path]:
+def composition_files(placement, vocab) -> list[Path]:
     """The files in a placed element's folder that compose could have chosen between.
 
     Mirrors compose.candidates(). With a number requested, only files
@@ -84,7 +75,7 @@ def composition_files(placement, _root: Path, vocab) -> list[Path]:
     """
     placed_file = Path(placement["file"])
     element, req = placement["element"], placement.get("number_requested")
-    files = pngs(placed_file.parent)
+    files = pngs(placed_file.parent, recursive=False)
     nums = [split_tail(f.stem, element, vocab[0])[1] for f in files]
     if req is not None:
         keep = [f for f, n in zip(files, nums, strict=True) if n in (req, None)]
@@ -93,19 +84,12 @@ def composition_files(placement, _root: Path, vocab) -> list[Path]:
     return keep if placed_file in keep else sorted([*keep, placed_file])
 
 
-def content_size(path: Path):
-    """Width and height of the opaque content, or None if the file is empty."""
-    with ImageOps.exif_transpose(Image.open(path)).convert("RGBA") as im:
-        box = im.getchannel("A").getbbox()
-    return None if box is None else (box[2] - box[0], box[3] - box[1])
-
-
 def helmet_eras(folder: Path, profile, tol) -> set:
-    """The profile eras (pre-scale, as authored in Marks) that a Marks element folder's files match."""
+    """The profile eras (pre-scale, as authored in Marks, closest within `tol`) that a Marks element folder's files match."""
     found = set()
-    for f in pngs(folder):
+    for f in pngs(folder, recursive=False):
         cs = content_size(f)
-        era = match_era(profile, *cs, tol) if cs else None
+        era = match_era(profile, cs, tol) if cs else None
         if era:
             found.add(era["era"])
     return found
@@ -113,9 +97,10 @@ def helmet_eras(folder: Path, profile, tol) -> set:
 
 def plan(root: Path) -> tuple[set, list]:
     """Every source file the fixture needs, as paths relative to the root, and any errors."""
-    cfg = yaml.safe_load((root / "configs" / "canvas_definitions.yaml").open())
-    tol = cfg.get("tolerance", 5)
-    manifest = yaml.safe_load((root / "golden" / "manifest.yaml").open()) or []
+    cfg = load_config(root)
+    tol = tolerance(cfg)
+    helmets = slot_dirs(cfg)["helmet"]
+    manifest = load_yaml(root / "golden" / "manifest.yaml") or []
     run = root / "golden" / "run"
     mtime = (root / "golden" / "manifest.yaml").stat().st_mtime
     need, errors, vocab = set(), [], {}
@@ -146,18 +131,18 @@ def plan(root: Path) -> tuple[set, list]:
             if p["slot"] == "helmet" and p["viewpoint"] in ("left", "right") and ex["sport"] == "football":
                 helmet_dirs.add((rel.parts[1], p["viewpoint"].title(), p["element"]))
             else:
-                need.update(f.relative_to(root) for f in composition_files(p, root, vocab[ex["sport"]]))
+                need.update(f.relative_to(root) for f in composition_files(p, vocab[ex["sport"]]))
 
     # Helmets: every generated folder used, whole, plus its Marks source.
     covered = {s: set() for s in SIDES}
     for team, side, element in sorted(helmet_dirs):
-        gen = Path("Football") / team / f"{SLOT_DIR['helmet']} {side}" / element
+        gen = Path("Football") / team / f"{helmets} {side}" / element
         src = Path("Marks") / gen
         if not (root / src).is_dir():
             errors.append(f"{gen} has no source in Marks ({src})")
             continue
-        need.update(f.relative_to(root) for f in pngs(root / gen))
-        need.update(f.relative_to(root) for f in pngs(root / src))
+        need.update(f.relative_to(root) for f in pngs(root / gen, recursive=False))
+        need.update(f.relative_to(root) for f in pngs(root / src, recursive=False))
         covered[side] |= helmet_eras(root / src, cfg["profiles"][f"football-helmet-{side.lower()}"], tol)
 
     # Any helmet era no example reached: add one element that has it.
@@ -168,12 +153,12 @@ def plan(root: Path) -> tuple[set, list]:
         for team in teams:
             if not missing:
                 break
-            marks = root / "Marks" / "Football" / team / f"Helmets {side}"
+            marks = root / "Marks" / "Football" / team / f"{helmets} {side}"
             for el in sorted(d for d in marks.iterdir() if d.is_dir()) if marks.is_dir() else []:
                 got = helmet_eras(el, profile, tol) & missing
-                gen = root / "Football" / team / f"Helmets {side}" / el.name
+                gen = root / "Football" / team / f"{helmets} {side}" / el.name
                 if got and gen.is_dir():
-                    need.update(f.relative_to(root) for f in pngs(el) + pngs(gen))
+                    need.update(f.relative_to(root) for f in pngs(el, recursive=False) + pngs(gen, recursive=False))
                     missing -= got
                     if not missing:
                         break
@@ -184,7 +169,7 @@ def plan(root: Path) -> tuple[set, list]:
     venues = root / "Venues"
     for full in sorted(venues.glob("*/*/* Full")) if venues.is_dir() else []:
         cropped = full.with_name(full.name.removesuffix(" Full") + " Cropped")
-        files = sorted(f for f in full.rglob("*.png") if not f.name.startswith("."))
+        files = pngs(full)
         if not cropped.is_dir() or not files:
             continue
         for f in {files[0], files[-1]}:
@@ -203,11 +188,11 @@ def plan(root: Path) -> tuple[set, list]:
 def main():
     """Plan the fixture from the last golden run, report the changes, and apply them with --apply."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--root")
+    add_root_arg(ap)
     ap.add_argument("--apply", action="store_true")
     args = ap.parse_args()
 
-    root = Path(args.root).expanduser().resolve() if args.root else find_root(Path.cwd().resolve())
+    root = root_from(args)
     dest = (root / FIXTURE).resolve()
     if not dest.is_relative_to(root / "golden"):
         sys.exit(f"Refusing: fixture path {dest} is outside golden/")

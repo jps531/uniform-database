@@ -29,7 +29,9 @@ AUTOMATIC CHECKS, run before you look at anything:
               hanging over the edge is not a defect. 1-2px is reported as a
               note, not a defect — that is rounding.
   WRONG ERA   the file placed is a different era from the one planned —
-              e.g. a short-sleeve jersey in a -ls view
+              e.g. a short-sleeve jersey in a -ls view. The placed file's
+              era is the CLOSEST post-scale size within the config's
+              `tolerance`, as every script matches eras
   NUMBER      a number was asked for and the file placed carries ANOTHER
               number (compose must fail instead, so this means it
               regressed), or it is unnumbered while a file with the
@@ -53,26 +55,17 @@ from collections import defaultdict
 from pathlib import Path
 
 try:
-    import yaml
-    from PIL import Image, ImageDraw, ImageFont, ImageOps
+    from PIL import Image, ImageDraw, ImageFont
 except ImportError:
     sys.exit("Missing dependencies: run `uv sync`")
 
 # Filenames are parsed exactly as compose parses them: vocabulary tokens
 # first, then the number, so CWS21 is a patch token and not number 21.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "pipeline"))
+from common import add_root_arg, content_size, load_config, load_yaml, match_era, pngs, root_from, tolerance  # noqa: E402
 from compose import load_vocab, split_tail  # noqa: E402
 
 CLIP_NOTE = 2  # px of clipping treated as rounding
-TOL = 5
-
-
-def find_root():
-    """The nearest directory at or above the cwd holding configs/view_templates.yaml; exits if none."""
-    for d in [Path.cwd(), *Path.cwd().parents]:
-        if (d / "configs" / "view_templates.yaml").is_file():
-            return d
-    sys.exit("No configs/view_templates.yaml above the current directory.")
 
 
 def font(size, bold=False):
@@ -92,21 +85,12 @@ def font(size, bold=False):
 
 
 def measure_era(cfg, sport, slot, vp, path):
-    """The era of a placed file, by its content size against each era's POST-scale size; None if unmatched or empty."""
-    with ImageOps.exif_transpose(Image.open(path)).convert("RGBA") as im:
-        b = im.getchannel("A").getbbox()
-    if not b:
+    """The era of a placed file: the closest POST-scale size to its content within tolerance; None if unmatched or empty."""
+    size = content_size(path)
+    if size is None:
         return None
-    w, h = b[2] - b[0], b[3] - b[1]
-    best, dist = None, None
-    for e in cfg["profiles"].get(f"{sport}-{slot}-{vp}", []):
-        s = e.get("scale", 1)
-        ew, eh = round(e["size"][0] * s), round(e["size"][1] * s)
-        if abs(ew - w) <= TOL and abs(eh - h) <= TOL:
-            d = abs(ew - w) + abs(eh - h)
-            if dist is None or d < dist:
-                best, dist = e["era"], d
-    return best
+    e = match_era(cfg["profiles"].get(f"{sport}-{slot}-{vp}"), size, tolerance(cfg), post_scale=True)
+    return e["era"] if e else None
 
 
 def plainer_exists(placed, vocab_tokens):
@@ -116,7 +100,7 @@ def plainer_exists(placed, vocab_tokens):
     want = set(placed["tokens_requested"])
     num = placed["number_found"]
     mine = len(set(placed["tokens_found"]) - want)
-    for f in folder.glob("*.png"):
+    for f in pngs(folder, recursive=False):
         t, n, _ = split_tail(f.stem, placed["element"], vocab_tokens)
         if n == num and want <= t and len(t - want) < mine:
             return f.name
@@ -166,7 +150,7 @@ def check(example, result, png, cfg, vocab):
             issues.append(f"NUMBER {lab}: asked for {req}, placed {p['number_found']}: another number is never used")
         elif req and p["number_found"] is None:
             folder = Path(p["file"]).parent
-            if any(split_tail(f.stem, p["element"], vocab)[1] == req for f in folder.glob("*.png")):
+            if any(split_tail(f.stem, p["element"], vocab)[1] == req for f in pngs(folder, recursive=False)):
                 issues.append(f"NUMBER {lab}: asked for {req}, a file exists, placed unnumbered")
         if set(p["tokens_found"]) - set(p["tokens_requested"]):
             better = plainer_exists(p, vocab)
@@ -181,7 +165,8 @@ def contact_sheet(rows, out, title):
     thumbs = []
     for png, lines, bad in rows:
         if png and png.is_file():
-            im = Image.open(png).convert("RGBA")
+            with Image.open(png) as raw:
+                im = raw.convert("RGBA")
             im.thumbnail((TH, TH))
         else:
             im = Image.new("RGBA", (TH, int(TH * 0.6)), (0, 0, 0, 0))
@@ -219,6 +204,7 @@ def contact_sheet(rows, out, title):
 def main():
     """Compose every approved manifest example, check each, and write the sheets, REPORT.md and index.html under golden/run/."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    add_root_arg(ap)
     ap.add_argument("--sport", action="append")
     ap.add_argument("--only", action="append", metavar="ID")
     ap.add_argument(
@@ -228,13 +214,13 @@ def main():
     )
     args = ap.parse_args()
 
-    root = find_root()
+    root = root_from(args)
     gold = root / "golden"
     mf = gold / "manifest.yaml"
     if not mf.is_file():
         sys.exit("No golden/manifest.yaml — run scripts/golden/golden_plan.py first.")
-    manifest = yaml.safe_load(mf.open()) or []
-    cfg = yaml.safe_load((root / "configs/canvas_definitions.yaml").open())
+    manifest = load_yaml(mf) or []
+    cfg = load_config(root)
     run = gold / "run"
 
     todo = [
@@ -371,14 +357,7 @@ def main():
             rows.append((png, lines, bool(issues)))
         sp = run / "sheets" / f"{sport}--{view}.png"
         contact_sheet(rows, sp, f"{sport.replace('_', ' ')} / {view}")
-        sheets.append(
-            (
-                sport,
-                view,
-                sp,
-                sum(1 for *_, i, _ in [(None, None, x[2], x[3]) for x in items] if i),
-            )
-        )
+        sheets.append((sport, view, sp, sum(1 for _, _, issues, _ in items if issues)))
 
     # report
     n_bad = sum(1 for *_, i, _ in results if i)
