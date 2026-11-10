@@ -293,3 +293,12 @@ def test_runs_as_a_script(monkeypatch):
     with pytest.raises(SystemExit) as e:
         runpy.run_path(str(REPO / "scripts" / "golden" / "golden_ci.py"), run_name="__main__")
     assert e.value.code == 0
+
+
+def test_png_set_ignores_dot_folders_only_inside_the_folder(tmp_path):
+    """A dot-folder ABOVE the scanned folder (a checkout under .claude/, say) hides nothing; one inside it does."""
+    root = tmp_path / ".hidden-parent" / "fixture"
+    art(root / "a" / "x.png", (4, 4))
+    art(root / ".cache" / "y.png", (4, 4))
+    art(root / "a" / ".z.png", (4, 4))
+    assert golden_ci.png_set(root) == {Path("a/x.png")}
