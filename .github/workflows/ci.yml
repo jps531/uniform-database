@@ -1,9 +1,13 @@
 # Checks every pull request (Dependabot's included) and every push to main.
 #
-# The artwork isn't in git, so CI can't run the pipeline or the golden suite:
-# those run on the Mac that holds the iCloud folder (CONTRIBUTING.md). What
-# CI can check is the code and the config: lint, formatting, docstrings, and
-# that every YAML file still parses.
+# Two jobs. `checks`: lint, formatting, docstrings, the unit tests and the
+# per-script coverage gate, and that every YAML file parses. `golden`: the
+# golden suite on golden/fixture/, the tracked copy of exactly the artwork
+# the suite uses (docs/golden_suite.md, section 3).
+#
+# The full artwork tree isn't in git, so CI can't run the pipeline itself or
+# a full golden run: those run on the Mac that holds the iCloud folder, and
+# CI can't tell a stale fixture from a current one (CONTRIBUTING.md).
 name: CI
 
 on:
@@ -15,9 +19,11 @@ on:
 permissions:
   contents: read
 
+# A new push to a pull request cancels its older run; runs on main always
+# finish, so every merge gets a result.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   checks:
@@ -78,3 +84,4 @@ jobs:
           name: golden-run
           path: golden/run/
           if-no-files-found: ignore
+          retention-days: 14

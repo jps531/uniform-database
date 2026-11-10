@@ -1,8 +1,8 @@
-# Hail State Unis — creator slot declarations (Part A).
+# Hail State Unis — creator slot declarations.
 #
 # Declares which slots this creator tracks, per sport, with the viewpoints
 # drawn and default z-order. Slot and viewpoint keys must exist in
-# spec/slots.yaml.
+# configs/slots_global.yaml.
 #
 # Notes on conventions used here:
 #   - `viewpoints` is the set that is POSSIBLE for the slot, not required of

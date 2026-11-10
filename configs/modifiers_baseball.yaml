@@ -29,7 +29,8 @@ tokens:
   # kind: cut — jersey body.
   vest: { label: Vest, kind: cut }
 
-  # kind: sequence — bare disambiguators, no semantic meaning.
+  # kind: sequence — none of baseball's own; A, B, C come from shared.
+
   # --- scope: design — chest marks and lettering -------------------------
   eighty_fives: { token: 85s,      label: "'85s",     scope: design, kind: modifier, theme: throwback }
   m_state:      { token: M-State,  label: M-State,    scope: design, kind: modifier, theme: special }

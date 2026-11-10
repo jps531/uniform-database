@@ -2,7 +2,8 @@
 
 How changes are made here. What the project is and how to set it up is in
 [README.md](README.md); the full reference for the pipeline (naming,
-invariants, eras, composition) is [CLAUDE.md](CLAUDE.md).
+invariants, eras, composition) is [docs/reference.md](docs/reference.md).
+[CLAUDE.md](CLAUDE.md) holds the rules AI agents follow and the command list.
 
 ## First: don't lose artwork, and don't misfile it
 
@@ -12,13 +13,15 @@ whatever its size:
 
 - Scripts that move artwork dry-run until `--apply` and copy rather than
   move. Keep it that way in anything new. `standardize.py pad` is the one
-  exception: it writes at once, so pad into a `… STD` sibling and check it
-  before replacing the source.
+  exception: it writes at once, so for an authored tree pad into a `… STD`
+  sibling and check it before replacing the source. A `.generated` tree
+  (helmets from Marks) is padded into directly; it can be rebuilt.
 - Never run `pad` on standardized output. That destroyed 44 elements once,
-  saved only by iCloud's 30-day recovery (CLAUDE.md, "NEVER re-pad
+  saved only by iCloud's 30-day recovery (docs/reference.md, "Never re-pad
   standardized output").
 - When code changes what something does, change what the docs say in the
-  same PR: CLAUDE.md, the script's docstring, `docs/`.
+  same PR: `docs/reference.md`, CLAUDE.md, the script's docstring, the
+  rest of `docs/`.
 
 ## Pull requests
 
@@ -41,17 +44,10 @@ whatever its size:
   When `golden` fails, the job summary lists why, and the run's
   `golden-run` artifact holds the contact sheets and REPORT.md.
 
-- **CI sees only the fixture.** `golden/fixture/` is a copy of the artwork
-  the current plan uses, not the whole archive. A PR that touches a template,
-  canvas, era profile, or anything `compose.py`, `standardize.py` or the
-  golden scripts do also needs a full run on the Mac. Re-plan if the change
-  calls for it, and refresh the fixture in the same PR:
-
-  ```
-  uv run scripts/golden/golden_plan.py     # if the plan should change
-  uv run scripts/golden/golden_run.py      # full run; then golden/run/REPORT.md
-  uv run scripts/golden/golden_fixture.py --apply
-  ```
+- **CI sees only the fixture.** A PR that touches a template, canvas, era
+  profile, or what `compose.py`, `standardize.py` or the golden scripts do
+  also needs a full run on the Mac and a refreshed fixture in the same PR:
+  [docs/golden_suite.md, section 3](docs/golden_suite.md#3-ci--goldenfixture-and-golden_cipy).
 
 - **A refactor must be shown to change nothing.** Green CI says the result
   didn't change, not that a tie-break didn't. `compose.py`'s candidate
@@ -141,14 +137,15 @@ command line.
 |---|---|
 | A colorway in any `modifiers_{sport}.yaml` | `configs/slots_global.yaml`. Cross-sport colour search reads the global list, which once drifted seven colorways behind. |
 | A token's `scope` or `kind` | Nothing else in config, but re-run `nest_elements.py --sport S` as a dry run: scope decides whether a token names the element or is stripped from it. |
-| A view template, a canvas or an era profile | Run the golden suite. If you added or removed a template, update the counts in CLAUDE.md and README.md. |
+| A view template, a canvas or an era profile | Run the golden suite. If you added or removed a template, update the counts in CLAUDE.md, docs/reference.md and README.md. |
 | The canvas of anything a cropped football view is sized from | That view's canvas, which was derived from element extents. Anchors keep everything else still. |
 | An outline or stroke in the artwork | Re-measure the profile (`standardize.py survey`): restyling moves the content bounding box. |
 | A pairing the golden planner gets wrong | `golden/pairings.yaml`, not `manifest.yaml`, which `golden_plan.py` overwrites. |
-| The golden plan (`manifest.yaml`), or any artwork the fixture copies | A full `golden_run.py`, then `golden_fixture.py --apply`, committed with the change. CI can't tell a stale fixture from a current one. |
-| A script, a command or an option | Its module docstring, CLAUDE.md's "Commands", and its tests in `tests/test_<script>.py`, which must keep it at 95% or more. |
+| The golden plan (`manifest.yaml`), or any artwork the fixture copies | A refreshed `golden/fixture/`, committed with the change ([docs/golden_suite.md](docs/golden_suite.md), section 3). CI can't tell a stale fixture from a current one. |
+| A script, a command or an option | Its module docstring, CLAUDE.md's "Commands", README.md wherever it shows the command, and its tests in `tests/test_<script>.py`, which must keep it at 95% or more. |
 | A new script | A `tests/test_<script>.py`; `coverage_gate.py` fails any script under 95%, including one with no tests. |
-| How the pipeline behaves (resolution, ranking, nesting rules) | The section of CLAUDE.md that describes it, and "Tried and reversed" if it undoes an earlier choice. |
+| How the pipeline behaves (resolution, ranking, nesting rules) | The section of docs/reference.md that describes it (and CLAUDE.md if it touches a safety rule), and "Tried and reversed" if it undoes an earlier choice. |
+| A token string, scope or colorway in any config | `uv run pytest tests/test_configs.py`: no token at both folder and file level, every colorway global. |
 | A dependency | `pyproject.toml` and `uv.lock`, through `uv add` or `uv lock`. |
 
 ## Branches
