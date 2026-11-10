@@ -339,7 +339,12 @@ from iCloud's 30-day window). A re-pad measured 1604x1862 against a profile
 listing 1790x2078, wrote nothing, and `rm -rf` of the source did the rest. The
 old guard only compared canvas size, and the same pass had changed the
 canvas. It now refuses any file whose content matches what an era's scale
-PRODUCES.
+PRODUCES, and skips any file already sitting on the slot canvas or on any
+era's own `canvas:`, whatever order the files come in. `fills: fill`
+canvases are exempt from that canvas check: source cropped to its content
+already IS the canvas there, and the post-correction check still catches
+scaled output. Fully transparent files count as neither source nor output,
+and a pad that writes nothing leaves no destination and no marker.
 
 | Tool | Use on |
 |---|---|

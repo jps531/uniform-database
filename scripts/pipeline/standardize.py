@@ -156,6 +156,59 @@ def match_era(profile, w, h, tol):
     return None
 
 
+def fit_extent(anchor: str, extent: int, offset: int):
+    """Smallest canvas side that holds `extent` px of content at `anchor` ('start', 'end' or 'centre') plus `offset`.
+
+    Mirrors pad's placement. An anchored axis needs no margin: content sits
+    on that edge. A centred axis gets 1px each side, the canvas rule (largest
+    post-scale content plus 1px each side). None when the offset pushes the
+    content past the anchored edge, which no canvas size can fix.
+    """
+    if anchor == "start":
+        return extent + offset if offset >= 0 else None
+    if anchor == "end":
+        return extent - offset if offset <= 0 else None
+    side = extent + 2
+    while (side - extent) // 2 + offset < 1 or (side - extent) // 2 + offset + extent > side - 1:
+        side += 1
+    return side
+
+
+def placement(anchor: str, era: dict, width: int, height: int, w: int, h: int):
+    """(x, y) of w x h content on a width x height canvas at `anchor`, plus the era's dx/dy."""
+    x = 0 if anchor.endswith("left") else (width - w if anchor.endswith("right") else (width - w) // 2)
+    y = 0 if anchor.startswith("top") else (height - h) // 2
+    return x + int(era.get("dx", 0)), y + int(era.get("dy", 0))
+
+
+def canvas_hint(skipped) -> list:
+    """Lines saying, per canvas, the smallest canvas that fits every skipped file at its anchor.
+
+    `skipped` holds pad's (rel, cw, ch, w, h, x, y, anchor, era, canvas name,
+    width, height) for each file that fell outside its canvas.
+    """
+    need, lines = {}, []
+    for rel, _, _, w, h, _, _, anchor, era, name, width, height in skipped:
+        hx = "start" if anchor.endswith("left") else ("end" if anchor.endswith("right") else "centre")
+        hy = "start" if anchor.startswith("top") else "centre"
+        fw = fit_extent(hx, w, int(era.get("dx", 0)))
+        fh = fit_extent(hy, h, int(era.get("dy", 0)))
+        if fw is None or fh is None:
+            lines.append(f"   No canvas fits {rel}: its era's dx/dy pushes it past the anchored edge.")
+            continue
+        # "At least" the current canvas too: the files that fit still have to.
+        nw, nh = need.get(name, (width, height))
+        need[name] = (max(nw, fw), max(nh, fh))
+    for name, (nw, nh) in sorted(need.items()):
+        lines.append(f"   A canvas of at least {nw} x {nh} would fit them ({name}).")
+    return lines
+
+
+def sizes_text(sizes) -> str:
+    """'40 x 30' or '40 x 30 or 60 x 30': canvas sizes for a message, smallest first."""
+    return " or ".join(f"{w} x {h}" for w, h in sorted(sizes))
+
+
 # ---------------------------------------------------------------- commands
 
 
@@ -187,6 +240,11 @@ def cmd_survey(args, root, cfg):
                 margined.append((f.relative_to(src), img.size, box))
 
     print(f"{len(files)} PNGs under {src.name}")
+    if not sizes:
+        # Nothing to measure, so nothing below means anything — and the
+        # largest-content line would call max() on an empty list.
+        print(f"No file has opaque content: all {len(files)} PNGs are fully transparent.")
+        return
     parsed = parse_dest(src, root, cfg)
     profile = None
     if getattr(args, "profile", None):
@@ -255,8 +313,10 @@ def cmd_pad(args, root, cfg):
 
     Writes immediately, and writes a .generated marker into DEST. Refuses a
     DEST of authored PNGs without a marker (unless --force), and refuses
-    source that is already standardized: files on the target canvas, or whose
-    content matches what an era's scale produces.
+    source that is already standardized: files on the slot canvas or on any
+    canvas an era of the profile overrides it with, or whose content matches
+    what an era's scale produces. The marker's `canvas` is the slot canvas;
+    `era_canvases` lists any era canvas a written file sits on.
     """
     src = resolve(args.src, root)
     dest = resolve(args.dest, root)
@@ -266,7 +326,7 @@ def cmd_pad(args, root, cfg):
         sys.exit("Destination must differ from source.")
 
     tol = cfg.get("tolerance", 3)
-    canvas = profile = None
+    canvas = profile = cn = None
     parsed = parse_dest(dest, root, cfg)
     if parsed:
         sport, team, slot, viewpoint = parsed
@@ -278,6 +338,7 @@ def cmd_pad(args, root, cfg):
     if args.canvas:
         w, h = (int(v) for v in args.canvas.lower().split("x"))
         canvas = {"width": w, "height": h}
+        cn = "--canvas"
     if args.profile:
         profile = cfg.get("profiles", {}).get(args.profile)
         if profile is None:
@@ -293,7 +354,28 @@ def cmd_pad(args, root, cfg):
         )
 
     base_width, base_height = canvas["width"], canvas["height"]
-    width, height = base_width, base_height
+    # Every canvas this profile can place a file on: the slot canvas, plus
+    # each one an era overrides it with. A file already sitting on ANY of them
+    # has been through this pipeline. Checking only the canvas of the file's
+    # own era would need the era to match first, and standardized content
+    # need not match one (a profile re-measured after a restyle); checking
+    # only the canvas the previous file used made the result depend on file
+    # order, so a standard jersey sorted after a three-quarter one was padded
+    # again. Erring this way can only skip a file and report it, never
+    # re-pad one.
+    #
+    # `fills: fill` canvases are left out. There the canvas IS the content
+    # size, so authored source cropped to its content is already canvas-sized
+    # and the check can't tell source from output. Re-padding output there is
+    # harmless unless an era scales, and scaled output is refused above by
+    # the post-correction check, which runs first.
+    on_canvas = set()
+    if canvas.get("fills") != "fill":
+        on_canvas.add((base_width, base_height))
+    for e in profile:
+        oc = cfg["canvases"].get(e.get("canvas") or "") or {}
+        if oc.get("width") and oc.get("fills") != "fill":
+            on_canvas.add((oc["width"], oc["height"]))
     # Provenance guard. A destination holding authored artwork must never be
     # overwritten by a generated run. Generated trees carry a .generated
     # marker; anything else with content in it is treated as authored.
@@ -337,15 +419,18 @@ def cmd_pad(args, root, cfg):
     # input after writing left a partially written destination behind a
     # message claiming "Nothing written".
     placed, unmatched, skipped = Counter(), [], []
-    already_std = 0
+    already_std = Counter()
+    era_canvases = {}
     post_correction = []
     plan = []
+    blank = 0  # fully transparent: nothing to measure, so never counted as source or output
     for f in files:
         rel = f.relative_to(src)
         with ImageOps.exif_transpose(Image.open(f)).convert("RGBA") as img:
             iw, ih = img.size
             box, cs = content_size(img)
         if cs is None:
+            blank += 1
             continue
 
         hit = next(
@@ -356,10 +441,10 @@ def cmd_pad(args, root, cfg):
             post_correction.append((rel, cs, hit))
             continue
 
-        # A file whose CANVAS already equals the target has been through
-        # this pipeline too, even if its era carries no scale correction.
-        if (iw, ih) == (width, height):
-            already_std += 1
+        # A file whose CANVAS already equals a target has been through this
+        # pipeline too, even if its era carries no scale correction.
+        if (iw, ih) in on_canvas:
+            already_std[(iw, ih)] += 1
             continue
 
         cw, ch = cs
@@ -378,22 +463,21 @@ def cmd_pad(args, root, cfg):
             if not oc or not oc.get("width"):
                 unmatched.append((rel, cw, ch))
                 continue
-            width, height = oc["width"], oc["height"]
+            name, width, height = ec, oc["width"], oc["height"]
         else:
-            width, height = base_width, base_height
+            name, width, height = cn, base_width, base_height
 
         s = float(era.get("scale", 1.0))
         w, h = (round(cw * s), round(ch * s)) if s != 1.0 else (cw, ch)
         anchor = era.get("anchor", args.anchor)
-        x = 0 if anchor.endswith("left") else (width - w if anchor.endswith("right") else (width - w) // 2)
-        y = 0 if anchor.startswith("top") else (height - h) // 2
-        x += int(era.get("dx", 0))
-        y += int(era.get("dy", 0))
+        x, y = placement(anchor, era, width, height, w, h)
 
         if x < 0 or y < 0 or x + w > width or y + h > height:
-            skipped.append((rel, cw, ch, w, h, x, y))
+            skipped.append((rel, cw, ch, w, h, x, y, anchor, era, name, width, height))
             continue
 
+        if ec:
+            era_canvases[ec] = f"{width}x{height}"
         plan.append((f, rel, box, era, s, cw, ch, w, h, x, y, width, height))
 
     if post_correction:
@@ -414,10 +498,16 @@ def cmd_pad(args, root, cfg):
             "touching scale."
         )
 
-    if already_std == len(files):
+    measured = len(files) - blank
+    ignored = f" ({blank} fully transparent file{'s' if blank != 1 else ''} ignored)" if blank else ""
+    if not measured:
+        sys.exit(f"{label}\nNo file has opaque content: all {len(files)} PNGs are fully transparent.\nNothing written.")
+    # Judged on files with content: a blank file must not let standardized
+    # output past this refusal.
+    if already_std.total() == measured:
         sys.exit(
             f"{label}\n"
-            f"All {len(files)} files are ALREADY {width} x {height}.\n"
+            f"All {measured} files are ALREADY {sizes_text(already_std)}{ignored}.\n"
             "This looks like standardized output, not source artwork. "
             "Re-padding would re-apply era scale corrections a second "
             "time.\nNothing written. Point `src` at the original tree."
@@ -439,35 +529,43 @@ def cmd_pad(args, root, cfg):
             cv.save(out, dpi=(args.dpi, args.dpi))
         placed[(era["era"], cw, ch, w, h, x, y, cvw, cvh)] += 1
 
-    dest.mkdir(parents=True, exist_ok=True)
-    (dest / MARKER).write_text(
-        json.dumps(
-            {
-                "generated_by": "scripts/pipeline/standardize.py",
-                "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
-                "source": str(src),
-                "canvas": f"{width}x{height}",
-                "profile": label,
-                "anchor": args.anchor,
-                "dpi": args.dpi,
-                "files_written": sum(placed.values()),
-                "note": "Generated output. Do not edit by hand — the next run "
-                "overwrites this directory. Edit the source instead.",
-            },
-            indent=2,
+    # The marker claims "this tree is generated from that source". With
+    # nothing written there is no such tree, so leave no marker (or folder).
+    if plan:
+        dest.mkdir(parents=True, exist_ok=True)
+        (dest / MARKER).write_text(
+            json.dumps(
+                {
+                    "generated_by": "scripts/pipeline/standardize.py",
+                    "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
+                    "source": str(src),
+                    # The slot canvas, always; any era canvas a written file
+                    # sits on instead is listed beside it.
+                    "canvas": f"{base_width}x{base_height}",
+                    "era_canvases": dict(sorted(era_canvases.items())),
+                    "profile": label,
+                    "anchor": args.anchor,
+                    "dpi": args.dpi,
+                    "files_written": sum(placed.values()),
+                    "note": "Generated output. Do not edit by hand — the next run "
+                    "overwrites this directory. Edit the source instead.",
+                },
+                indent=2,
+            )
+            + "\n"
         )
-        + "\n"
-    )
 
     print(f"{label}")
-    print(f"canvas {width} x {height}, anchor {args.anchor}")
+    print(f"canvas {base_width} x {base_height}, anchor {args.anchor}")
+    for ec, size in sorted(era_canvases.items()):
+        print(f"era canvas {ec} {size.replace('x', ' x ')}")
     print(f"Wrote {sum(placed.values())} of {len(files)} files to {dest}\n")
     print(f"{'era':>8}  {'content':>14}  {'after scale':>14}  {'canvas':>13}  {'placed at':>13}  files")
     for (era, cw, ch, w, h, x, y, cvw, cvh), n in sorted(placed.items()):
         print(f"{str(era):>8}  {cw:>6} x {ch:<5}  {w:>6} x {h:<5}  {cvw:>5} x {cvh:<5}  ({x:>5}, {y:>4})  {n:>5}")
 
     if already_std:
-        print(f"\n!! {already_std} files were SKIPPED — already {width} x {height}.")
+        print(f"\n!! {already_std.total()} files were SKIPPED — already {sizes_text(already_std)}.")
         print("   Mixed source: some artwork here has already been standardized.")
 
     if unmatched:
@@ -480,16 +578,25 @@ def cmd_pad(args, root, cfg):
         print("   are rounding variants of an existing entry.")
 
     if skipped:
-        need_w = max(x + w for _, _, _, w, _, x, _ in skipped)
-        need_h = max(y + h for _, _, _, _, h, _, y in skipped)
         print(f"\n!! {len(skipped)} files fall outside the canvas:")
-        for rel, cw, ch, w, h, x, y in skipped[:8]:
+        for rel, cw, ch, w, h, x, y, *_ in skipped[:8]:
             print(f"   {cw}x{ch} -> {w}x{h} at ({x},{y})  {rel}")
-        print(f"   A canvas of at least {need_w} x {need_h} would fit them.")
+        # Sized from the content and its anchor, not from x + w: centring
+        # makes x negative for content wider than the canvas, so x + w came
+        # out no bigger than the canvas that had just failed.
+        for line in canvas_hint(skipped):
+            print(line)
 
     if not unmatched and not skipped and not already_std:
         print("\nAll files matched an era and fit the canvas.")
         print("Spot-check one element per era against a hand-made composite.")
+
+    if blank:
+        print(
+            f"\n{blank} fully transparent file{'s' if blank != 1 else ''} had nothing to pad and {'were' if blank != 1 else 'was'} skipped."
+        )
+    if not plan:
+        sys.exit("\nNothing written: no file both matched an era and fit its canvas. No destination or marker created.")
 
 
 # ---------------------------------------------------------------- main
