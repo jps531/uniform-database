@@ -1,67 +1,27 @@
-"""Tests for scripts/golden/golden_fixture.py: what the fixture copies, every refusal, dry run vs --apply.
-
-Also holds `small_configs()`, shared with test_golden_ci.py and test_derive_crops.py:
-a copy of the real configs with the helmet and venue canvases scaled down, so
-synthetic artwork stays a few hundred pixels instead of a few thousand.
-"""
+"""Tests for scripts/golden/golden_fixture.py: what the fixture copies, every refusal, dry run vs --apply."""
 
 import json
 import os
-import runpy
 import shutil
-import sys
 from pathlib import Path
 
 import common
 import golden_fixture as gf
 import pytest
-import yaml
-from conftest import REPO, art, canvas_size, era
-
-TEAM = "Testers"
-HELMET_DIV = 8
-VENUE_DIV = {"football": 16, "baseball": 16, "basketball": 32}
-ERAS = ("A", "B", "C", "D", "E", "F")
-
-
-def small_configs(root: Path, mutate=None) -> dict:
-    """Replace root/configs with a copy whose helmet and venue canvases and eras are scaled down; returns the cfg."""
-    link = root / "configs"
-    if link.is_symlink():
-        link.unlink()
-        shutil.copytree(REPO / "configs", link)
-    path = link / "canvas_definitions.yaml"
-    cfg = yaml.safe_load(path.read_text())
-    for vp in ("left", "right", "front", "back"):
-        for e in cfg["profiles"][f"football-helmet-{vp}"]:
-            e["size"] = [round(v / HELMET_DIV) for v in e["size"]]
-    post = [
-        (round(e["size"][0] * e.get("scale", 1)), round(e["size"][1] * e.get("scale", 1)))
-        for e in cfg["profiles"]["football-helmet-left"]
-    ]
-    cfg["canvases"]["football_helmet_profile"].update(
-        width=max(w for w, _ in post) + 2, height=max(h for _, h in post) + 2
-    )
-    face = cfg["canvases"]["football_helmet_face"]
-    face.update(width=round(face["width"] / HELMET_DIV), height=round(face["height"] / HELMET_DIV))
-    for sport, k in VENUE_DIV.items():
-        slot = "court" if sport == "basketball" else "field"
-        for kind in ("full", "cropped"):
-            c = cfg["canvases"][f"{sport}_{slot}_{kind}"]
-            c.update(width=c["width"] // k, height=c["height"] // k)
-            if "derived_from" in c:
-                c["derived_from"]["crop_at"] = [v // k for v in c["derived_from"]["crop_at"]]
-    if mutate:
-        mutate(cfg)
-    path.write_text(yaml.safe_dump(cfg, sort_keys=False))
-    return cfg
-
-
-def mark(root: Path, cfg: dict, side: str, element: str, era_name: str, team=TEAM, name=None, seed=0) -> Path:
-    """Draw a Marks helmet file whose content is exactly the pre-scale size of `era_name` on `side`."""
-    w, h = era(cfg, f"football-helmet-{side.lower()}", era_name)["size"]
-    f = root / "Marks" / "Football" / team / f"Helmets {side}" / element / f"{name or element}.png"
-    return art(f, (w + 4, h + 4), (w, h), top=2, seed=seed)
+from helpers import (
+    ERAS,
+    TEAM,
+    art,
+    blank,
+    canvas_size,
+    cropped_of,
+    main,
+    mark,
+    placed,
+    venue,
+    venue_dirs,
+    write_manifest,
+)
 
 
 def generated(root: Path, side: str, element: str, team=TEAM, name=None) -> Path:
@@ -70,23 +30,14 @@ def generated(root: Path, side: str, element: str, team=TEAM, name=None) -> Path
     return art(f, (8, 8), (4, 4))
 
 
-def venue(root: Path, cfg: dict, sport: str, element: str, cropped=True, seed=0) -> tuple:
+def venue_pair(root: Path, cfg: dict, sport: str, element: str, cropped=True, seed=0) -> tuple:
     """Draw a Full venue file (and, if asked, a stand-in cropped copy); returns the two relative paths."""
-    slot = "court" if sport == "basketball" else "field"
-    sdir = "Courts" if slot == "court" else "Fields"
-    base = root / "Venues" / sport.title() / TEAM
-    full = art(base / f"{sdir} Full" / element / f"{element}.png", canvas_size(cfg, f"{sport}_{slot}_full"), seed=seed)
-    crop = base / f"{sdir} Cropped" / element / f"{element}.png"
+    slot, _ = venue_dirs(sport)
+    full = venue(root, cfg, sport, element, seed=seed)
+    crop = cropped_of(full)
     if cropped:
         art(crop, canvas_size(cfg, f"{sport}_{slot}_cropped"), seed=seed)
     return full.relative_to(root), crop.relative_to(root)
-
-
-def write_manifest(root: Path, examples: list) -> None:
-    """Write golden/manifest.yaml and push its mtime into the past, so results written later are newer."""
-    p = root / "golden" / "manifest.yaml"
-    p.write_text(yaml.safe_dump(examples, sort_keys=False))
-    os.utime(p, (1_000_000, 1_000_000))
 
 
 def write_result(root: Path, ex: dict, placements: list) -> Path:
@@ -95,18 +46,6 @@ def write_result(root: Path, ex: dict, placements: list) -> Path:
     js.parent.mkdir(parents=True, exist_ok=True)
     js.write_text(json.dumps({"placements": placements, "missing": []}))
     return js
-
-
-def placed(file: Path | None, slot: str, vp: str, element: str, number=None, status="placed") -> dict:
-    """One placement record as compose writes it; a skipped placement has no file, as in compose's JSON."""
-    return {
-        "file": str(file) if file else None,
-        "slot": slot,
-        "viewpoint": vp,
-        "element": element,
-        "number_requested": number,
-        "status": status,
-    }
 
 
 def scene(root: Path, cfg: dict) -> dict:
@@ -134,9 +73,7 @@ def scene(root: Path, cfg: dict) -> dict:
     generated(root, "Left", "x", team="Aardvark")
     want.add(mark(root, cfg, "Left", "1950 White", "A", team="Alpha").relative_to(root))
     want.add(
-        art(root / "Marks/Football/Alpha/Helmets Left/1950 White/1950 White Empty.png", (8, 8), (0, 0)).relative_to(
-            root
-        )
+        blank(root / "Marks/Football/Alpha/Helmets Left/1950 White/1950 White Empty.png", (8, 8)).relative_to(root)
     )
     want.add(generated(root, "Left", "1950 White", team="Alpha").relative_to(root))
     mark(root, cfg, "Left", "1960 White", "B", team="Alpha")
@@ -148,11 +85,11 @@ def scene(root: Path, cfg: dict) -> dict:
 
     # Venues: three football fields (first and last kept), baseball without a
     # Cropped tree, and an empty basketball Full folder with a Cropped sibling.
-    a = venue(root, cfg, "football", "2020 Grass")
-    venue(root, cfg, "football", "2021 Grass", seed=1)
-    c = venue(root, cfg, "football", "2022 Grass", seed=2)
+    a = venue_pair(root, cfg, "football", "2020 Grass")
+    venue_pair(root, cfg, "football", "2021 Grass", seed=1)
+    c = venue_pair(root, cfg, "football", "2022 Grass", seed=2)
     want |= {*a, *c}
-    venue(root, cfg, "baseball", "2020 Dirt", cropped=False)
+    venue_pair(root, cfg, "baseball", "2020 Dirt", cropped=False)
     (root / "Venues/Basketball" / TEAM / "Courts Full").mkdir(parents=True)
     (root / "Venues/Basketball" / TEAM / "Courts Cropped").mkdir(parents=True)
 
@@ -183,18 +120,6 @@ def scene(root: Path, cfg: dict) -> dict:
     return {"want": want, "ex": [ex1, ex2, ex3]}
 
 
-@pytest.fixture
-def small(project) -> dict:
-    """The test project switched to the scaled-down configs."""
-    return small_configs(project)
-
-
-def run_main(monkeypatch, root: Path, *flags):
-    """Call golden_fixture.main() with --root and the given flags."""
-    monkeypatch.setattr(sys, "argv", ["golden_fixture.py", "--root", str(root), *flags])
-    gf.main()
-
-
 def test_plan_copies_candidates_whole_helmets_era_top_up_and_venue_ends(project, small):
     """plan() gathers numbered+unnumbered candidates, whole helmet folders with marks, era top-ups and venue ends."""
     s = scene(project, small)
@@ -203,7 +128,7 @@ def test_plan_copies_candidates_whole_helmets_era_top_up_and_venue_ends(project,
     assert need == s["want"]
 
 
-def test_composition_files_never_keeps_another_number(project, small):
+def test_composition_files_never_keeps_another_number(project):
     """With a number requested, files carrying any other number are left out, as compose never picks them."""
     folder = project / "Football" / TEAM / "Jerseys Back" / "2020 White"
     files = [art(folder / f"2020 White {n}.png", (4, 4)) for n in ("5", "7")]
@@ -218,7 +143,7 @@ def test_composition_files_never_keeps_another_number(project, small):
     assert gf.composition_files(p, vocab) == [files[0], plain]
 
 
-def test_composition_files_without_a_number_keeps_unnumbered_else_the_whole_folder(project, small):
+def test_composition_files_without_a_number_keeps_unnumbered_else_the_whole_folder(project):
     """With no number requested, the unnumbered files are kept if any exist, else every file, as compose ranks them."""
     folder = project / "Football" / TEAM / "Jerseys Back" / "2020 White"
     files = [art(folder / f"2020 White {n}.png", (4, 4)) for n in ("5", "7")]
@@ -234,7 +159,7 @@ def test_helmet_eras_matches_marks_and_ignores_empty_files(project, small):
     mark(project, small, "Left", "1950 White", "A")
     mark(project, small, "Left", "1950 White", "D", name="1950 White D")
     folder = project / "Marks/Football" / TEAM / "Helmets Left/1950 White"
-    art(folder / "blank.png", (8, 8), (0, 0))
+    blank(folder / "blank.png", (8, 8))
     art(folder / ".hidden.png", (8, 8))
     assert gf.helmet_eras(folder, small["profiles"]["football-helmet-left"], 5) == {"A", "D"}
 
@@ -309,7 +234,7 @@ def test_plan_without_venues_or_examples(project, small):
 def test_main_dry_run_writes_nothing(project, small, monkeypatch, capsys):
     """Without --apply, main() reports the files to add and writes nothing."""
     s = scene(project, small)
-    run_main(monkeypatch, project)
+    main(monkeypatch, gf, "--root", str(project))
     out = capsys.readouterr().out
     assert f"fixture: {len(s['want'])} files" in out
     assert f"add {len(s['want'])}, update 0, remove 0" in out
@@ -322,7 +247,7 @@ def test_main_apply_adds_updates_removes_and_prunes(project, small, monkeypatch,
     """--apply copies the plan, then updates changed files, removes stale ones and prunes empty folders."""
     s = scene(project, small)
     dest = project / "golden/fixture"
-    run_main(monkeypatch, project, "--apply")
+    main(monkeypatch, gf, "--root", str(project), "--apply")
     have = {f.relative_to(dest) for f in dest.rglob("*") if f.is_file()}
     assert have == s["want"]
     assert not list(dest.rglob(".generated"))
@@ -333,7 +258,7 @@ def test_main_apply_adds_updates_removes_and_prunes(project, small, monkeypatch,
     changed = Path("Football") / TEAM / "Jerseys Front/2020 White/2020 White.png"
     art(project / changed, (8, 8), seed=9)
     capsys.readouterr()
-    run_main(monkeypatch, project, "--apply")
+    main(monkeypatch, gf, "--root", str(project), "--apply")
     out = capsys.readouterr().out
     assert "add 0, update 1, remove 1" in out
     assert f"~ {changed}" in out
@@ -347,7 +272,7 @@ def test_main_warns_over_size_limit(project, small, monkeypatch, capsys):
     """A fixture over WARN_MB is flagged as growing history."""
     scene(project, small)
     monkeypatch.setattr(gf, "WARN_MB", 0)
-    run_main(monkeypatch, project)
+    main(monkeypatch, gf, "--root", str(project))
     assert "!! over 0 MB" in capsys.readouterr().out
 
 
@@ -355,9 +280,8 @@ def test_main_exits_on_problems(project, small, monkeypatch, capsys):
     """main() lists the problems and exits without writing."""
     s = scene(project, small)
     (project / "golden/run/football/jersey-full" / f"{s['ex'][0]['id']}.json").unlink()
-    with pytest.raises(SystemExit) as e:
-        run_main(monkeypatch, project, "--apply")
-    assert e.value.code == "Fix these before syncing the fixture."
+    with pytest.raises(SystemExit, match=r"^Fix these before syncing the fixture\.$"):
+        main(monkeypatch, gf, "--root", str(project), "--apply")
     assert "!! 1 problems:" in capsys.readouterr().out
     assert not (project / "golden/fixture").exists()
 
@@ -368,32 +292,19 @@ def test_main_refuses_fixture_outside_golden(project, small, monkeypatch, tmp_pa
     outside = tmp_path / "outside"
     outside.mkdir()
     os.symlink(outside, project / "golden/fixture")
-    with pytest.raises(SystemExit) as e:
-        run_main(monkeypatch, project, "--apply")
-    assert "is outside golden/" in str(e.value.code)
+    with pytest.raises(SystemExit, match="is outside golden/"):
+        main(monkeypatch, gf, "--root", str(project), "--apply")
     assert list(outside.iterdir()) == []
 
 
-def test_main_finds_root_from_cwd(project, small, monkeypatch, capsys):
+def test_main_finds_root_from_cwd(project, small, monkeypatch):
     """Without --root, main() finds the project from the working directory."""
     scene(project, small)
-    sub = project / "Football"
-    monkeypatch.chdir(sub)
-    monkeypatch.setattr(sys, "argv", ["golden_fixture.py"])
-    gf.main()
-    assert "DRY RUN" in capsys.readouterr().out
+    monkeypatch.chdir(project / "Football")
+    assert "DRY RUN" in main(monkeypatch, gf)
 
 
 def test_find_root_exits_without_configs(tmp_path):
     """find_root() exits when no directory above holds the configs."""
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit, match=r"No configs/canvas_definitions\.yaml"):
         common.find_root(tmp_path)
-    assert "No configs/canvas_definitions.yaml" in str(e.value.code)
-
-
-def test_runs_as_a_script(monkeypatch):
-    """Run as a script, the module reaches main(); --help exits cleanly."""
-    monkeypatch.setattr(sys, "argv", ["golden_fixture.py", "--help"])
-    with pytest.raises(SystemExit) as e:
-        runpy.run_path(str(REPO / "scripts" / "golden" / "golden_fixture.py"), run_name="__main__")
-    assert e.value.code == 0

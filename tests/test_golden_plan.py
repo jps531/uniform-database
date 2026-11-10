@@ -2,14 +2,12 @@
 
 import argparse
 import json
-import os
-import sys
 
 import common
 import golden_plan as gp
 import pytest
 import yaml
-from conftest import REPO, art, canvas_size, era
+from helpers import REPO, art, blank, canvas_size, era, main, override_configs, scaled
 
 # --------------------------------------------------------------------------
 # helpers
@@ -22,9 +20,7 @@ COLORWAYS = ["vegas gold", "maroon", "white", "gold", "gray", "blue", "natural"]
 
 def post(cfg, key, name):
     """The POST-scale [w, h] of one era of a profile."""
-    e = era(cfg, key, name)
-    s = e.get("scale", 1)
-    return [round(e["size"][0] * s), round(e["size"][1] * s)]
+    return list(scaled(era(cfg, key, name)))
 
 
 def rec(cfg, sport, slot, name, vps, numbers=None):
@@ -58,23 +54,10 @@ def picks(examples):
     return [(team, dict(chosen)) for team, chosen, _ in examples]
 
 
-def reduced_configs(project, templates, views):
-    """Replace the project's configs link with a copy holding only the named templates."""
-    (project / "configs").unlink()
-    d = project / "configs"
-    d.mkdir()
-    for f in (REPO / "configs").iterdir():
-        if f.name != "view_templates.yaml":
-            os.symlink(f, d / f.name)
+def reduced_configs(project, templates, views, **files):
+    """Keep only the named templates in the project's configs, and override any other `files` (helpers.override_configs)."""
     keep = [t for t in templates if t["view_kind"] in views]
-    (d / "view_templates.yaml").write_text(yaml.safe_dump({"templates": keep}))
-    return d
-
-
-def run_main(monkeypatch, *argv):
-    """Call golden_plan.main() with the given arguments."""
-    monkeypatch.setattr(sys, "argv", ["golden_plan.py", *argv])
-    gp.main()
+    override_configs(project, {"view_templates.yaml": {"templates": keep}, **files})
 
 
 # --------------------------------------------------------------------------
@@ -85,9 +68,8 @@ def run_main(monkeypatch, *argv):
 def test_find_root_exits_without_configs(tmp_path, monkeypatch):
     """main() exits when no configs/canvas_definitions.yaml is above the cwd."""
     monkeypatch.chdir(tmp_path)
-    with pytest.raises(SystemExit) as e:
-        run_main(monkeypatch)
-    assert "No configs/canvas_definitions.yaml" in str(e.value)
+    with pytest.raises(SystemExit, match=r"No configs/canvas_definitions\.yaml"):
+        main(monkeypatch, gp)
 
 
 def test_find_root_from_a_subdirectory(project, monkeypatch):
@@ -105,15 +87,16 @@ def test_era_for_uses_post_scale_size(cfg):
 
 
 def test_era_for_tolerance_and_nearest(cfg):
-    """Within 5px matches, 6px does not, and the closest of two candidates wins (E vs E2 helmet backs)."""
+    """Within `tolerance` matches, one px more does not, and the closest of two candidates wins (E vs E2 helmet backs)."""
     e = post(cfg, "football-helmet-back", "E")
     e2 = post(cfg, "football-helmet-back", "E2")
     assert gp.era_for(cfg, "football", "helmet", "back", [e[0] + 1, e[1]]) == "E"
     assert gp.era_for(cfg, "football", "helmet", "back", [e2[0] - 1, e2[1]]) == "E2"
     assert gp.era_for(cfg, "football", "helmet", "back", [e[0] + 3, e[1]]) == "E"
     w = post(cfg, "football-pants-left", "all")
-    assert gp.era_for(cfg, "football", "pants", "left", [w[0] + 5, w[1]]) == "all"
-    assert gp.era_for(cfg, "football", "pants", "left", [w[0] + 6, w[1]]) is None
+    tol = cfg["tolerance"]
+    assert gp.era_for(cfg, "football", "pants", "left", [w[0] + tol, w[1]]) == "all"
+    assert gp.era_for(cfg, "football", "pants", "left", [w[0] + tol + 1, w[1]]) is None
     assert gp.era_for(cfg, "nosport", "pants", "left", w) is None
 
 
@@ -121,11 +104,7 @@ def test_content_size_bbox_and_transparent(tmp_path):
     """content_size() is the opaque bbox, or None when nothing is opaque."""
     p = art(tmp_path / "a.png", (40, 30), (10, 7), top=2)
     assert gp.content_size(p) == (10, 7)
-    from PIL import Image
-
-    q = tmp_path / "b.png"
-    Image.new("RGBA", (12, 9), (0, 0, 0, 0)).save(q)
-    assert gp.content_size(q) is None
+    assert gp.content_size(blank(tmp_path / "b.png", (12, 9))) is None
 
 
 def test_numbers_in_opaque_strings_sorted():
@@ -196,7 +175,11 @@ def test_pick_number_prefers_back(cfg):
 
 def test_every_era_covered_greedily(cfg, templates):
     """Each era of each placed viewpoint appears in an example; one element covering two eras saves an example."""
-    J = lambda n, f, b: rec(cfg, "mens_basketball", "jersey", n, {"front": f, "back": b})  # noqa: E731
+
+    def J(n, f, b):
+        """An inventory record for a mens_basketball jersey element with these eras."""
+        return rec(cfg, "mens_basketball", "jersey", n, {"front": f, "back": b})
+
     inv = {
         "mens_basketball": {
             "Mississippi State": {
@@ -223,7 +206,11 @@ def test_every_era_covered_greedily(cfg, templates):
 
 def test_tq_constraint_splits_baseball_jerseys(cfg, templates):
     """A -tq template takes only three-quarter jerseys; its sibling never does, and neither reports the other's as a gap."""
-    J = lambda n, e: rec(cfg, "baseball", "jersey", n, {"front": e, "back": e}, {"back": ["5"]})  # noqa: E731
+
+    def J(n, e):
+        """An inventory record for a baseball jersey element with these eras."""
+        return rec(cfg, "baseball", "jersey", n, {"front": e, "back": e}, {"back": ["5"]})
+
     inv = {
         "baseball": {
             "Mississippi State": {"jersey": {"2020 White": J("2020 White", "std"), "2021 Gray": J("2021 Gray", "tq")}}
@@ -240,8 +227,15 @@ def test_tq_constraint_splits_baseball_jerseys(cfg, templates):
 
 def test_soccer_combo_keeper_and_cut(cfg, templates):
     """Combos put a field kit in uniform 1 and a keeper in uniform 2, the keeper's cut set by the -ls variant."""
-    J = lambda n, e: rec(cfg, "soccer", "jersey", n, {"front": e, "back": e})  # noqa: E731
-    S = lambda n: rec(cfg, "soccer", "shorts", n, {"front": "all", "back": "all"})  # noqa: E731
+
+    def J(n, e):
+        """An inventory record for a soccer jersey element with these eras."""
+        return rec(cfg, "soccer", "jersey", n, {"front": e, "back": e})
+
+    def S(n):
+        """An inventory record for a soccer shorts element with these eras."""
+        return rec(cfg, "soccer", "shorts", n, {"front": "all", "back": "all"})
+
     inv = {
         "soccer": {
             "Mississippi State": {
@@ -266,16 +260,18 @@ def test_soccer_combo_keeper_and_cut(cfg, templates):
     assert {c[(2, "jersey")] for _, c, _ in ex} == {"2024 Blue Keeper", "2024 Green Keeper"}
     assert {c[(1, "jersey")] for _, c, _ in ex} == {"2024 Maroon"}
     ex, *_ = plan(templates, cfg, "soccer-jersey-ls", inv)
-    assert {c[(1, "jersey")] for _, c, _ in ex} <= {"2024 White LS", "2024 Green Keeper"}
+    assert [c[(1, "jersey")] for _, c, _ in ex] == ["2024 White LS"]
     ex, *_ = plan(templates, cfg, "soccer-jersey", inv)
-    assert all(
-        inv["soccer"]["Mississippi State"]["jersey"][c[(1, "jersey")]]["vps"]["front"]["era"] == "ss" for _, c, _ in ex
-    )
+    assert [c[(1, "jersey")] for _, c, _ in ex] == ["2024 Maroon"]  # short sleeves only: no ls cut, keeper or not
 
 
 def test_volleyball_cuts_and_distinct_combo(cfg, templates):
     """Volleyball -a-b combos take cut a then cut b; a folded combo shows two different jerseys."""
-    J = lambda n, e: rec(cfg, "volleyball", "jersey", n, {"front": e, "back": e})  # noqa: E731
+
+    def J(n, e):
+        """An inventory record for a volleyball jersey element with these eras."""
+        return rec(cfg, "volleyball", "jersey", n, {"front": e, "back": e})
+
     inv = {
         "volleyball": {
             "Mississippi State": {
@@ -288,7 +284,7 @@ def test_volleyball_cuts_and_distinct_combo(cfg, templates):
         }
     }
     ex, *_ = plan(templates, cfg, "volleyball-condensed-combo-ss-ls", inv)
-    assert all(c[(2, "jersey")] == "2022 Gray LS" and c[(1, "jersey")] != "2022 Gray LS" for _, c, _ in ex)
+    assert [c for _, c, _ in ex] == [{(1, "jersey"): "2022 Maroon", (2, "jersey"): "2022 Gray LS"}]
     ex, *_ = plan(templates, cfg, "volleyball-combo", inv)
     assert ex
     assert all(c[(1, "jersey")] != c[(2, "jersey")] for _, c, _ in ex)
@@ -323,7 +319,7 @@ def test_same_year_and_numbered_preferred(cfg, templates):
     assert c[(1, "pants")] == "2015 White Pinstripes"  # same name as the jersey
 
 
-def test_pairing_beats_heuristics(cfg, templates, monkeypatch):
+def test_pairing_beats_heuristics(cfg, templates):
     """A known pairing chooses the jersey and pants over a same-colourway, same-year match."""
     B = "baseball"
     inv = {
@@ -544,7 +540,7 @@ def test_main_rescan_writes_inventory_manifest_and_plan(project, cfg, templates,
     """A first run measures artwork and writes inventory.json, manifest.yaml and PLAN.md covering every era."""
     reduced_configs(project, templates, {"wbk-shorts"})
     draw_wbk(project, cfg)
-    run_main(monkeypatch)
+    main(monkeypatch, gp)
     out = capsys.readouterr().out
     assert "inventory: measuring womens_basketball (not in golden/inventory.json)" in out
     assert "2 element-slots across 1 sports" in out
@@ -573,13 +569,13 @@ def test_main_reuses_cache_and_reresolves_eras(project, cfg, templates, monkeypa
     r["vps"]["front"]["era"] = "stale"
     inv = {M: {"Mississippi State": {"shorts": {"2020 Maroon": r}}}}
     (project / "golden/inventory.json").write_text(json.dumps(inv))
-    run_main(monkeypatch)
+    main(monkeypatch, gp)
     out = capsys.readouterr().out
     assert "reusing golden/inventory.json for womens_basketball (--rescan to refresh) — 1 eras re-resolved" in out
     man = yaml.safe_load((project / "golden/manifest.yaml").read_text())
     assert man[0]["expect_eras"]["1/shorts/front"] == "a"
     # --rescan ignores the cache: there is no artwork, so nothing is found
-    run_main(monkeypatch, "--rescan")
+    main(monkeypatch, gp, "--rescan")
     out = capsys.readouterr().out
     assert "inventory: measuring womens_basketball (--rescan)" in out
     assert "0 element-slots across 0 sports" in out
@@ -630,7 +626,7 @@ def test_main_combo_explicit_constraints_gaps_and_pairings(project, cfg, templat
             }
         )
     )
-    run_main(monkeypatch)
+    main(monkeypatch, gp)
     out = capsys.readouterr().out
     assert "pairings: 1 known uniform from golden/pairings.yaml" in out
     assert "!! 1 era targets not coverable" in out
@@ -661,11 +657,10 @@ def test_main_combo_explicit_constraints_gaps_and_pairings(project, cfg, templat
 
 def test_main_sport_filter_and_plural_pairings(project, cfg, templates, monkeypatch, capsys):
     """--sport limits the plan, an empty pairings file counts zero, and missing slots_global is tolerated."""
-    d = reduced_configs(project, templates, {"wbk-shorts", "condensed", "jersey-full"})
-    (d / "slots_global.yaml").unlink()
+    reduced_configs(project, templates, {"wbk-shorts", "condensed", "jersey-full"}, **{"slots_global.yaml": None})
     (project / "golden/pairings.yaml").write_text("")
     (project / "golden/inventory.json").write_text(json.dumps(football_inv(cfg)))
-    run_main(monkeypatch, "--sport", "football")
+    main(monkeypatch, gp, "--sport", "football")
     out = capsys.readouterr().out
     assert "pairings: 0 known uniforms" in out
     assert "3 examples across 2 templates" in out
@@ -678,23 +673,16 @@ def test_main_sport_filter_and_plural_pairings(project, cfg, templates, monkeypa
 
 def test_main_reads_colorway_tokens_and_labels(project, templates, monkeypatch, capsys):
     """Colourways are read from slots_global.yaml keys, tokens and labels, longest first."""
-    d = reduced_configs(project, templates, {"wbk-shorts"})
-    (d / "slots_global.yaml").unlink()
-    (d / "slots_global.yaml").write_text(
-        yaml.safe_dump(
-            {
-                "colorways": {
-                    "vegas_gold": {"token": "Vegas Gold", "label": "Old Gold"},
-                    "red": None,
-                    "powder": {"label": "Powder Blue"},
-                }
-            }
-        )
-    )
+    colorways = {
+        "vegas_gold": {"token": "Vegas Gold", "label": "Old Gold"},
+        "red": None,
+        "powder": {"label": "Powder Blue"},
+    }
+    reduced_configs(project, templates, {"wbk-shorts"}, **{"slots_global.yaml": {"colorways": colorways}})
     (project / "golden/inventory.json").write_text("{}")
     seen, real = [], gp.plan_template
     monkeypatch.setattr(gp, "plan_template", lambda *a: seen.append(a[4]) or real(*a))
-    run_main(monkeypatch)
+    main(monkeypatch, gp)
     assert seen[0][:2] == ["powder blue", "vegas gold"]
     assert set(seen[0]) == {
         "powder blue",
@@ -704,16 +692,6 @@ def test_main_reads_colorway_tokens_and_labels(project, templates, monkeypatch, 
         "powder",
     }
     assert "NO examples" in capsys.readouterr().out
-
-
-def test_runs_as_a_script(project, monkeypatch, capsys):
-    """Executed as __main__, the script plans from the project it is run in."""
-    import runpy
-
-    (project / "golden/inventory.json").write_text("{}")
-    monkeypatch.setattr(sys, "argv", ["golden_plan.py", "--sport", "womens_basketball"])
-    runpy.run_path(str(REPO / "scripts/golden/golden_plan.py"), run_name="__main__")
-    assert "Wrote golden/manifest.yaml and golden/PLAN.md" in capsys.readouterr().out
 
 
 # --------------------------------------------------------------------------
@@ -737,7 +715,7 @@ def test_main_sport_replaces_only_that_sport_in_manifest_and_plan(project, cfg, 
     """--sport replaces the selected sport's manifest entries and PLAN.md section, keeping every other sport's, edits included."""
     reduced_configs(project, templates, {"wbk-shorts", "condensed", "jersey-full"})
     (project / "golden/inventory.json").write_text(json.dumps(two_sport_inv(cfg)))
-    run_main(monkeypatch)
+    main(monkeypatch, gp)
     full_man = yaml.safe_load((project / "golden/manifest.yaml").read_text())
     full_md = (project / "golden/PLAN.md").read_text()
     assert {m["sport"] for m in full_man} == {"football", "womens_basketball"}
@@ -745,7 +723,7 @@ def test_main_sport_replaces_only_that_sport_in_manifest_and_plan(project, cfg, 
     edited = [dict(m, approved=False) if m["sport"] == "womens_basketball" else m for m in full_man]
     (project / "golden/manifest.yaml").write_text(yaml.safe_dump(edited, sort_keys=False))
     capsys.readouterr()
-    run_main(monkeypatch, "--sport", "football")
+    main(monkeypatch, gp, "--sport", "football")
     out = capsys.readouterr().out
     assert "kept 1 example for other sports: womens_basketball" in out
     assert yaml.safe_load((project / "golden/manifest.yaml").read_text()) == edited
@@ -757,12 +735,12 @@ def test_main_sport_replaces_only_that_sport_in_manifest_and_plan(project, cfg, 
     (project / "golden/PLAN.md").write_text(
         full_md.split("\n## Football\n")[0] + "\n## Womens Basketball\n" + full_md.split("\n## Womens Basketball\n")[1]
     )
-    run_main(monkeypatch, "--sport", "football")
+    main(monkeypatch, gp, "--sport", "football")
     assert yaml.safe_load((project / "golden/manifest.yaml").read_text()) == edited
     assert (project / "golden/PLAN.md").read_text() == full_md
 
 
-def test_main_sport_header_counts_kept_sections(project, cfg, templates, monkeypatch, capsys):
+def test_main_sport_header_counts_kept_sections(project, cfg, templates, monkeypatch):
     """PLAN.md's header totals examples, templates, empty templates and gaps across kept and re-planned sports."""
     reduced_configs(project, templates, {"wbk-shorts", "condensed", "jersey-full", "volleyball-condensed-combo-ss-ls"})
     inv = two_sport_inv(cfg)
@@ -770,11 +748,11 @@ def test_main_sport_header_counts_kept_sections(project, cfg, templates, monkeyp
         cfg, "football", "jersey", "2021 Odd", {"front": None}
     )
     (project / "golden/inventory.json").write_text(json.dumps(inv))
-    run_main(monkeypatch)
+    main(monkeypatch, gp)
     full_md = (project / "golden/PLAN.md").read_text()
     assert "## ⚠ 1 template have NO examples" in full_md
     assert "era targets could not be covered" in full_md
-    run_main(monkeypatch, "--sport", "womens_basketball")
+    main(monkeypatch, gp, "--sport", "womens_basketball")
     assert (project / "golden/PLAN.md").read_text() == full_md
 
 
@@ -782,10 +760,10 @@ def test_main_sport_warns_when_a_kept_sport_has_no_plan_section(project, cfg, te
     """A kept sport with manifest entries but no PLAN.md section is kept and named, so a full re-plan can restore it."""
     reduced_configs(project, templates, {"wbk-shorts", "condensed"})
     (project / "golden/inventory.json").write_text(json.dumps(two_sport_inv(cfg)))
-    run_main(monkeypatch)
+    main(monkeypatch, gp)
     (project / "golden/PLAN.md").unlink()
     capsys.readouterr()
-    run_main(monkeypatch, "--sport", "womens_basketball")
+    main(monkeypatch, gp, "--sport", "womens_basketball")
     out = capsys.readouterr().out
     assert "PLAN.md had no section for football" in out
     assert {m["sport"] for m in yaml.safe_load((project / "golden/manifest.yaml").read_text())} == {
@@ -797,7 +775,7 @@ def test_main_sport_warns_when_a_kept_sport_has_no_plan_section(project, cfg, te
 def test_main_sport_unknown_exits(project, monkeypatch):
     """--sport naming a sport with no template exits before writing anything."""
     with pytest.raises(SystemExit, match="No templates for sport: curling"):
-        run_main(monkeypatch, "--sport", "curling")
+        main(monkeypatch, gp, "--sport", "curling")
     assert not (project / "golden/manifest.yaml").exists()
 
 
@@ -818,12 +796,12 @@ def test_inventory_records_its_sports_and_extends_when_one_is_missing(project, c
     reduced_configs(project, templates, {"wbk-shorts", "jersey-full"})
     draw_wbk(project, cfg)
     draw_football_jerseys(project, cfg)
-    run_main(monkeypatch, "--sport", "womens_basketball")
+    main(monkeypatch, gp, "--sport", "womens_basketball")
     saved = json.loads((project / "golden/inventory.json").read_text())
     assert saved["sports"] == ["womens_basketball"]
     assert set(saved["elements"]) == {"womens_basketball"}
     capsys.readouterr()
-    run_main(monkeypatch)
+    main(monkeypatch, gp)
     out = capsys.readouterr().out
     assert "inventory: measuring football (not in golden/inventory.json)" in out
     saved = json.loads((project / "golden/inventory.json").read_text())
@@ -831,18 +809,18 @@ def test_inventory_records_its_sports_and_extends_when_one_is_missing(project, c
     man = yaml.safe_load((project / "golden/manifest.yaml").read_text())
     assert [m["uniform1"] for m in man if m["view"] == "jersey-full"] == [{"jersey": "2016 White"}]
     # now everything needed is cached: reused, nothing measured
-    run_main(monkeypatch)
+    main(monkeypatch, gp)
     assert "inventory: reusing golden/inventory.json" in capsys.readouterr().out
 
 
-def test_rescan_with_sport_keeps_other_sports_inventory(project, cfg, templates, monkeypatch, capsys):
+def test_rescan_with_sport_keeps_other_sports_inventory(project, cfg, templates, monkeypatch):
     """--rescan --sport re-measures only the selected sport and keeps the rest of the cached inventory."""
     reduced_configs(project, templates, {"wbk-shorts", "condensed"})
     (project / "golden/inventory.json").write_text(
         json.dumps({"sports": ["football", "womens_basketball"], "elements": two_sport_inv(cfg)})
     )
     draw_wbk(project, cfg)
-    run_main(monkeypatch, "--rescan", "--sport", "womens_basketball")
+    main(monkeypatch, gp, "--rescan", "--sport", "womens_basketball")
     saved = json.loads((project / "golden/inventory.json").read_text())
     assert saved["sports"] == ["football", "womens_basketball"]
     assert saved["elements"]["football"] == football_inv(cfg)["football"]
@@ -858,7 +836,7 @@ def test_legacy_inventory_covers_the_sports_it_holds(project, cfg, templates, mo
         M: {"Mississippi State": {"shorts": {"2020 Maroon": rec(cfg, M, "shorts", "2020 Maroon", {"front": "a"})}}}
     }
     (project / "golden/inventory.json").write_text(json.dumps(legacy))
-    run_main(monkeypatch)
+    main(monkeypatch, gp)
     out = capsys.readouterr().out
     assert "inventory: measuring football (not in golden/inventory.json)" in out
     saved = json.loads((project / "golden/inventory.json").read_text())
@@ -866,13 +844,13 @@ def test_legacy_inventory_covers_the_sports_it_holds(project, cfg, templates, mo
     assert saved["elements"][M] == legacy[M]
 
 
-def test_root_flag_and_manifest_header(project, tmp_path, monkeypatch, capsys):
+def test_root_flag_and_manifest_header(project, tmp_path, monkeypatch):
     """--root plans a project from elsewhere, and the manifest it writes warns that a re-plan overwrites it."""
     (project / "golden/inventory.json").write_text("{}")
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     monkeypatch.chdir(elsewhere)
-    run_main(monkeypatch, "--root", str(project), "--sport", "womens_basketball")
+    main(monkeypatch, gp, "--root", str(project), "--sport", "womens_basketball")
     text = (project / "golden/manifest.yaml").read_text()
     assert text.startswith(gp.MANIFEST_HEADER)
     assert "WARNING: golden_plan.py OVERWRITES this file." in text

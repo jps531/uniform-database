@@ -25,13 +25,24 @@ package = false
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["scripts/pipeline", "scripts/migration", "scripts/golden", "tests"]
-addopts = "--cov --cov-report=term-missing --cov-report=json"
+# Coverage runs only when asked for with --cov (CI and the documented full
+# run: `uv run pytest -n auto --cov`), so a one-file run never overwrites
+# coverage.json with partial data; the reports below apply when it does run.
+# loadgroup keeps each xdist_group (test_golden_ci's module) on one worker.
+# NOTE: pytest-xdist 3.8 tags groups via item._nodeid, which pytest 9.2 no
+# longer reads, so for now loadgroup schedules like plain `load`.
+addopts = "--cov-report=term-missing --cov-report=json --dist loadgroup"
 
 [tool.coverage.run]
 branch = true
 source = ["scripts"]
 # golden_ci.py and golden_run.py run other scripts as subprocesses; measure those too.
 patch = ["subprocess"]
+
+[tool.coverage.report]
+# Lines only a missing install or a direct `python script.py` reach: tests
+# import the scripts and call main(), so testing these would only pad coverage.
+exclude_also = ["except ImportError:", "if __name__ == .__main__.:"]
 
 [tool.coverage.json]
 output = "coverage.json"
