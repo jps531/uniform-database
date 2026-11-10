@@ -61,7 +61,10 @@ def png_set(folder: Path) -> set:
     """Every visible PNG under `folder`, as paths relative to it."""
     if not folder.is_dir():
         return set()
-    return {f.relative_to(folder) for f in folder.rglob("*.png") if not any(p.startswith(".") for p in f.parts)}
+    # Judge hidden-ness inside `folder` only: a dot-folder above it (a checkout
+    # under .claude/, say) used to hide every file and read as an empty fixture.
+    rels = (f.relative_to(folder) for f in folder.rglob("*.png"))
+    return {r for r in rels if not any(p.startswith(".") for p in r.parts)}
 
 
 def same_pixels(a: Path, b: Path) -> bool:

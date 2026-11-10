@@ -138,8 +138,16 @@ def test_content_size_bbox_and_transparent(tmp_path):
 def test_numbers_in_opaque_strings_sorted():
     """Numbers are strings after the element name, '03' distinct from '3', shortest then lexical."""
     stems = ["2015 White", "2015 White 03", "2015 White 3", "2015 White 19 Grad", "Other 7"]
-    assert gp.numbers_in(stems, "2015 White") == ["3", "7", "03", "19"]
-    assert gp.numbers_in(["2015 White 85s"], "2015 White 85s") == []
+    assert gp.numbers_in(stems, "2015 White", ["Grad"]) == ["3", "7", "03", "19"]
+    assert gp.numbers_in(["2015 White 85s"], "2015 White 85s", []) == []
+
+
+def test_numbers_in_strips_patch_tokens_ending_in_digits():
+    """CWS21 and SEC75 are patch tokens, not numbers: vocabulary tokens are stripped first, as compose does."""
+    vocab = gp.load_vocab(REPO, "baseball")[0]
+    assert {"CWS21", "SEC75"} <= set(vocab)
+    assert gp.numbers_in(["2021 White", "2021 White CWS21"], "2021 White", vocab) == []
+    assert gp.numbers_in(["2021 White 7 CWS21", "2021 White SEC75 18 Girodo"], "2021 White", vocab) == ["7", "18"]
 
 
 def test_constraints_and_describe(templates):
@@ -503,6 +511,15 @@ def test_build_inventory_measures_one_file_per_view(project, cfg):
     }
     w = els["2021 White"]["vps"]["front"]
     assert w["era"] == "b" and w["numbers"] == ["12"]
+
+
+def test_build_inventory_reads_numbers_past_patch_tokens(project, cfg):
+    """A baseball jersey whose only patched file is CWS21 has no numbers, so the planner requests none."""
+    d = project / "Baseball" / "Mississippi State" / "Jerseys Back" / "2021 White"
+    art(d / "2021 White.png", (40, 40))
+    art(d / "2021 White CWS21.png", (40, 40))
+    inv = gp.build_inventory(project, cfg, ["baseball"])
+    assert inv["baseball"]["Mississippi State"]["jersey"]["2021 White"]["vps"]["back"]["numbers"] == []
 
 
 # --------------------------------------------------------------------------
