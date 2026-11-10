@@ -59,6 +59,7 @@ TRAILING_NUM = re.compile(r"^(?P<desc>.+?)\s(?P<number>\d{1,2})$")
 
 
 def find_root(start: Path) -> Path:
+    """Walk up for the directory containing configs/canvas_definitions.yaml."""
     for d in [start, *start.parents]:
         if (d / "configs" / "canvas_definitions.yaml").is_file():
             return d
@@ -129,12 +130,8 @@ def shell_by_era(root: Path) -> dict:
     }
 
 
-def load_profile(root: Path, name: str):
-    cfg = yaml.safe_load((root / "configs" / "canvas_definitions.yaml").open())
-    return cfg.get("profiles", {}).get(name), cfg.get("tolerance", 3)
-
-
 def content_size(path: Path):
+    """Width and height of the non-transparent bbox, or None if empty."""
     with Image.open(path).convert("RGBA") as im:
         box = im.getchannel("A").getbbox()
     if box is None:
@@ -147,6 +144,13 @@ def plan_nested(src_root: Path, dest_root: Path, team: str, root: Path):
     content size where the filename does not already carry one."""
     if Image is None:
         sys.exit("pip install pillow  (nested mode reads image sizes)")
+    # Path parsing and the sport-qualified profile key are shared with `pad`.
+    # Imported here because standardize.py requires Pillow and the flat
+    # modes do not.
+    from standardize import lookup, parse_dest
+
+    cfg = yaml.safe_load((root / "configs" / "canvas_definitions.yaml").open())
+    tol = cfg.get("tolerance", 3)
     era_shell = shell_by_era(root)
     shell_names = sorted(era_shell.values(), key=len, reverse=True)
     moves, problems = [], []
@@ -160,11 +164,28 @@ def plan_nested(src_root: Path, dest_root: Path, team: str, root: Path):
             skipped_dirs.append((view_dir.name, "generated output"))
             continue
         viewpoint = view_dir.name.split()[-1]
-        profile, tol = load_profile(root, f"helmet-{viewpoint.lower()}")
+        # Only left/right are stored as marks. Front/back stay in place, and
+        # any suffixed directory (e.g. "... STD") is not a source. This used
+        # to fall out of the profile lookup missing; front and back DO have
+        # profiles, so it has to be said explicitly.
+        if viewpoint not in SIDE_TO_VIEWPOINT.values():
+            skipped_dirs.append((view_dir.name, "not a mark viewpoint"))
+            continue
+        # Profiles are keyed {sport}-{slot}-{viewpoint}. Resolve the key from
+        # the DESTINATION directory (Marks/Football/<Team>/Helmets <View>),
+        # the same parse `pad` uses, so the sport comes from the path rather
+        # than being assumed. Leaving it out gave `helmet-left`, which is not
+        # a key, and every viewpoint was skipped as having no profile.
+        parsed = parse_dest(dest_root / team / view_dir.name, root, cfg)
+        if parsed is None:
+            skipped_dirs.append(
+                (view_dir.name, f"dest {dest_root} is not a sport tree")
+            )
+            continue
+        sport, _team, slot, vp = parsed
+        _canvas, profile, (_canvas_name, key) = lookup(cfg, sport, slot, vp)
         if not profile:
-            # Only left/right are stored as marks. Front/back stay in place,
-            # and any suffixed directory (e.g. "... STD") is not a source.
-            skipped_dirs.append((view_dir.name, "no profile — not a mark viewpoint"))
+            skipped_dirs.append((view_dir.name, f"no profile {key}"))
             continue
 
         for element_dir in sorted(d for d in view_dir.iterdir() if d.is_dir()):
@@ -311,6 +332,7 @@ def plan(src_root: Path, dest_root: Path, colorways: set):
 
 
 def main():
+    """Plan the migration for the chosen mode, report it, and copy on --apply."""
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
