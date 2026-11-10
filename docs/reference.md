@@ -87,9 +87,12 @@ Token kinds, in `modifiers_{sport}.yaml`:
   soccer, volleyball and courts each `extends: shared`. Softball
   `extends: baseball`, and `mens_basketball` and `womens_basketball` each
   `extends: basketball`, so they reach shared through it. A token redefined
-  in a sport's file wins. Courts have their own vocabulary. Every sport slug
-  needs a file — softball's and both basketballs' hold only the `extends`
-  and `tokens: {}`.
+  in a sport's file wins; `colorways` MERGE down the chain (baseball's own
+  list adds to shared's, so it still knows `purple`). Courts have their own
+  vocabulary. Every sport slug needs a file — softball's and both
+  basketballs' hold only the `extends` and `tokens: {}` — and a missing
+  file or an `extends` loop stops every script that reads it, naming the
+  file. One loader, `common.load_vocabulary`, serves them all.
 - **Add every new colorway to `slots_global.yaml` too.** It drifted seven
   colorways behind the sport files once; cross-sport colour search depends on
   the global list. `tests/test_configs.py` now checks it.
@@ -198,7 +201,8 @@ minus everything that isn't design:
   design vocabulary (`18 Girodo`). Eyeball the extracted surnames after any
   parse.
 - Match the vocabulary by LONGEST MATCH first: `Flying M` and `M over S` end
-  in a capital, `DWS100` in digits.
+  in a capital, `DWS100` in digits. Tokens of one length go alphabetically,
+  so a dry run prints the same way every time.
 
 ## Composition
 
@@ -269,7 +273,7 @@ and a pad that writes nothing leaves no destination and no marker.
 |---|---|
 | `standardize.py pad` | authored source only |
 | `recanvas.py` | standardized files → a new canvas, scale untouched. Slot canvas only, top-centre: a cut with its own era `canvas:` is reported as too big, not placed |
-| `classify.py` | anything you're unsure of: RAW / OLD-STD / NEW-STD, SCALED. On a `fills: fill` canvas it says FILL: canvas size can't tell source from output there |
+| `classify.py` | anything you're unsure of: RAW / OLD-STD / NEW-STD, SCALED. On a `fills: fill` canvas it says FILL: canvas size can't tell source from output there. It reads a viewpoint folder as `pad` does, so a `… STD` sibling classifies too |
 
 A standardized tree can't be surveyed for era coverage either — survey the
 source, then verify output by checking each file equals its canvas.
@@ -297,9 +301,13 @@ source, then verify output by checking each file equals its canvas.
 
 - iCloud evicts files to `.name.png.icloud`. Run
   `find . -name "*.icloud" -exec brctl download {} \;` before any scan.
-- Finder "rotate" writes an EXIF tag rather than rotating pixels. Scripts
-  apply `exif_transpose`, but on a SQUARE image a wrong orientation is
-  invisible to every size check — 37 pants icons composed sideways once.
+- Finder "rotate" writes an EXIF tag rather than rotating pixels. Every
+  script opens artwork through `common.open_rgba`, which applies
+  `exif_transpose`, but on a SQUARE image a wrong orientation is invisible
+  to every size check — 37 pants icons composed sideways once.
+- Hidden files are skipped by one rule (`common.pngs`): any dot-file or
+  dot-folder below the folder being walked, so AppleDouble `._*.png` files
+  never count as artwork, and a checkout under a dot-folder isn't hidden.
 - DPI has arrived as 300, 150, 144, 72 and untagged. Photoshop places by
   physical size, so mixed DPI makes transform percentages meaningless.
 - Jersey backs can't distinguish Nike early (1414x2042) from Adidas D
@@ -313,9 +321,12 @@ source, then verify output by checking each file equals its canvas.
   standardized in place sit on their padded canvas (the slot's, or an
   era's own) and are skipped, so run it on authored or raw source.
 - Inside overlapping tolerance windows (helmet back E/E2, 669–672px — see
-  `canvas_definitions.yaml`), `classify` and the golden suite pick the
-  CLOSEST era, while `pad`, `offsize` and `migrate_marks` still take the
-  first listed. One shared matcher, closest-wins, is planned.
+  `canvas_definitions.yaml`), every script picks the CLOSEST era (smallest
+  |dw| + |dh|, ties to the first listed): one matcher, `common.match_era`,
+  serves `pad`, `survey`, `offsize`, `migrate_marks`, `classify` and the
+  golden suite. `pad`, `offsize` and `migrate_marks` used to take the first
+  listed, so 671px was E there and E2 everywhere else. Tolerance comes only
+  from the config; a config without `tolerance` exits.
 - Exporting from Numbers: CSV cells keep their displayed decimal places, so
   set them before exporting or scales round to integers.
 
